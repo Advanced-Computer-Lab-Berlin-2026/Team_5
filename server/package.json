@@ -1,0 +1,20 @@
+{
+  "name": "acl-backend",
+  "version": "1.0.0",
+  "description": "This is the backend for our acl-team-5-project",
+  "homepage": "https://github.com/Advanced-Computer-Lab-Berlin-2026/Team_5#readme",
+  "bugs": {
+    "url": "https://github.com/Advanced-Computer-Lab-Berlin-2026/Team_5/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Advanced-Computer-Lab-Berlin-2026/Team_5.git"
+  },
+  "license": "ISC",
+  "author": "Martin Shihata & et. al",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run test"
+  }
+}
