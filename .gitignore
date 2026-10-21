@@ -1,3 +1,4 @@
 .env
 .codex
 node_modules
+coverage
