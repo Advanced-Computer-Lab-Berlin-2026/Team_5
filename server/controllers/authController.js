@@ -5,12 +5,28 @@ import crypto from 'node:crypto';
 import { env } from '../config/env.js'
 import { User } from '../models/User.js';
 import { RefreshSession } from '../models/RefreshSession.js';
+import { PasswordReset } from '../models/PasswordReset.js';
+import { sendResetEmail } from '../services/emailService.js';
 
 const PHONE_NUMBER_REGEX_PATTERN = /^\+[1-9]\d{1,14}$/;
 
+const forgotPasswordSchema = joi.object({
+    email: joi.string().trim().email().required()
+});
+
+const resetPasswordSchema = joi.object({
+    resetToken: joi.string().pattern(/^[a-f0-9]{64}$/).required(),
+    newPassword: joi.string().min(6).max(40).required()
+});
+
+const verifyResetOtpSchema = joi.object({
+    email: joi.string().trim().email().required(),
+    otp: joi.string().pattern(/^\d{6}$/).required()
+});
+
 const userSchema = joi.object(
     {
-        username: joi.string().min(6).max(20).required(),
+        username: joi.string().min(4).max(20).required(),
         name: joi.string().trim().min(2).max(20).required(),
         email: joi.string().trim().email().required(),
         password: joi.string().min(6).max(40).required(),
@@ -163,6 +179,107 @@ export async function refresh(req, res, next) {
         setRefreshCookie(res, newRefreshToken);
         return res.status(200).json({ accessToken });
     } catch(error) {
+        next(error);
+    }
+}
+
+// POST /api/auth/forgot-password
+export async function forgetPassword(req, res, next) {
+    
+    try {
+        const { value, error } = forgotPasswordSchema.validate(req.body ?? {});
+        if (error) return res.status(400).json({ message: error.message });
+       
+        const user = await User.findOne({ email: value.email });
+        const message = 'If an account exists, a reset code has been sent.';
+        if (!user) return res.status(200).json({ message });
+        
+        const otp = crypto
+            .randomInt(0, 1_000_000)
+            .toString()
+            .padStart(6, '0');
+
+        const codeHash = await bcrypt.hash(otp, 10);
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+        await PasswordReset.findOneAndUpdate(
+            { userId: user._id },
+            { $set: { codeHash, expiresAt, attempts: 0 }, $unset: { resetTokenHash: 1 } },
+            { upsert: true, runValidators: true }
+        );
+
+        await sendResetEmail(user.email, otp);
+
+        return res.status(200).json({ message });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// POST /api/auth/verify-reset-otp
+export async function verifyResetOtp(req, res, next) {
+    const { value, error } = verifyResetOtpSchema.validate(req.body ?? {});
+    if (error) return res.status(400).json({ message: error.message });
+
+    const invalid = () => res.status(401).json({ message: 'Invalid or expired reset code' });
+    try {
+        const user = await User.findOne({ email: value.email });
+        if (!user) return invalid();
+
+        const reset = await PasswordReset.findOneAndUpdate({
+            userId: user._id,
+            expiresAt: { $gt: new Date() },
+            attempts: { $lt: 5 },
+            resetTokenHash: { $exists: false }
+        }, { $inc: { attempts: 1 } }, { new: true });
+
+        if (!reset || !(await bcrypt.compare(value.otp, reset.codeHash))) return invalid();
+
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+        // Only one concurrent verification can exchange this code for a token.
+        const result = await PasswordReset.updateOne({
+            _id: reset._id,
+            codeHash: reset.codeHash,
+            expiresAt: { $gt: new Date() },
+            resetTokenHash: { $exists: false }
+        }, { $set: { resetTokenHash, expiresAt } });
+        
+        if (result.modifiedCount !== 1) return invalid();
+
+        res.set('Cache-Control', 'no-store');
+        return res.status(200).json({ resetToken, expiresIn: 300 });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// POST /api/auth/reset-password
+export async function resetPassword(req, res, next) {
+    const { value, error } = resetPasswordSchema.validate(req.body ?? {});
+    if (error) return res.status(400).json({ message: error.message });
+
+    try {
+        const resetTokenHash = crypto.createHash('sha256').update(value.resetToken).digest('hex');
+        // Consume the credential atomically so it cannot authorize two password changes.
+        const reset = await PasswordReset.findOneAndDelete({
+            resetTokenHash,
+            expiresAt: { $gt: new Date() }
+        });
+        if (!reset) return res.status(401).json({ message: 'Invalid or expired reset token' });
+
+        const password = await bcrypt.hash(value.newPassword, 10);
+        const result = await User.updateOne({ _id: reset.userId }, { $set: { password } }, { runValidators: true });
+        if (result.matchedCount !== 1) {
+            return res.status(401).json({ message: 'Invalid or expired reset token' });
+        }
+
+        await RefreshSession.deleteMany({ userId: reset.userId });
+        res.clearCookie('refreshToken', { path: '/api/auth' });
+        res.set('Cache-Control', 'no-store');
+        return res.status(200).json({ message: 'Password reset successfully. Please log in.' });
+    } catch (error) {
         next(error);
     }
 }
