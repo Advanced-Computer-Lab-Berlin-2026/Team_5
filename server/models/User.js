@@ -19,7 +19,16 @@ const UserSchema = new mongoose.Schema(
             required: true
         },
         phoneNumber: {type: String},
-        homeAddress: {type: String}
+        homeAddress: {type: String},
+        wishlist: [{
+            type: String, 
+            ref: 'Item' 
+        }],
+        wallet: {
+            type: Number,
+            default: 0
+        }   
+        
     }
 );
 
