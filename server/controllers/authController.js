@@ -1,17 +1,26 @@
+import jwt from 'jsonwebtoken';
 import joi from 'joi';
 import bcrypt from 'bcrypt';
+import { env } from '../config/env.js'
 import { Member } from '../models/Member.js';
 
 const PHONE_NUMBER_REGEX_PATTERN = /^\+[1-9]\d{1,14}$/;
 
 const memberSchema = joi.object(
     {
-        username: joi.string().trim().min(6).max(20).required(),
+        username: joi.string().min(6).max(20).required(),
         name: joi.string().trim().min(2).max(20).required(),
         email: joi.string().trim().email().required(),
-        password: joi.string().trim().min(6).max(40).required(),
+        password: joi.string().min(6).max(40).required(),
         phoneNumber: joi.string().pattern(PHONE_NUMBER_REGEX_PATTERN).allow(''),
         homeAddress: joi.string().allow('')
+    }
+);
+
+const loginSchema = joi.object(
+    {
+        username: joi.string().required(),
+        password: joi.string().required()
     }
 );
 
@@ -34,11 +43,35 @@ export async function registerMember(req, res, next){
     }
 }
 
-// function publishUser(user){
-//     return {
-//         id: user._id.toString(),
-//         username: user.username,
-//         name: user.name,
-//         email: user.email
-//     };
-// }
+//POST /api/auth/login
+export async function login(req, res, next) {
+    try{
+        const { value, error } = loginSchema.validate(req.body);
+        if (error) return res.status(400).json({ message: error.message });
+
+        const user = await Member.findOne({ username: value.username })
+        if (!user) return res.status(401).json({ message: "Username or Password is incorrect!"});
+        
+        const passwordMatches = await bcrypt.compare(value.password, user.password);
+        if (!passwordMatches) return res.status(401).json({ message: "Username or Password is incorrect!"});
+ 
+        const token = signToken(user);
+        res.status(200).json({ token, user: publishUser(user)});
+    } catch(error){
+        next(error);
+    }
+}
+
+function signToken(user){
+    const payload = {id: user._id.toString(), username:user.username};
+    return jwt.sign(payload, env.jwtSecret, { expiresIn: '12h'} );
+}
+
+function publishUser(user){
+    return {
+        id: user._id.toString(),
+        username: user.username,
+        name: user.name,
+        email: user.email
+    };
+}

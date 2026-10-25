@@ -1,9 +1,11 @@
 import express from "express";
-
+import dns from 'dns';
 import authRoutes from './routes/auth.js';
 // Define route imports
 
 const app = express();
+
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 app.use(express.json());
 
@@ -20,7 +22,8 @@ app.use( (req, res) =>
   res.status(404).json({ message : "Endpoint not found"})
 );
 
-app.use((err, req, res) => {
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
   console.error(err);
   res.status(err.status || 500).json({ message: err.message || 'Server Error' });
 });
