@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { env } from '../config/env.js';
 
 // Replace these with your email provider's SMTP host and your sender address.
 const SMTP_HOST = 'smtp.gmail.com';
@@ -12,7 +13,7 @@ export async function sendResetEmail(email, otp) {
         secure: SMTP_PORT === 465,
         auth: {
             user: SENDER_EMAIL,
-            pass: process.env.SMTP_PASS
+            pass: env.smtpPass
         }
     });
 

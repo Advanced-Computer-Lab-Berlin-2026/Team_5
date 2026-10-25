@@ -44,9 +44,9 @@ const validMember = {
 
 const invalidMembers= [
     { ...validMember, email: 'invalidEmail'},
-    {...validMember, password: 'short'},
+    {...validMember, password: 'sho'},
     {}, // Missing required fields
-    { ...validMember, username: 'short' },
+    { ...validMember, username: 'sho' },
     { ...validMember, name: '' },
     { ...validMember, password: 'x'.repeat(41) },
     { ...validMember, phoneNumber: 'invalid' }

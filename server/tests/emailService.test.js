@@ -1,16 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import nodemailer from 'nodemailer';
 import { sendResetEmail } from '../services/emailService.js';
 
 vi.mock('nodemailer', () => ({ default: { createTransport: vi.fn() } }));
+vi.mock('../config/env.js', () => ({
+    env: { smtpPass: 'test-only-smtp-password' }
+}));
 const sendMail = vi.fn();
 beforeEach(() => {
     vi.resetAllMocks();
-    vi.stubEnv('SMTP_PASS', 'test-only-smtp-password');
     nodemailer.createTransport.mockReturnValue({ sendMail });
     sendMail.mockResolvedValue({});
 });
-afterEach(() => vi.unstubAllEnvs());
 
 describe('sendResetEmail', () => {
     it('uses Gmail SMTP and sends the OTP under the ACL Support name', async () => {
