@@ -4,11 +4,17 @@ import fs from "node:fs";
 import path from "node:path";
 import app from "../app.js";
 import { LenderRequest } from "../models/LenderRequest.js";
+import { User } from "../models/User.js";
 import { UPLOAD_DIR } from "../middleware/uploadLenderDocument.js";
 
 // Mock the LenderRequest model. 
 vi.mock('../models/LenderRequest.js', () => ({
     LenderRequest: Object.assign(vi.fn(), { findOne: vi.fn() })
+}));
+
+// Mock the User model: submitting also marks the user's verification status as pending.
+vi.mock('../models/User.js', () => ({
+    User: { findByIdAndUpdate: vi.fn() }
 }));
 
 const USER_ID = '64b000000000000000000001';
@@ -38,6 +44,7 @@ beforeEach(() => {
     filesBefore = fs.readdirSync(UPLOAD_DIR);
 
     LenderRequest.findOne.mockResolvedValue(null);
+    User.findByIdAndUpdate.mockResolvedValue({});
     LenderRequest.mockImplementation(function (data) {
         return fakeRequest(data);
     });
@@ -296,6 +303,7 @@ describe('POST /api/lender-requests/submit', () => {
         expect(draft.status).toBe('pending');
         expect(draft.save).toHaveBeenCalledOnce();
         expect(LenderRequest.findOne).toHaveBeenCalledWith({ user: USER_ID, status: { $in: ['draft', 'pending'] } });
+        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(USER_ID, { verificationStatus: 'pending' });
     });
 
     it('returns 401 when not logged in', async () => {
@@ -327,6 +335,7 @@ describe('POST /api/lender-requests/submit', () => {
         expect(response.body.message).toBe(message);
         expect(draft.status).toBe('draft');
         expect(draft.save).not.toHaveBeenCalled();
+        expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
     });
 
     it('returns 409 when the request was already submitted', async () => {
@@ -339,15 +348,17 @@ describe('POST /api/lender-requests/submit', () => {
 
         expect(response.status).toBe(409);
         expect(submitted.save).not.toHaveBeenCalled();
+        expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
     });
 
-    it.each(['findOne', 'save'])(
+    it.each(['findOne', 'save', 'findByIdAndUpdate'])(
         'returns 500 when %s fails',
         async (operation) => {
         const draft = fakeRequest({ idDocument: { originalName: 'id.pdf' }, proofOfAddress: { originalName: 'addressproof.pdf' } });
         LenderRequest.findOne.mockResolvedValue(draft);
         if (operation === 'findOne') LenderRequest.findOne.mockRejectedValue(new Error('Database unavailable'));
         if (operation === 'save') draft.save.mockRejectedValue(new Error('Database unavailable'));
+        if (operation === 'findByIdAndUpdate') User.findByIdAndUpdate.mockRejectedValue(new Error('Database unavailable'));
 
         const response = await request(app)
             .post(`${BASE_URL}/submit`)

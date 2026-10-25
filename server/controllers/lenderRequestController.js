@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { LenderRequest } from '../models/LenderRequest.js';
+import { User } from '../models/User.js';
 import { UPLOAD_DIR } from '../middleware/uploadLenderDocument.js';
 
 // CLOUDINARY: uncomment when Cloudinary is set up.
@@ -85,6 +86,8 @@ export async function submitRequest(req, res, next) {
 
         request.status = 'pending';
         await request.save();
+        await User.findByIdAndUpdate(req.user.id, { verificationStatus: 'pending' });
+
 
         res.status(200).json(request);
     } catch (error) {
