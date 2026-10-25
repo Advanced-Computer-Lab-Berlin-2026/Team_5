@@ -20,6 +20,28 @@ if (!PORT) {
   process.exit(1);
 }
 
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET){
+  console.error("Error: JWT_SECRET is not defined in the .env file.");
+  process.exit(1);
+}
+
+const MONGODB_URI = process.env.MONGODB_URI;
+if(!MONGODB_URI){
+  console.error("Error: MONGODB_URI is not defined in the .env file.");
+  process.exit(1);
+}
+
+const SMTP_PASS = process.env.SMTP_PASS;
+if(!SMTP_PASS){
+  console.error("Error: SMTP_PASS is not defined in the .env file.");
+  process.exit(1);
+}
+
 export const env = {
   backendPort: PORT,
+  jwtSecret: JWT_SECRET,
+  mongoDB: MONGODB_URI,
+  smtpPass: SMTP_PASS
 };
