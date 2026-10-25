@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import app from "../app.js";
 import { LenderRequest } from "../models/LenderRequest.js";
+import { User } from "../models/User.js";
 import { UPLOAD_DIR } from "../middleware/uploadLenderDocument.js";
 
 // Mock the LenderRequest model with the two functions the admin controller uses: find and findById.
@@ -14,8 +15,14 @@ vi.mock('../models/LenderRequest.js', () => ({
     }
 }));
 
+// Mock the User model: accepting or rejecting also updates the applicant.
+vi.mock('../models/User.js', () => ({
+    User: { findByIdAndUpdate: vi.fn() }
+}));
+
 const ADMIN_ID = '64b0000000000000000000aa';
 const REQUEST_ID = '64b0000000000000000000bb';
+const APPLICANT_ID = '64b0000000000000000000cc';
 const BASE_URL = '/api/admin/lender-requests';
 const USER_FIELDS = 'username name email phoneNumber homeAddress';
 
@@ -37,6 +44,7 @@ beforeEach(() => {
 
     LenderRequest.find.mockReturnValue({ populate: vi.fn().mockReturnValue({ sort: vi.fn().mockResolvedValue([sampleRequest]) }) });
     LenderRequest.findById.mockReturnValue({ populate: vi.fn().mockResolvedValue(sampleRequest) });
+    User.findByIdAndUpdate.mockResolvedValue({});
 });
 
 afterEach(() => {
@@ -217,6 +225,123 @@ describe('GET /api/admin/lender-requests/:id/documents/:slot', () => {
         LenderRequest.findById.mockRejectedValue(new Error('Database unavailable'));
 
         const response = await asAdmin(request(app).get(`${BASE_URL}/${REQUEST_ID}/documents/idDocument`));
+
+        expect(response.status).toBe(500);
+    });
+});
+
+// A submitted request the way findById returns it for a decision (user is the applicant's id, not populated).
+function pendingRequest(fields = {}) {
+    return { _id: REQUEST_ID, status: 'pending', user: APPLICANT_ID, save: vi.fn().mockResolvedValue(), ...fields };
+}
+
+const invalidDecisions = [
+    {},
+    { decision: 'maybe' },
+    { decision: 'reject' },
+    { decision: 'reject', reason: '   ' },
+    { decision: 'accept', reason: 'Looks good' }
+];
+
+describe('PATCH /api/admin/lender-requests/:id/decision', () => {
+    it('returns 200, approves the request and makes the user a verified lender', async () => {
+        const pending = pendingRequest();
+        LenderRequest.findById.mockResolvedValue(pending);
+
+        const response = await asAdmin(request(app).patch(`${BASE_URL}/${REQUEST_ID}/decision`))
+            .send({ decision: 'accept' });
+
+        expect(response.status).toBe(200);
+        expect(response.body.status).toBe('approved');
+        expect(pending.status).toBe('approved');
+        expect(pending.rejectionReason).toBeUndefined();
+        expect(pending.reviewedBy).toBe(ADMIN_ID);
+        expect(pending.reviewedAt).toBeInstanceOf(Date);
+        expect(pending.save).toHaveBeenCalledOnce();
+        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(APPLICANT_ID, { role: 'lender', verificationStatus: 'accepted' });
+    });
+
+    it('returns 200, rejects the request and stores the reason for the user', async () => {
+        const pending = pendingRequest();
+        LenderRequest.findById.mockResolvedValue(pending);
+
+        const response = await asAdmin(request(app).patch(`${BASE_URL}/${REQUEST_ID}/decision`))
+            .send({ decision: 'reject', reason: '  The ID document is blurry  ' });
+
+        expect(response.status).toBe(200);
+        expect(response.body.status).toBe('rejected');
+        expect(pending.rejectionReason).toBe('The ID document is blurry');
+        expect(pending.reviewedBy).toBe(ADMIN_ID);
+        expect(pending.save).toHaveBeenCalledOnce();
+        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(APPLICANT_ID, { verificationStatus: 'rejected', verificationNote: 'The ID document is blurry' });
+    });
+
+    it('returns 401 when not logged in', async () => {
+        const response = await request(app)
+            .patch(`${BASE_URL}/${REQUEST_ID}/decision`)
+            .send({ decision: 'accept' });
+
+        expect(response.status).toBe(401);
+    });
+
+    it('returns 403 when the user is not an admin', async () => {
+        const response = await request(app)
+            .patch(`${BASE_URL}/${REQUEST_ID}/decision`)
+            .set('x-user-id', ADMIN_ID)
+            .send({ decision: 'accept' });
+
+        expect(response.status).toBe(403);
+        expect(LenderRequest.findById).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for an invalid id', async () => {
+        const response = await asAdmin(request(app).patch(`${BASE_URL}/not-an-id/decision`))
+            .send({ decision: 'accept' });
+
+        expect(response.status).toBe(400);
+        expect(LenderRequest.findById).not.toHaveBeenCalled();
+    });
+
+    it.each(invalidDecisions)('returns 400 for an invalid body %#', async (body) => {
+        const response = await asAdmin(request(app).patch(`${BASE_URL}/${REQUEST_ID}/decision`))
+            .send(body);
+
+        expect(response.status).toBe(400);
+        expect(LenderRequest.findById).not.toHaveBeenCalled();
+        expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 when the request does not exist', async () => {
+        LenderRequest.findById.mockResolvedValue(null);
+
+        const response = await asAdmin(request(app).patch(`${BASE_URL}/${REQUEST_ID}/decision`))
+            .send({ decision: 'accept' });
+
+        expect(response.status).toBe(404);
+        expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it.each(['draft', 'approved', 'rejected'])('returns 409 when the request is %s', async (status) => {
+        const reviewed = pendingRequest({ status });
+        LenderRequest.findById.mockResolvedValue(reviewed);
+
+        const response = await asAdmin(request(app).patch(`${BASE_URL}/${REQUEST_ID}/decision`))
+            .send({ decision: 'accept' });
+
+        expect(response.status).toBe(409);
+        expect(reviewed.save).not.toHaveBeenCalled();
+        expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it.each(['findById', 'save', 'findByIdAndUpdate'])('returns 500 when %s fails', async (operation) => {
+        const pending = pendingRequest();
+        LenderRequest.findById.mockResolvedValue(pending);
+        if (operation === 'findById') LenderRequest.findById.mockRejectedValue(new Error('Database unavailable'));
+        if (operation === 'save') pending.save.mockRejectedValue(new Error('Database unavailable'));
+        if (operation === 'findByIdAndUpdate') User.findByIdAndUpdate.mockRejectedValue(new Error('Database unavailable'));
+
+        const response = await asAdmin(request(app).patch(`${BASE_URL}/${REQUEST_ID}/decision`))
+            .send({ decision: 'accept' });
 
         expect(response.status).toBe(500);
     });
