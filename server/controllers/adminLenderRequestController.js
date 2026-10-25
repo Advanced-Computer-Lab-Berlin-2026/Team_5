@@ -1,7 +1,10 @@
 import mongoose from 'mongoose';
 import path from 'node:path';
+import joi from 'joi';
 import { LenderRequest } from '../models/LenderRequest.js';
+import { User } from '../models/User.js';
 import { UPLOAD_DIR } from '../middleware/uploadLenderDocument.js';
+
 
 // CLOUDINARY: uncomment when Cloudinary is set up.
 // import { getSignedDocumentUrl } from '../config/cloudinary.js';
@@ -9,6 +12,14 @@ import { UPLOAD_DIR } from '../middleware/uploadLenderDocument.js';
 const SLOTS = ['idDocument', 'proofOfAddress'];
 const STATUS = ['pending', 'approved', 'rejected'];
 const USER_FIELDS = 'username name email phoneNumber homeAddress';
+
+const decisionSchema = joi.object(
+    {
+        decision: joi.string().valid('accept', 'reject').required(),
+        reason: joi.string().trim().max(500).when('decision', { is: 'reject', then: joi.required(), otherwise: joi.forbidden() })
+    }
+);
+
 
 // GET /api/admin/lender-requests
 export async function listLenderRequests(req, res, next) {
@@ -54,6 +65,38 @@ export async function getLenderRequestDocument(req, res, next) {
         next(error);
     }
 }
+// PATCH /api/admin/lender-requests/:id/decision
+export async function decideLenderRequest(req, res, next) {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid request id" });
+
+        const { value, error } = decisionSchema.validate(req.body ?? {});
+        if (error) return res.status(400).json({ message: error.message });
+
+        const request = await LenderRequest.findById(req.params.id);
+        if (!request) return res.status(404).json({ message: "Lender request not found" });
+        if (request.status !== 'pending') return res.status(409).json({ message: "Only pending requests can be accepted or rejected" });
+
+        request.status = value.decision === 'accept' ? 'approved' : 'rejected';
+        request.rejectionReason = value.reason;
+        request.reviewedBy = req.user.id;
+        request.reviewedAt = new Date();
+        await request.save();
+        await User.findByIdAndUpdate(request.user, userChangesFor(value));
+
+        res.status(200).json(request);
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Accepting makes the user a verified lender; rejecting keeps their role and stores the reason for them to read.
+function userChangesFor({ decision, reason }) {
+    if (decision === 'accept') return { role: 'lender', verificationStatus: 'accepted' };
+    return { verificationStatus: 'rejected', verificationNote: reason };
+}
+
+
 
 function sendDocument(req, res, next, document) {
     // CLOUDINARY: replace everything in this function with:
