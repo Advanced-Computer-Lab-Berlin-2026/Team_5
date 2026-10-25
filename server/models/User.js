@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const memberSchema = new mongoose.Schema(
+const UserSchema = new mongoose.Schema(
     {
         username: {
             type: String,
@@ -23,7 +23,7 @@ const memberSchema = new mongoose.Schema(
     }
 );
 
-memberSchema.index({ username: 1 }, { unique: true });
-memberSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ username: 1 }, { unique: true });
+UserSchema.index({ email: 1 }, { unique: true });
 
-export const Member = mongoose.model('Member', memberSchema);
+export const User = mongoose.model('User', UserSchema);
