@@ -17,7 +17,7 @@ vi.mock('../models/LenderRequest.js', () => ({
 const ADMIN_ID = '64b0000000000000000000aa';
 const REQUEST_ID = '64b0000000000000000000bb';
 const BASE_URL = '/api/admin/lender-requests';
-const USER_FIELDS = 'username name email phoneNumber address';
+const USER_FIELDS = 'username name email phoneNumber homeAddress';
 
 const sampleRequest = {
     _id: REQUEST_ID,

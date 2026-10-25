@@ -8,7 +8,7 @@ import { UPLOAD_DIR } from '../middleware/uploadLenderDocument.js';
 
 const SLOTS = ['idDocument', 'proofOfAddress'];
 const STATUS = ['pending', 'approved', 'rejected'];
-const USER_FIELDS = 'username name email phoneNumber address';
+const USER_FIELDS = 'username name email phoneNumber homeAddress';
 
 // GET /api/admin/lender-requests
 export async function listLenderRequests(req, res, next) {
