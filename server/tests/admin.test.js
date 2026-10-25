@@ -1,10 +1,10 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {updateSuspension} from '../controllers/adminController.js';
-import User from '../models/User.js';
+import { User } from '../models/User.js';
 
 vi.mock('../models/User.js', () => {
     return {
-        default: {
+        User: {
             findById: vi.fn()
         }
     }
