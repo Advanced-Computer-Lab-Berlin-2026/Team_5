@@ -1,6 +1,7 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {updateSuspension} from '../controllers/adminController.js';
 import { User } from '../models/User.js';
+import { RefreshSession } from '../models/RefreshSession.js';
 
 vi.mock('../models/User.js', () => {
     return {
@@ -9,6 +10,12 @@ vi.mock('../models/User.js', () => {
         }
     }
 });
+
+vi.mock('../models/RefreshSession.js', () => ({
+    RefreshSession: {
+        deleteMany: vi.fn()
+    }
+}));
 
 describe('updateSuspension', () => {
     beforeEach(() => {
@@ -88,6 +95,9 @@ describe('updateSuspension', () => {
         expect(res.json).toHaveBeenCalledWith({ message: 'User suspension status updated to true.' });
         expect(mockUser.suspended).toBe(true);
         expect(mockUser.save).toHaveBeenCalledTimes(1);
+        expect(RefreshSession.deleteMany).toHaveBeenCalledWith({
+            userId: mockUser._id
+        });
     });
 
     it('should return 200 for successful suspension update with false for a lender', async () => {
@@ -111,6 +121,7 @@ describe('updateSuspension', () => {
         expect(res.json).toHaveBeenCalledWith({ message: 'User suspension status updated to false.' });
         expect(mockUser.suspended).toBe(false);
         expect(mockUser.save).toHaveBeenCalledTimes(1);
+        expect(RefreshSession.deleteMany).not.toHaveBeenCalled();
     });
 
     it('should return 403 if trying to suspend an admin', async () => {

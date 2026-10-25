@@ -116,7 +116,7 @@ describe('authenticate middleware', () => {
         const mockUser = {
             _id: userId,
             username: 'testadmin',
-            role: 'admin',
+            role: 'member',
             suspended: false
         };
 
@@ -141,6 +141,37 @@ describe('authenticate middleware', () => {
         expect(next).toHaveBeenCalledTimes(1);
         expect(res.status).not.toHaveBeenCalled();
         expect(res.json).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 if the user is suspended', async () => {
+        const mockUser = {
+            _id: userId,
+            username: 'testadmin',
+            role: 'member',
+            suspended: true
+        };
+
+        const token = jwt.sign(
+            { id: userId, username: 'testadmin' },
+            env.jwtSecret,
+            { expiresIn: '15m' }
+        );
+
+        User.findById.mockResolvedValue(mockUser);
+
+        const req = {
+            headers: { authorization: `Bearer ${token}` }
+        };
+        const res = createResponse();
+        const next = vi.fn();
+
+        await authenticate(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith({
+            error: 'Your account has been suspended. Please contact support.'
+        });
+        expect(next).not.toHaveBeenCalled();
     });
 
     // Test 7: User no longer exists
