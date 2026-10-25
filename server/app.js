@@ -2,6 +2,8 @@ import express from "express";
 import dns from 'dns';
 import cookieParser from "cookie-parser";
 import authRoutes from './routes/auth.js';
+import wishlistRoutes from './routes/wishlist.js';
+import walletRoutes from './routes/wallet.js';
 // Define route imports
 
 const app = express();
@@ -18,6 +20,8 @@ app.get('/api/health', (req, res) =>
 // Define your routes here
 
 app.use('/api/auth', authRoutes)
+app.use('/api/wishlist', wishlistRoutes)
+app.use('/api/wallet', walletRoutes)
 
 // Keep These at the end for fallback errors
 app.use( (req, res) =>

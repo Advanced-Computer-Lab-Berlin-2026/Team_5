@@ -20,13 +20,15 @@ const UserSchema = new mongoose.Schema(
         },
         phoneNumber: {type: String},
         homeAddress: {type: String},
+        // dummy type till database is setup
         wishlist: [{
-            type: String, 
-            ref: 'Item' 
+            type: mongoose.Schema.Types.ObjectId, 
+            ref: 'ItemListing' 
         }],
         wallet: {
             type: Number,
-            default: 0
+            default: 0,
+            min: 0
         }   
         
     }
