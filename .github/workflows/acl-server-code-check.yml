@@ -35,6 +35,7 @@ jobs:
           BACKEND_PORT: '3000'
           JWT_SECRET: 'test-only-secret-not-for-production'
           MONGODB_URI: 'mongodb://localhost:27017/acl_test'
+          SMTP_PASS: 'test-only-smtp-password'
         run: |
           npm run test:coverage
     
