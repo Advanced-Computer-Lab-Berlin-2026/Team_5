@@ -20,6 +20,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint . ",
     "lint:fix": "eslint . --fix"
   },
@@ -35,6 +37,7 @@
     "mongodb": "^7.7.0",
     "mongoose": "^9.11.2",
     "nodemailer": "^10.2.1",
+    "multer": "^2.5.0",
     "nodemon": "^3.1.14"
   },
   "devDependencies": {
