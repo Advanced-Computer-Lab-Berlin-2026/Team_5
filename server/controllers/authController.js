@@ -102,7 +102,8 @@ function setRefreshCookie(res, refreshToken) {
         httpOnly: true,
         secure: env.nodeEnv === 'production',
         sameSite: 'strict',
-        path: '/api/auth',
+        // dummy changed from '/api/auth' to '/api' will be reverted back
+        path: '/api',
         maxAge: 7 * 24 * 60 * 60 * 1000
     });
 }
