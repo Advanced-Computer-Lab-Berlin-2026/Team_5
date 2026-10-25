@@ -2,6 +2,7 @@ import express from "express";
 import dns from 'dns';
 import cookieParser from "cookie-parser";
 import authRoutes from './routes/auth.js';
+import adminRoutes from './routes/admin.js';
 // Define route imports
 
 const app = express();
@@ -11,10 +12,13 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 app.use(cookieParser());
 app.use(express.json());
 
+
 app.get('/api/health', (req, res) =>
   res.status(200).json({ status : "ok" })
 );
 
+
+app.use('/api/admin', adminRoutes);
 // Define your routes here
 
 app.use('/api/auth', authRoutes)
