@@ -8,6 +8,8 @@ import { csrfProtection } from './middleware/authSecurity.js';
 import wishlistRoutes from './routes/wishlist.js';
 import walletRoutes from './routes/wallet.js';
 // Define route imports
+import lenderRequestRoutes from "./routes/lenderRequestRoutes.js";
+
 
 const app = express();
 
@@ -26,6 +28,8 @@ app.get('/api/health', (req, res) =>
 
 app.use('/api/admin', adminRoutes);
 // Define your routes here
+app.use("/api/lender-requests", lenderRequestRoutes);
+
 
 app.use('/api/auth', authRoutes)
 app.use('/api/wishlist', wishlistRoutes)
