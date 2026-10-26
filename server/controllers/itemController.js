@@ -1,8 +1,8 @@
 import joi from 'joi';
-import { Item } from '../models/index.js';
+import { Item, User } from '../models/index.js';
 
 // only the fields the list card needs, I keep the full details for the item page
-const LIST_FIELDS = 'name category photos depositAmount';
+const LIST_FIELDS = { name: 1, category: 1, photos: 1, depositAmount: 1 };
 
 const listItemsSchema = joi.object({
     // these run in order, number then integer then min then default. I can't swap them
@@ -24,6 +24,9 @@ export async function listItems(req, res, next) {
         if (value.category) filter.category = value.category;
         // I use the text index on name from the Item model here
         if (value.search) filter.$text = { $search: value.search };
+        // suspended lenders' items act like they don't exist. I filter them in the query, not after, so total and totalPages stay right
+        const suspendedOwners = await User.distinct('_id', { suspended: true });
+        if (suspendedOwners.length) filter.owner = { $nin: suspendedOwners };
 
         const [items, total] = await Promise.all([
             // mongoose turns this find() into a mongo query, not sql. temp so I remember
@@ -46,6 +49,33 @@ export async function listItems(req, res, next) {
                 limit: value.limit
             }
         });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// GET /api/items/:id
+export async function getItem(req, res, next) {
+    try {
+        const item = await Item.findOne(
+            // flagged is hidden from everyone, even from a direct link, so it looks like it doesn't exist
+            // archived isn't filtered, so it still opens from a direct link
+            { _id: req.params.id, flagged: { $ne: true } },
+            { flagged: 0, __v: 0 }, // hides flagged from the response
+            {
+                lean: true,
+                // owner is name only, lean skips User toJSON so password/email/phone/wallet must never be read. populate's select asks User lookup for just name + suspended
+                populate: { path: 'owner', select: 'profile.name suspended' }
+            }
+        );
+        // a suspended lender's item 404s like it doesn't exist, same as in the list
+        if (!item || item.owner?.suspended) return res.status(404).json({ message: 'Item not found' });
+
+        // owner is null if the user got deleted, so I don't crash on owner.profile
+        // username is the login id and populate always reads _id (= username), so I rebuild owner as { name } only
+        const owner = item.owner ? { name: item.owner.profile?.name } : null;
+
+        res.status(200).json({ item: { ...item, owner } });
     } catch (error) {
         next(error);
     }
