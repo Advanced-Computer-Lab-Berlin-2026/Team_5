@@ -35,11 +35,11 @@ describe('GET /api/items', () => {
             pagination: { total: 2, page: 1, totalPages: 1, limit: 10 }
         });
         expect(Item.find).toHaveBeenCalledExactlyOnceWith(
-            { archived: false },
+            { archived: false, flagged: { $ne: true } },
             { name: 1, category: 1, photos: 1, depositAmount: 1 },
             { sort: { createdAt: -1, _id: 1 }, skip: 0, limit: 10, lean: true }
         );
-        expect(Item.countDocuments).toHaveBeenCalledExactlyOnceWith({ archived: false });
+        expect(Item.countDocuments).toHaveBeenCalledExactlyOnceWith({ archived: false, flagged: { $ne: true } });
     });
 
     it('skips earlier pages and counts total pages', async () => {
@@ -57,8 +57,8 @@ describe('GET /api/items', () => {
     it('filters by category', async () => {
         await list({ category: ' Tools ' });
 
-        expect(Item.find.mock.calls[0][0]).toEqual({ archived: false, category: 'Tools' });
-        expect(Item.countDocuments).toHaveBeenCalledWith({ archived: false, category: 'Tools' });
+        expect(Item.find.mock.calls[0][0]).toEqual({ archived: false, flagged: { $ne: true }, category: 'Tools' });
+        expect(Item.countDocuments).toHaveBeenCalledWith({ archived: false, flagged: { $ne: true }, category: 'Tools' });
     });
 
     it.each([
@@ -71,12 +71,30 @@ describe('GET /api/items', () => {
         expect(Item.find.mock.calls[0][0].archived).toBe(expected);
     });
 
-    it('searches names through the text index', async () => {
+    it('searches names case insensitive', async () => {
         await list({ search: ' drill ' });
 
         const filter = Item.find.mock.calls[0][0];
-        expect(filter.$text).toEqual({ $search: 'drill' });
+        expect(filter.name).toEqual({ $regex: 'drill', $options: 'i' });
         expect(Item.countDocuments).toHaveBeenCalledWith(filter);
+    });
+
+    // part of a word is enough, "dri" finds "Power Drill"
+    // I run the regex the controller built against the real name
+    it('matches part of a name', async () => {
+        await list({ search: 'dri' });
+
+        const { name } = Item.find.mock.calls[0][0];
+        expect(new RegExp(name.$regex, name.$options).test('Power Drill')).toBe(true);
+        expect(new RegExp(name.$regex, name.$options).test('Ladder')).toBe(false);
+    });
+
+    it('treats regex characters in the search as plain text', async () => {
+        await list({ search: 'drill (18v)' });
+
+        const { name } = Item.find.mock.calls[0][0];
+        expect(name.$regex).toBe('drill \\(18v\\)');
+        expect(new RegExp(name.$regex, name.$options).test('Drill (18V)')).toBe(true);
     });
 
     it('combines search, category and archived in one filter', async () => {
@@ -84,9 +102,25 @@ describe('GET /api/items', () => {
 
         expect(Item.find.mock.calls[0][0]).toEqual({
             archived: true,
+            flagged: { $ne: true },
             category: 'Tools',
-            $text: { $search: 'drill' }
+            name: { $regex: 'drill', $options: 'i' }
         });
+    });
+
+    // flagged items stay out of search results, same as details
+    it('leaves flagged items out of search results', async () => {
+        Item.find.mockResolvedValue([drill]);
+        Item.countDocuments.mockResolvedValue(1);
+
+        const response = await list({ search: 'drill' });
+
+        expect(response.status).toBe(200);
+        expect(response.body.items).toEqual([drill]);
+        const filter = Item.find.mock.calls[0][0];
+        expect(filter.flagged).toEqual({ $ne: true });
+        expect(filter.name).toEqual({ $regex: 'drill', $options: 'i' });
+        expect(Item.countDocuments).toHaveBeenCalledWith(filter);
     });
 
     it('returns an empty list when nothing matches', async () => {
@@ -156,8 +190,24 @@ describe('GET /api/items', () => {
         expect(response.body.items).toEqual([drill]);
         expect(response.body.pagination.total).toBe(1);
         expect(User.distinct).toHaveBeenCalledExactlyOnceWith('_id', { suspended: true });
-        expect(Item.find.mock.calls[0][0]).toEqual({ archived: false, owner: { $nin: ['sam'] } });
-        expect(Item.countDocuments).toHaveBeenCalledExactlyOnceWith({ archived: false, owner: { $nin: ['sam'] } });
+        expect(Item.find.mock.calls[0][0]).toEqual({ archived: false, flagged: { $ne: true }, owner: { $nin: ['sam'] } });
+        expect(Item.countDocuments).toHaveBeenCalledExactlyOnceWith({ archived: false, flagged: { $ne: true }, owner: { $nin: ['sam'] } });
+    });
+
+    it('combines flagged, search, category and suspended owners in one query', async () => {
+        User.distinct.mockResolvedValue(['sam']);
+
+        await list({ search: 'dri', category: 'Tools' });
+
+        const expected = {
+            archived: false,
+            flagged: { $ne: true },
+            category: 'Tools',
+            name: { $regex: 'dri', $options: 'i' },
+            owner: { $nin: ['sam'] }
+        };
+        expect(Item.find.mock.calls[0][0]).toEqual(expected);
+        expect(Item.countDocuments).toHaveBeenCalledExactlyOnceWith(expected);
     });
 });
 

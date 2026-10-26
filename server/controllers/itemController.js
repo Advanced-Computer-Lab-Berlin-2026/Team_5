@@ -20,10 +20,15 @@ export async function listItems(req, res, next) {
         const { value, error } = listItemsSchema.validate(req.query);
         if (error) return res.status(400).json({ message: error.message });
 
-        const filter = { archived: value.archived };
+        // flagged items are hidden here too, same as the details page
+        const filter = { archived: value.archived, flagged: { $ne: true } };
         if (value.category) filter.category = value.category;
-        // I use the text index on name from the Item model here
-        if (value.search) filter.$text = { $search: value.search };
+        // partial match on name, case insensitive, but slower than the old text index
+        // I escape the search first so things like "." or "(" are matched as normal characters, not regex
+        if (value.search) {
+            const escaped = value.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            filter.name = { $regex: escaped, $options: 'i' };
+        }
         // suspended lenders' items act like they don't exist. I filter them in the query, not after, so total and totalPages stay right
         const suspendedOwners = await User.distinct('_id', { suspended: true });
         if (suspendedOwners.length) filter.owner = { $nin: suspendedOwners };
