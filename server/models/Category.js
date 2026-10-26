@@ -13,4 +13,4 @@ categorySchema.pre("validate", function () {
   if (!this._id) this._id = this.name;
 });
 
-export default mongoose.model("Category", categorySchema);
+export const Category = mongoose.model("Category", categorySchema);

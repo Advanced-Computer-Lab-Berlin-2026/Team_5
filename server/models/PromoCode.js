@@ -16,4 +16,4 @@ promoCodeSchema.pre("validate", function () {
   if (!this._id) this._id = this.code;
 });
 
-export default mongoose.model("PromoCode", promoCodeSchema);
+export const PromoCode = mongoose.model("PromoCode", promoCodeSchema);

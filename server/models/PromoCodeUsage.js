@@ -15,4 +15,4 @@ const promoCodeUsageSchema = new mongoose.Schema(
 
 promoCodeUsageSchema.index({ code: 1, user: 1 });
 
-export default mongoose.model("PromoCodeUsage", promoCodeUsageSchema);
+export const PromoCodeUsage = mongoose.model("PromoCodeUsage", promoCodeUsageSchema);

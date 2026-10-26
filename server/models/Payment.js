@@ -24,4 +24,4 @@ const paymentSchema = new mongoose.Schema(
 paymentSchema.index({ user: 1, date: -1 });
 paymentSchema.index({ reservation: 1 });
 
-export default mongoose.model("Payment", paymentSchema);
+export const Payment = mongoose.model("Payment", paymentSchema);

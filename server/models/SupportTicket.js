@@ -22,4 +22,4 @@ const supportTicketSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export default mongoose.model("SupportTicket", supportTicketSchema);
+export const SupportTicket = mongoose.model("SupportTicket", supportTicketSchema);

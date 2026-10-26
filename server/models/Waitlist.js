@@ -14,4 +14,4 @@ const waitlistSchema = new mongoose.Schema(
 
 waitlistSchema.index({ item: 1, startDate: 1, endDate: 1 });
 
-export default mongoose.model("Waitlist", waitlistSchema);
+export const Waitlist = mongoose.model("Waitlist", waitlistSchema);

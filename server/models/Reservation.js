@@ -83,4 +83,4 @@ reservationSchema.statics.findOverlap = function (itemId, start, end, session) {
   }).session(session || null);
 };
 
-export default mongoose.model("Reservation", reservationSchema);
+export const Reservation = mongoose.model("Reservation", reservationSchema);

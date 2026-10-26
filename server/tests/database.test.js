@@ -1,9 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import Reservation, { BLOCKING_STATUSES } from '../models/Reservation.js';
-import Category from '../models/Category.js';
-import MembershipTier from '../models/MembershipTier.js';
-import PromoCode from '../models/PromoCode.js';
-import { User } from '../models/User.js';
+import { Reservation, BLOCKING_STATUSES, Category, MembershipTier, PromoCode, User } from '../models/index.js';
 
 // These tests check the schemas directly, so no database connection is needed.
 // Only models with custom logic (validators, hooks, statics) are tested here.

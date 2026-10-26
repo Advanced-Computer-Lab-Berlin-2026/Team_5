@@ -14,4 +14,4 @@ membershipTierSchema.pre("validate", function () {
   if (!this._id) this._id = this.tier;
 });
 
-export default mongoose.model("MembershipTier", membershipTierSchema);
+export const MembershipTier = mongoose.model("MembershipTier", membershipTierSchema);

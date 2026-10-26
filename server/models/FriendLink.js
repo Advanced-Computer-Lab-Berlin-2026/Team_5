@@ -14,4 +14,4 @@ const friendLinkSchema = new mongoose.Schema(
 
 friendLinkSchema.index({ requester: 1, recipient: 1 }, { unique: true });
 
-export default mongoose.model("FriendLink", friendLinkSchema);
+export const FriendLink = mongoose.model("FriendLink", friendLinkSchema);

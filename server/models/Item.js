@@ -51,4 +51,4 @@ itemSchema.index({ name: "text" });
 itemSchema.index({ category: 1, archived: 1 });
 itemSchema.index({ owner: 1 });
 
-export default mongoose.model("Item", itemSchema);
+export const Item = mongoose.model("Item", itemSchema);

@@ -21,4 +21,4 @@ const damageReportSchema = new mongoose.Schema(
 
 damageReportSchema.index({ reservation: 1, createdAt: 1 });
 
-export default mongoose.model("DamageReport", damageReportSchema);
+export const DamageReport = mongoose.model("DamageReport", damageReportSchema);

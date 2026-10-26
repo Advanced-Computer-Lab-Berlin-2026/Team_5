@@ -2,8 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import app from '../app.js';
-import { User } from '../models/User.js';
-import { PasswordReset } from '../models/PasswordReset.js';
+import { User, PasswordReset } from '../models/index.js';
 import { sendResetEmail } from '../services/emailService.js';
 
 vi.mock('../models/User.js', () => ({ User: { findOne: vi.fn() } }));

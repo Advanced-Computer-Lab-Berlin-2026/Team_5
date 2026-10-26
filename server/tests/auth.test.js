@@ -1,16 +1,15 @@
 import { beforeEach, describe, expect, it, vi} from "vitest";
 import request from "supertest";
 import app from "../app.js";
-import { User } from "../models/User.js";
+import { User, RefreshSession } from "../models/index.js";
 import bcrypt from "bcrypt";
 import crypto from 'node:crypto';
-import { RefreshSession } from '../models/RefreshSession.js';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
 // Create a Mock model for User where this model has these 2 functions, findone and Create. (because i call them in my auth.js)
 vi.mock('../models/User.js', () => ({
-    User : {
+    User: {
         findById: vi.fn(),
         findOne: vi.fn(),
         create: vi.fn()

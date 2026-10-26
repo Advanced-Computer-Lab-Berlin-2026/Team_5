@@ -3,9 +3,7 @@ import joi from 'joi';
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import { env } from '../config/env.js'
-import { User } from '../models/User.js';
-import { RefreshSession } from '../models/RefreshSession.js';
-import { PasswordReset } from '../models/PasswordReset.js';
+import { User, RefreshSession, PasswordReset } from '../models/index.js';
 import { sendResetEmail } from '../services/emailService.js';
 
 const PHONE_NUMBER_REGEX_PATTERN = /^\+[1-9]\d{1,14}$/;

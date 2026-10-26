@@ -3,8 +3,7 @@ import request from 'supertest';
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import app from '../app.js';
-import { User } from '../models/User.js';
-import { PasswordReset } from '../models/PasswordReset.js';
+import { User, PasswordReset } from '../models/index.js';
 
 vi.mock('../models/User.js', () => ({ User: { findOne: vi.fn() } }));
 vi.mock('../models/PasswordReset.js', () => ({
