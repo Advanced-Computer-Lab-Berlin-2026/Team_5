@@ -28,6 +28,7 @@ describe('POST /api/auth/verify-reset-otp', () => {
         expect(response.body.resetToken).toMatch(/^[a-f0-9]{64}$/);
         expect(response.body.expiresIn).toBe(300);
         expect(response.headers['cache-control']).toBe('no-store');
+        expect(User.findOne).toHaveBeenCalledWith({ 'profile.email': 'martin@example.com' });
         expect(PasswordReset.findOneAndUpdate).toHaveBeenCalledWith({
             userId: 'user123', expiresAt: { $gt: expect.any(Date) },
             attempts: { $lt: 5 }, resetTokenHash: { $exists: false }

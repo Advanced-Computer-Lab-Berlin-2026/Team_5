@@ -67,9 +67,12 @@ describe('POST /api/auth/register', () => {
         expect(User.create).toHaveBeenCalledOnce();
 
         const savedMember = User.create.mock.calls[0][0];
+        expect(User.findOne).toHaveBeenCalledWith({
+            $or: [{ username: validMember.username }, { 'profile.email': validMember.email }]
+        });
         expect(savedMember.username).toBe(validMember.username);
-        expect(savedMember.name).toBe(validMember.name);
-        expect(savedMember.email).toBe(validMember.email);
+        expect(savedMember.profile.name).toBe(validMember.name);
+        expect(savedMember.profile.email).toBe(validMember.email);
         expect(
             await bcrypt.compare(validMember.password, savedMember.password)
         ).toBe(true);
@@ -132,9 +135,8 @@ const invalidLogin = [
     {
         _id: 123,
         username: 'martythebest',
-        name: 'Martin',
-        email: 'martin@example.com',
-        password: await bcrypt.hash("mesh_malakshDa3wa?", 10)  
+        profile: { name: 'Martin', email: 'martin@example.com' },
+        password: await bcrypt.hash("mesh_malakshDa3wa?", 10)
     }
 ]
 
@@ -168,8 +170,7 @@ describe('POST /api/auth/login', () => {
         User.findOne.mockResolvedValue({
                 _id: 123,
                 username: 'martythebest',
-                name: 'Martin',
-                email: 'martin@example.com',
+                profile: { name: 'Martin', email: 'martin@example.com' },
                 password: await bcrypt.hash("malakshDa3wa?", 10)
         });
 
