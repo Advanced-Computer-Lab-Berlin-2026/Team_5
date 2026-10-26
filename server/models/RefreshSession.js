@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
 
 const refreshSessionSchema = new mongoose.Schema({
-    userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
+    userId: { 
+        type: String, 
+        ref: 'User', 
+        required: true 
     },
     tokenHash: {
         type: String,

@@ -3,9 +3,7 @@ import request from 'supertest';
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import app from '../app.js';
-import { User } from '../models/User.js';
-import { PasswordReset } from '../models/PasswordReset.js';
-import { RefreshSession } from '../models/RefreshSession.js';
+import { User, PasswordReset, RefreshSession } from '../models/index.js';
 
 vi.mock('../models/User.js', () => ({ User: { updateOne: vi.fn() } }));
 vi.mock('../models/PasswordReset.js', () => ({ PasswordReset: { findOneAndDelete: vi.fn() } }));

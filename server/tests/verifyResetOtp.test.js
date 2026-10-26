@@ -3,8 +3,7 @@ import request from 'supertest';
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import app from '../app.js';
-import { User } from '../models/User.js';
-import { PasswordReset } from '../models/PasswordReset.js';
+import { User, PasswordReset } from '../models/index.js';
 
 vi.mock('../models/User.js', () => ({ User: { findOne: vi.fn() } }));
 vi.mock('../models/PasswordReset.js', () => ({
@@ -28,6 +27,7 @@ describe('POST /api/auth/verify-reset-otp', () => {
         expect(response.body.resetToken).toMatch(/^[a-f0-9]{64}$/);
         expect(response.body.expiresIn).toBe(300);
         expect(response.headers['cache-control']).toBe('no-store');
+        expect(User.findOne).toHaveBeenCalledWith({ 'profile.email': 'martin@example.com' });
         expect(PasswordReset.findOneAndUpdate).toHaveBeenCalledWith({
             userId: 'user123', expiresAt: { $gt: expect.any(Date) },
             attempts: { $lt: 5 }, resetTokenHash: { $exists: false }

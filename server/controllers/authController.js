@@ -3,9 +3,7 @@ import joi from 'joi';
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import { env } from '../config/env.js'
-import { User } from '../models/User.js';
-import { RefreshSession } from '../models/RefreshSession.js';
-import { PasswordReset } from '../models/PasswordReset.js';
+import { User, RefreshSession, PasswordReset } from '../models/index.js';
 import { sendResetEmail } from '../services/emailService.js';
 
 const PHONE_NUMBER_REGEX_PATTERN = /^\+[1-9]\d{1,14}$/;
@@ -48,11 +46,20 @@ export async function registerUser(req, res, next){
         const { value, error } = userSchema.validate(req.body);
         if (error) return res.status(400).json({ message: error.message });
 
-        const existing = await User.findOne({ $or: [{username:value.username}, {email:value.email}] });
+        const existing = await User.findOne({ $or: [{username:value.username}, {"profile.email":value.email}] });
         if (existing) return res.status(409).json({ message: "Username or Email already exists"});
 
         const password = await bcrypt.hash(value.password, 10); 
-        await User.create({ username: value.username, name: value.name, email: value.email, password: password, phoneNumber: value.phoneNumber || "", homeAddress: value.homeAddress || "" }); 
+        await User.create({
+            username: value.username,
+            password: password,
+            profile: {
+                name: value.name,
+                email: value.email,
+                phone: value.phoneNumber || "",
+                address: value.homeAddress || ""
+            }
+        });
         
         res.status(201).json({message: "Registration Successful! Please log in."});
     } catch (error){
@@ -116,8 +123,8 @@ function publishUser(user){
     return {
         id: user._id.toString(),
         username: user.username,
-        name: user.name,
-        email: user.email
+        name: user.profile.name,
+        email: user.profile.email
     };
 }
 
@@ -190,7 +197,7 @@ export async function forgetPassword(req, res, next) {
         const { value, error } = forgotPasswordSchema.validate(req.body ?? {});
         if (error) return res.status(400).json({ message: error.message });
        
-        const user = await User.findOne({ email: value.email });
+        const user = await User.findOne({ "profile.email": value.email });
         const message = 'If an account exists, a reset code has been sent.';
         if (!user) return res.status(200).json({ message });
         
@@ -208,7 +215,7 @@ export async function forgetPassword(req, res, next) {
             { upsert: true, runValidators: true }
         );
 
-        await sendResetEmail(user.email, otp);
+        await sendResetEmail(user.profile.email, otp);
 
         return res.status(200).json({ message });
     } catch (error) {
@@ -223,7 +230,7 @@ export async function verifyResetOtp(req, res, next) {
 
     const invalid = () => res.status(401).json({ message: 'Invalid or expired reset code' });
     try {
-        const user = await User.findOne({ email: value.email });
+        const user = await User.findOne({ "profile.email": value.email });
         if (!user) return invalid();
 
         const reset = await PasswordReset.findOneAndUpdate({
