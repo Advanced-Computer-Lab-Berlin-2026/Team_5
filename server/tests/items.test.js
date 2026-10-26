@@ -61,6 +61,27 @@ describe('GET /api/items', () => {
         expect(Item.countDocuments).toHaveBeenCalledWith({ archived: false, flagged: { $ne: true }, category: 'Tools' });
     });
 
+    // exact match only, categories come from a dropdown
+    // so "tools" is sent as-is and won't find "Tools"
+    it('matches the category exactly, no regex', async () => {
+        await list({ category: 'tools' });
+
+        expect(Item.find.mock.calls[0][0].category).toBe('tools');
+    });
+
+    it('returns an empty list for an unknown category', async () => {
+        Item.find.mockResolvedValue([]);
+        Item.countDocuments.mockResolvedValue(0);
+
+        const response = await list({ category: 'Spaceships' });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({
+            items: [],
+            pagination: { total: 0, page: 1, totalPages: 0, limit: 10 }
+        });
+    });
+
     it.each([
         [undefined, false],
         ['false', false],

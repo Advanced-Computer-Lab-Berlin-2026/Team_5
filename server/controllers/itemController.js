@@ -22,6 +22,8 @@ export async function listItems(req, res, next) {
 
         // flagged items are hidden here too, same as the details page
         const filter = { archived: value.archived, flagged: { $ne: true } };
+        // exact match, categories come from a dropdown. also keeps the category + archived index usable
+        // an unknown category just gives an empty list, the ticket doesn't ask for an error
         if (value.category) filter.category = value.category;
         // partial match on name, case insensitive, but slower than the old text index
         // I escape the search first so things like "." or "(" are matched as normal characters, not regex
