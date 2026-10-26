@@ -31,4 +31,24 @@ async function updateSuspension(req, res) {
     }
 }
 
-export { updateSuspension };
+async function viewUserDetails(req, res) {
+    try {
+        const userId = req.params.id;
+        if (!mongoose.isObjectIdOrHexString(userId)) {
+            return res.status(400).json({ error: 'Invalid user ID.' });
+        }
+        const user = await User.findById(userId).select('-password -__v');
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        if (user.role !== 'member' && user.role !== 'lender') {
+            return res.status(403).json({ error: 'You can only view details of members or lenders.' });
+        }
+        res.status(200).json({ user });
+    } catch (error) {
+        console.error('Error viewing user details:', error);
+        res.status(500).json({ error: 'An error occurred while viewing user details.' });
+    }
+}
+
+export { updateSuspension, viewUserDetails };
