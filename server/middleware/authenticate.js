@@ -30,7 +30,9 @@ async function authenticate(req, res, next) {
     if (!user) {
         return res.status(401).json({ error: 'User not found.' });
     }
-
+    if (user.suspended) {
+        return res.status(403).json({ error: 'Your account has been suspended. Please contact support.' });
+    }
     req.user = user;
     next();
 }

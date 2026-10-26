@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 import { User } from '../models/User.js';
+import { RefreshSession } from '../models/RefreshSession.js';
+
 async function updateSuspension(req, res) {
     try {
         const userId = req.params.id;
@@ -19,6 +21,9 @@ async function updateSuspension(req, res) {
         }
         user.suspended = suspended;
         await user.save();
+        if(suspended) {
+            await RefreshSession.deleteMany({ userId: user._id });
+        }
         res.status(200).json({ message: `User suspension status updated to ${suspended}.` });
     } catch (error) {
         console.error('Error updating suspension status:', error);
