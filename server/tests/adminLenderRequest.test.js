@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import fs from "node:fs";
 import path from "node:path";
+import jwt from "jsonwebtoken";
 import app from "../app.js";
+import { env } from "../config/env.js";
 import { LenderRequest } from "../models/LenderRequest.js";
 import { User } from "../models/User.js";
 import { UPLOAD_DIR } from "../middleware/uploadLenderDocument.js";
@@ -20,23 +22,29 @@ vi.mock('../models/User.js', () => ({
     User: { findByIdAndUpdate: vi.fn() }
 }));
 
-const ADMIN_ID = '64b0000000000000000000aa';
+const ADMIN_ID = 'admin1';
 const REQUEST_ID = '64b0000000000000000000bb';
-const APPLICANT_ID = '64b0000000000000000000cc';
+const APPLICANT_ID = 'sara123';
 const BASE_URL = '/api/admin/lender-requests';
-const USER_FIELDS = 'username name email phoneNumber homeAddress';
+const USER_FIELDS = 'username profile';
+const ORIGIN = 'http://localhost:3000';
 
 const sampleRequest = {
     _id: REQUEST_ID,
     status: 'pending',
-    user: { name: 'Sara', email: 'sara@example.com' },
+    user: { username: 'sara123', profile: { name: 'Sara', email: 'sara@example.com' } },
     idDocument: { originalName: 'passport.png', storedName: 'admin-test-id.png', docType: 'image/png', size: 8 },
     proofOfAddress: { originalName: 'proof.pdf', storedName: 'admin-test-proof.pdf', docType: 'application/pdf', size: 8 }
 };
 
-// Logs in as an admin with the temporary headers read by tempAuth.
+// Logs in the way the auth middleware expects: a signed accessToken cookie with the user's id and role.
+function loginCookie(role) {
+    return `accessToken=${jwt.sign({ id: ADMIN_ID, role }, env.jwtSecret, { expiresIn: '15m' })}`;
+}
+
+// Sends the request as a logged-in admin from the trusted origin.
 function asAdmin(req) {
-    return req.set('x-user-id', ADMIN_ID).set('x-user-role', 'admin');
+    return req.set('Cookie', loginCookie('admin')).set('Origin', ORIGIN);
 }
 
 beforeEach(() => {
@@ -68,7 +76,7 @@ describe('Admin access', () => {
     it.each(protectedUrls)('returns 403 for %s when the user is not an admin', async (url) => {
         const response = await request(app)
             .get(url)
-            .set('x-user-id', ADMIN_ID);
+            .set('Cookie', loginCookie('member'));
 
         expect(response.status).toBe(403);
         expect(LenderRequest.find).not.toHaveBeenCalled();
@@ -82,7 +90,7 @@ describe('GET /api/admin/lender-requests', () => {
 
         expect(response.status).toBe(200);
         expect(response.body).toHaveLength(1);
-        expect(response.body[0].user.name).toBe('Sara');
+        expect(response.body[0].user.profile.name).toBe('Sara');
         expect(LenderRequest.find).toHaveBeenCalledWith({ status: 'pending' });
 
         const populate = LenderRequest.find.mock.results[0].value.populate;
@@ -118,7 +126,7 @@ describe('GET /api/admin/lender-requests/:id', () => {
         const response = await asAdmin(request(app).get(`${BASE_URL}/${REQUEST_ID}`));
 
         expect(response.status).toBe(200);
-        expect(response.body.user.name).toBe('Sara');
+        expect(response.body.user.profile.name).toBe('Sara');
         expect(response.body.idDocument.originalName).toBe('passport.png');
         expect(response.body.proofOfAddress.originalName).toBe('proof.pdf');
         expect(LenderRequest.findById).toHaveBeenCalledWith(REQUEST_ID);
@@ -258,7 +266,7 @@ describe('PATCH /api/admin/lender-requests/:id/decision', () => {
         expect(pending.reviewedBy).toBe(ADMIN_ID);
         expect(pending.reviewedAt).toBeInstanceOf(Date);
         expect(pending.save).toHaveBeenCalledOnce();
-        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(APPLICANT_ID, { role: 'lender', verificationStatus: 'accepted' });
+        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(APPLICANT_ID, { role: 'lender', 'verification.status': 'accepted' });
     });
 
     it('returns 200, rejects the request and stores the reason for the user', async () => {
@@ -273,12 +281,12 @@ describe('PATCH /api/admin/lender-requests/:id/decision', () => {
         expect(pending.rejectionReason).toBe('The ID document is blurry');
         expect(pending.reviewedBy).toBe(ADMIN_ID);
         expect(pending.save).toHaveBeenCalledOnce();
-        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(APPLICANT_ID, { verificationStatus: 'rejected', verificationNote: 'The ID document is blurry' });
+        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(APPLICANT_ID, { 'verification.status': 'rejected', 'verification.note': 'The ID document is blurry' });
     });
 
     it('returns 401 when not logged in', async () => {
         const response = await request(app)
-            .patch(`${BASE_URL}/${REQUEST_ID}/decision`)
+            .patch(`${BASE_URL}/${REQUEST_ID}/decision`).set('Origin', ORIGIN)
             .send({ decision: 'accept' });
 
         expect(response.status).toBe(401);
@@ -286,8 +294,8 @@ describe('PATCH /api/admin/lender-requests/:id/decision', () => {
 
     it('returns 403 when the user is not an admin', async () => {
         const response = await request(app)
-            .patch(`${BASE_URL}/${REQUEST_ID}/decision`)
-            .set('x-user-id', ADMIN_ID)
+            .patch(`${BASE_URL}/${REQUEST_ID}/decision`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie('member'))
             .send({ decision: 'accept' });
 
         expect(response.status).toBe(403);

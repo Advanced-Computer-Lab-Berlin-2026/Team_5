@@ -1,8 +1,7 @@
 import mongoose from 'mongoose';
 import path from 'node:path';
 import joi from 'joi';
-import { LenderRequest } from '../models/LenderRequest.js';
-import { User } from '../models/User.js';
+import { LenderRequest, User } from '../models/index.js';
 import { UPLOAD_DIR } from '../middleware/uploadLenderDocument.js';
 
 
@@ -11,7 +10,7 @@ import { UPLOAD_DIR } from '../middleware/uploadLenderDocument.js';
 
 const SLOTS = ['idDocument', 'proofOfAddress'];
 const STATUS = ['pending', 'approved', 'rejected'];
-const USER_FIELDS = 'username name email phoneNumber homeAddress';
+const USER_FIELDS = 'username profile';
 
 const decisionSchema = joi.object(
     {
@@ -92,8 +91,9 @@ export async function decideLenderRequest(req, res, next) {
 
 // Accepting makes the user a verified lender; rejecting keeps their role and stores the reason for them to read.
 function userChangesFor({ decision, reason }) {
-    if (decision === 'accept') return { role: 'lender', verificationStatus: 'accepted' };
-    return { verificationStatus: 'rejected', verificationNote: reason };
+    if (decision === 'accept') return { role: 'lender', 'verification.status': 'accepted' };
+    return { 'verification.status': 'rejected', 'verification.note': reason };
+
 }
 
 
