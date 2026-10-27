@@ -1,10 +1,10 @@
+import { authLimiters } from '../middleware/authSecurity.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import app from '../app.js';
-import { User } from '../models/User.js';
-import { PasswordReset } from '../models/PasswordReset.js';
+import { User, PasswordReset } from '../models/index.js';
 
 vi.mock('../models/User.js', () => ({ User: { findOne: vi.fn() } }));
 vi.mock('../models/PasswordReset.js', () => ({
@@ -12,10 +12,15 @@ vi.mock('../models/PasswordReset.js', () => ({
 }));
 const body = { email: 'martin@example.com', otp: '004281' };
 const codeHash = await bcrypt.hash(body.otp, 10);
-const send = data => request(app).post('/api/auth/verify-reset-otp').send(data);
+const send = data => request(app).post('/api/auth/verify-reset-otp').set('Origin', 'http://localhost:3000').send(data);
 
 beforeEach(() => {
     vi.resetAllMocks();
+    for (const limiter of Object.values(authLimiters)) {
+        limiter.resetKey('::/56');
+        limiter.resetKey('127.0.0.1');
+        limiter.resetKey('::ffff:127.0.0.1');
+    }
     User.findOne.mockResolvedValue({ _id: 'user123' });
     PasswordReset.findOneAndUpdate.mockResolvedValue({ _id: 'reset123', codeHash });
     PasswordReset.updateOne.mockResolvedValue({ modifiedCount: 1 });
@@ -28,6 +33,7 @@ describe('POST /api/auth/verify-reset-otp', () => {
         expect(response.body.resetToken).toMatch(/^[a-f0-9]{64}$/);
         expect(response.body.expiresIn).toBe(300);
         expect(response.headers['cache-control']).toBe('no-store');
+        expect(User.findOne).toHaveBeenCalledWith({ 'profile.email': 'martin@example.com' });
         expect(PasswordReset.findOneAndUpdate).toHaveBeenCalledWith({
             userId: 'user123', expiresAt: { $gt: expect.any(Date) },
             attempts: { $lt: 5 }, resetTokenHash: { $exists: false }

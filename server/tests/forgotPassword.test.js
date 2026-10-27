@@ -1,20 +1,25 @@
+import { authLimiters } from '../middleware/authSecurity.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import app from '../app.js';
-import { User } from '../models/User.js';
-import { PasswordReset } from '../models/PasswordReset.js';
+import { User, PasswordReset } from '../models/index.js';
 import { sendResetEmail } from '../services/emailService.js';
 
 vi.mock('../models/User.js', () => ({ User: { findOne: vi.fn() } }));
 vi.mock('../models/PasswordReset.js', () => ({ PasswordReset: { findOneAndUpdate: vi.fn() } }));
 vi.mock('../services/emailService.js', () => ({ sendResetEmail: vi.fn() }));
 const message = 'If an account exists, a reset code has been sent.';
-const send = body => request(app).post('/api/auth/forget-password').send(body);
+const send = body => request(app).post('/api/auth/forget-password').set('Origin', 'http://localhost:3000').send(body);
 
 beforeEach(() => {
     vi.resetAllMocks();
-    User.findOne.mockResolvedValue({ _id: 'user123', email: 'martin@example.com' });
+    for (const limiter of Object.values(authLimiters)) {
+        limiter.resetKey('::/56');
+        limiter.resetKey('127.0.0.1');
+        limiter.resetKey('::ffff:127.0.0.1');
+    }
+    User.findOne.mockResolvedValue({ _id: 'user123', profile: { email: 'martin@example.com' } });
     PasswordReset.findOneAndUpdate.mockResolvedValue({});
     sendResetEmail.mockResolvedValue(undefined);
 });
@@ -25,7 +30,7 @@ describe('POST /api/auth/forget-password', () => {
         const response = await send({ email: ' martin@example.com ' });
         expect(response.status).toBe(200);
         expect(response.body).toEqual({ message });
-        expect(User.findOne).toHaveBeenCalledWith({ email: 'martin@example.com' });
+        expect(User.findOne).toHaveBeenCalledWith({ 'profile.email': 'martin@example.com' });
         expect(sendResetEmail).toHaveBeenCalledOnce();
         const [email, otp] = sendResetEmail.mock.calls[0];
         expect(email).toBe('martin@example.com');

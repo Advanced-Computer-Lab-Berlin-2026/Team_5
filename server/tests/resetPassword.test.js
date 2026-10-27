@@ -1,20 +1,24 @@
+import { authLimiters } from '../middleware/authSecurity.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import app from '../app.js';
-import { User } from '../models/User.js';
-import { PasswordReset } from '../models/PasswordReset.js';
-import { RefreshSession } from '../models/RefreshSession.js';
+import { User, PasswordReset, RefreshSession } from '../models/index.js';
 
 vi.mock('../models/User.js', () => ({ User: { updateOne: vi.fn() } }));
 vi.mock('../models/PasswordReset.js', () => ({ PasswordReset: { findOneAndDelete: vi.fn() } }));
 vi.mock('../models/RefreshSession.js', () => ({ RefreshSession: { deleteMany: vi.fn() } }));
 const body = { resetToken: 'a'.repeat(64), newPassword: 'new-secret123' };
-const send = data => request(app).post('/api/auth/reset-password').send(data);
+const send = data => request(app).post('/api/auth/reset-password').set('Origin', 'http://localhost:3000').send(data);
 
 beforeEach(() => {
     vi.resetAllMocks();
+    for (const limiter of Object.values(authLimiters)) {
+        limiter.resetKey('::/56');
+        limiter.resetKey('127.0.0.1');
+        limiter.resetKey('::ffff:127.0.0.1');
+    }
     PasswordReset.findOneAndDelete.mockResolvedValue({ userId: 'user123' });
     User.updateOne.mockResolvedValue({ matchedCount: 1 });
     RefreshSession.deleteMany.mockResolvedValue({ deletedCount: 2 });

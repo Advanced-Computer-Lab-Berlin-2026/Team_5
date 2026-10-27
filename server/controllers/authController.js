@@ -3,9 +3,7 @@ import joi from 'joi';
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import { env } from '../config/env.js'
-import { User } from '../models/User.js';
-import { RefreshSession } from '../models/RefreshSession.js';
-import { PasswordReset } from '../models/PasswordReset.js';
+import { User, RefreshSession, PasswordReset } from '../models/index.js';
 import { sendResetEmail } from '../services/emailService.js';
 
 const PHONE_NUMBER_REGEX_PATTERN = /^\+[1-9]\d{1,14}$/;
@@ -48,11 +46,20 @@ export async function registerUser(req, res, next){
         const { value, error } = userSchema.validate(req.body);
         if (error) return res.status(400).json({ message: error.message });
 
-        const existing = await User.findOne({ $or: [{username:value.username}, {email:value.email}] });
+        const existing = await User.findOne({ $or: [{username:value.username}, {"profile.email":value.email}] });
         if (existing) return res.status(409).json({ message: "Username or Email already exists"});
 
         const password = await bcrypt.hash(value.password, 10); 
-        await User.create({ username: value.username, name: value.name, email: value.email, password: password, phoneNumber: value.phoneNumber || "", homeAddress: value.homeAddress || "" }); 
+        await User.create({
+            username: value.username,
+            password: password,
+            profile: {
+                name: value.name,
+                email: value.email,
+                phone: value.phoneNumber || "",
+                address: value.homeAddress || ""
+            }
+        });
         
         res.status(201).json({message: "Registration Successful! Please log in."});
     } catch (error){
@@ -77,25 +84,43 @@ export async function login(req, res, next) {
         const refreshToken = await createRefreshToken(user);
 
         setRefreshCookie(res, refreshToken);
+        setAccessCookie(res, accessToken);
 
-        res.status(200).json({ accessToken, user: publishUser(user)});
+        res.status(200).json({ user: publishUser(user)});
     } catch(error){
         next(error);
     }
 }
 
 function signToken(user){
-    const payload = {id: user._id.toString(), username:user.username};
+    const payload = {id: user._id.toString(), role: user.role};
     return jwt.sign(payload, env.jwtSecret, { expiresIn: '15m'} );
 }
 
 function setRefreshCookie(res, refreshToken) {
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
+        secure: env.nodeEnv === 'production',
         sameSite: 'strict',
         path: '/api/auth',
         maxAge: 7 * 24 * 60 * 60 * 1000
     });
+}
+
+// Sent to every route so requireAuth can read it
+function setAccessCookie(res, accessToken) {
+    res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: env.nodeEnv === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 15 * 60 * 1000
+    });
+}
+
+function clearAuthCookies(res) {
+    res.clearCookie('refreshToken', { path: '/api/auth' });
+    res.clearCookie('accessToken', { path: '/' });
 }
 
 async function createRefreshToken(user){
@@ -116,8 +141,8 @@ function publishUser(user){
     return {
         id: user._id.toString(),
         username: user.username,
-        name: user.name,
-        email: user.email
+        name: user.profile.name,
+        email: user.profile.email
     };
 }
 
@@ -135,7 +160,7 @@ export async function logout(req, res, next) {
             await RefreshSession.deleteOne({ tokenHash });
         }
 
-        res.clearCookie('refreshToken', { path: '/api/auth' });
+        clearAuthCookies(res);
 
         return res.status(200).json({
             message: 'Logged out successfully'
@@ -150,7 +175,6 @@ export async function refresh(req, res, next) {
     try{
         const refreshToken = req.cookies?.refreshToken;
         if (typeof refreshToken !== 'string' || !refreshToken) {
-            res.clearCookie('refreshToken', { path: '/api/auth' });
             return res.status(401).json({ message: 'Invalid or expired refresh token' });
         }
 
@@ -164,13 +188,11 @@ export async function refresh(req, res, next) {
             expiresAt: { $gt: new Date() }
         });
         if (!session) {
-            res.clearCookie('refreshToken', { path: '/api/auth' });
             return res.status(401).json({ message: 'Invalid or expired refresh token' });
         }
 
         const user = await User.findById(session.userId);
         if (!user) {
-            res.clearCookie('refreshToken', { path: '/api/auth' });
             return res.status(401).json({ message: 'Invalid or expired refresh token' });
         }
 
@@ -182,7 +204,8 @@ export async function refresh(req, res, next) {
         const accessToken = signToken(user);
         const newRefreshToken = await createRefreshToken(user);
         setRefreshCookie(res, newRefreshToken);
-        return res.status(200).json({ accessToken });
+        setAccessCookie(res, accessToken);
+        return res.status(200).json({ message: 'Token refreshed' });
     } catch(error) {
         next(error);
     }
@@ -195,7 +218,7 @@ export async function forgetPassword(req, res, next) {
         const { value, error } = forgotPasswordSchema.validate(req.body ?? {});
         if (error) return res.status(400).json({ message: error.message });
        
-        const user = await User.findOne({ email: value.email });
+        const user = await User.findOne({ "profile.email": value.email });
         const message = 'If an account exists, a reset code has been sent.';
         if (!user) return res.status(200).json({ message });
         
@@ -213,7 +236,7 @@ export async function forgetPassword(req, res, next) {
             { upsert: true, runValidators: true }
         );
 
-        await sendResetEmail(user.email, otp);
+        await sendResetEmail(user.profile.email, otp);
 
         return res.status(200).json({ message });
     } catch (error) {
@@ -228,7 +251,7 @@ export async function verifyResetOtp(req, res, next) {
 
     const invalid = () => res.status(401).json({ message: 'Invalid or expired reset code' });
     try {
-        const user = await User.findOne({ email: value.email });
+        const user = await User.findOne({ "profile.email": value.email });
         if (!user) return invalid();
 
         const reset = await PasswordReset.findOneAndUpdate({
@@ -281,7 +304,7 @@ export async function resetPassword(req, res, next) {
         }
 
         await RefreshSession.deleteMany({ userId: reset.userId });
-        res.clearCookie('refreshToken', { path: '/api/auth' });
+        clearAuthCookies(res);
         res.set('Cache-Control', 'no-store');
         return res.status(200).json({ message: 'Password reset successfully. Please log in.' });
     } catch (error) {
