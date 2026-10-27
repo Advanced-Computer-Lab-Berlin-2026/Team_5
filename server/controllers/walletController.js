@@ -1,5 +1,4 @@
 import { User } from '../models/User.js';
-import { requireAuth } from '../middleware/auth.js';
 
 // GET /api/wallet
 export async function getWalletBalance(req, res, next) {

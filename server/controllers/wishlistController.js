@@ -1,10 +1,7 @@
 import mongoose from 'mongoose';
 import { User } from '../models/User.js';
 import {  Item } from '../models/Item.js';
-import { requireAuth } from '../middleware/auth.js';
 
-    // TEMP: function to get user id from cookie
-    // TODO: will be replaced with middleware later
 
 // POST /api/wishlist/:itemId
 export async function addToWishlist(req, res, next) {
