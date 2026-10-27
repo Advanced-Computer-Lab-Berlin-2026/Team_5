@@ -3,8 +3,6 @@ import { User } from '../models/User.js';
 // GET /api/wallet
 export async function getWalletBalance(req, res, next) {
     try {
-        // uses dummy function to get user id from cookie, will be replaced with middleware later
-        //const userId = await getUserIdFromCookie(req);
 
          const userId = req.user?.id;
 
