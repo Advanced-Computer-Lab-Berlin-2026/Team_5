@@ -9,7 +9,7 @@ import { ItemListing } from '../models/ItemListing.js';
 export async function addToWishlist(req, res, next) {
    try {
         const userId = await getUserIdFromCookie(req);
-        if (!userId) return res.status(401).json({ message: 'User is null' });
+        if (!userId) return res.status(401).json({ message: 'user is null' });
 
         const { itemId } = req.params;
         if (!mongoose.isValidObjectId(itemId)) return res.status(400).json({ message: 'Invalid item id' });
