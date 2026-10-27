@@ -1,15 +1,14 @@
-import {describe, it, expect, vi, beforeEach} from 'vitest';
-import {updateSuspension} from '../controllers/adminController.js';
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { updateSuspension } from '../controllers/adminController.js';
 import { User } from '../models/User.js';
 import { RefreshSession } from '../models/RefreshSession.js';
 
-vi.mock('../models/User.js', () => {
-    return {
-        User: {
-            findById: vi.fn()
-        }
+vi.mock('../models/User.js', () => ({
+    User: {
+        findById: vi.fn()
     }
-});
+}));
 
 vi.mock('../models/RefreshSession.js', () => ({
     RefreshSession: {
@@ -20,11 +19,12 @@ vi.mock('../models/RefreshSession.js', () => ({
 describe('updateSuspension', () => {
     beforeEach(() => {
         vi.resetAllMocks();
+        RefreshSession.deleteMany.mockResolvedValue({ deletedCount: 1 });
     });
 
     it('should return 400 if suspended is not a boolean', async () => {
         const req = {
-            params: { id: '507f1f77bcf86cd799439011' },
+            params: { id: 'ahmed123' },
             body: { suspended: "true" }
         };
         const res = {
@@ -33,92 +33,98 @@ describe('updateSuspension', () => {
         };
 
         await updateSuspension(req, res);
+
         expect(res.status).toHaveBeenCalledWith(400);
-        expect(res.json).toHaveBeenCalledWith({ error: 'Suspension status must be a boolean.' });
+        expect(res.json).toHaveBeenCalledWith({
+            error: 'Suspension status must be a boolean.'
+        });
         expect(User.findById).not.toHaveBeenCalled();
-    });
-
-
-
-    it('should return 400 if userId is not a valid ObjectId', async () => {
-        const req = {
-            params: { id: 'invalid-id' },
-            body: { suspended: true }
-        };
-        const res = {
-            status: vi.fn().mockReturnThis(),
-            json: vi.fn()
-        };
-        await updateSuspension(req, res); 
-        expect(res.status).toHaveBeenCalledWith(400);
-        expect(res.json).toHaveBeenCalledWith({ error: 'Invalid user ID.' });
-        expect(User.findById).not.toHaveBeenCalled(); 
-
+        expect(RefreshSession.deleteMany).not.toHaveBeenCalled();
     });
 
     it('should return 404 if user is not found', async () => {
         const req = {
-            params: { id: '507f1f77bcf86cd799439011' },
+            params: { id: 'unknownuser' },
             body: { suspended: true }
         };
         const res = {
             status: vi.fn().mockReturnThis(),
             json: vi.fn()
         };
-        User.findById.mockResolvedValue(null); // Simulate user not found
+
+        User.findById.mockResolvedValue(null);
+
         await updateSuspension(req, res);
+
         expect(res.status).toHaveBeenCalledWith(404);
-        expect(res.json).toHaveBeenCalledWith({ error: 'User not found.' });
-        expect(User.findById).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+        expect(res.json).toHaveBeenCalledWith({
+            error: 'User not found.'
+        });
+        expect(User.findById).toHaveBeenCalledWith('unknownuser');
         expect(User.findById).toHaveBeenCalledTimes(1);
+        expect(RefreshSession.deleteMany).not.toHaveBeenCalled();
     });
 
-
-    it('should return 200 and update suspension status for valid member or lender', async () => {
+    it('should return 200 and suspend a member', async () => {
         const mockUser = {
-            _id: '507f1f77bcf86cd799439011',
+            _id: 'ahmed123',
+            username: 'ahmed123',
             role: 'member',
             suspended: false,
             save: vi.fn().mockResolvedValue(true)
         };
+
         const req = {
-            params: { id: '507f1f77bcf86cd799439011' },
+            params: { id: 'ahmed123' },
             body: { suspended: true }
-        };  
+        };
         const res = {
             status: vi.fn().mockReturnThis(),
             json: vi.fn()
         };
+
         User.findById.mockResolvedValue(mockUser);
+
         await updateSuspension(req, res);
+
         expect(res.status).toHaveBeenCalledWith(200);
-        expect(res.json).toHaveBeenCalledWith({ message: 'User suspension status updated to true.' });
+        expect(res.json).toHaveBeenCalledWith({
+            message: 'User suspension status updated to true.'
+        });
         expect(mockUser.suspended).toBe(true);
         expect(mockUser.save).toHaveBeenCalledTimes(1);
         expect(RefreshSession.deleteMany).toHaveBeenCalledWith({
             userId: mockUser._id
         });
+        expect(RefreshSession.deleteMany).toHaveBeenCalledTimes(1);
     });
 
-    it('should return 200 for successful suspension update with false for a lender', async () => {
+    it('should return 200 when reinstating a lender', async () => {
         const mockUser = {
-            _id: '507f1f77bcf86cd799439012',
+            _id: 'lender123',
+            username: 'lender123',
             role: 'lender',
             suspended: true,
             save: vi.fn().mockResolvedValue(true)
-        };  
+        };
+
         const req = {
-            params: { id: '507f1f77bcf86cd799439012' },
+            params: { id: 'lender123' },
             body: { suspended: false }
         };
         const res = {
             status: vi.fn().mockReturnThis(),
             json: vi.fn()
         };
+
         User.findById.mockResolvedValue(mockUser);
+
         await updateSuspension(req, res);
+
         expect(res.status).toHaveBeenCalledWith(200);
-        expect(res.json).toHaveBeenCalledWith({ message: 'User suspension status updated to false.' });
+        expect(res.json).toHaveBeenCalledWith({
+            message: 'User suspension status updated to false.'
+        });
         expect(mockUser.suspended).toBe(false);
         expect(mockUser.save).toHaveBeenCalledTimes(1);
         expect(RefreshSession.deleteMany).not.toHaveBeenCalled();
@@ -126,61 +132,122 @@ describe('updateSuspension', () => {
 
     it('should return 403 if trying to suspend an admin', async () => {
         const mockUser = {
-            _id: '507f1f77bcf86cd799439013',
+            _id: 'admin123',
+            username: 'admin123',
             role: 'admin',
             suspended: false,
             save: vi.fn().mockResolvedValue(true)
         };
+
         const req = {
-            params: { id: '507f1f77bcf86cd799439013' },
+            params: { id: 'admin123' },
             body: { suspended: true }
         };
         const res = {
             status: vi.fn().mockReturnThis(),
             json: vi.fn()
         };
+
         User.findById.mockResolvedValue(mockUser);
+
         await updateSuspension(req, res);
+
         expect(res.status).toHaveBeenCalledWith(403);
-        expect(res.json).toHaveBeenCalledWith({ error: 'You can only suspend members or lenders.' });
+        expect(res.json).toHaveBeenCalledWith({
+            error: 'You can only suspend members or lenders.'
+        });
         expect(mockUser.save).not.toHaveBeenCalled();
-        expect(mockUser.suspended).toBe(false); // Ensure the suspended status remains unchanged
+        expect(mockUser.suspended).toBe(false);
+        expect(RefreshSession.deleteMany).not.toHaveBeenCalled();
     });
-    it('should return 500 if there is an unexpected error', async () => {
+
+    it('should return 500 if the user lookup fails', async () => {
         const req = {
-            params: { id: '507f1f77bcf86cd799439014' },
+            params: { id: 'ahmed456' },
             body: { suspended: true }
         };
         const res = {
             status: vi.fn().mockReturnThis(),
             json: vi.fn()
         };
+
         User.findById.mockRejectedValue(new Error('Database error'));
+
         await updateSuspension(req, res);
+
         expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({ error: 'An error occurred while updating suspension status.' });
-        expect(User.findById).toHaveBeenCalledWith('507f1f77bcf86cd799439014');
+        expect(res.json).toHaveBeenCalledWith({
+            error: 'An error occurred while updating suspension status.'
+        });
+        expect(User.findById).toHaveBeenCalledWith('ahmed456');
         expect(User.findById).toHaveBeenCalledTimes(1);
+        expect(RefreshSession.deleteMany).not.toHaveBeenCalled();
     });
-    it('should handle database save failure gracefully', async () => {   
+
+    it('should handle database save failure gracefully', async () => {
         const mockUser = {
-            _id: '507f1f77bcf86cd799439015',
+            _id: 'ahmed789',
+            username: 'ahmed789',
             role: 'member',
             suspended: false,
-            save: vi.fn().mockRejectedValue(new Error('Database save error'))
-        };  
+            save: vi.fn().mockRejectedValue(
+                new Error('Database save error')
+            )
+        };
+
         const req = {
-            params: { id: '507f1f77bcf86cd799439015' },
-            body: { suspended: true }   
-        }
+            params: { id: 'ahmed789' },
+            body: { suspended: true }
+        };
         const res = {
             status: vi.fn().mockReturnThis(),
             json: vi.fn()
         };
+
         User.findById.mockResolvedValue(mockUser);
+
         await updateSuspension(req, res);
+
         expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({ error: 'An error occurred while updating suspension status.' });
+        expect(res.json).toHaveBeenCalledWith({
+            error: 'An error occurred while updating suspension status.'
+        });
         expect(mockUser.save).toHaveBeenCalledTimes(1);
+        expect(RefreshSession.deleteMany).not.toHaveBeenCalled();
     });
-})
+
+    it('should return 500 if refresh session deletion fails', async () => {
+        const mockUser = {
+            _id: 'member456',
+            username: 'member456',
+            role: 'member',
+            suspended: false,
+            save: vi.fn().mockResolvedValue(true)
+        };
+
+        const req = {
+            params: { id: 'member456' },
+            body: { suspended: true }
+        };
+        const res = {
+            status: vi.fn().mockReturnThis(),
+            json: vi.fn()
+        };
+
+        User.findById.mockResolvedValue(mockUser);
+        RefreshSession.deleteMany.mockRejectedValue(
+            new Error('Session deletion failed')
+        );
+
+        await updateSuspension(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith({
+            error: 'An error occurred while updating suspension status.'
+        });
+        expect(mockUser.save).toHaveBeenCalledTimes(1);
+        expect(RefreshSession.deleteMany).toHaveBeenCalledWith({
+            userId: 'member456'
+        });
+    });
+});

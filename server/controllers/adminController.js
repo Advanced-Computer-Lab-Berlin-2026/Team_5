@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { User } from '../models/User.js';
 import { RefreshSession } from '../models/RefreshSession.js';
 
@@ -9,9 +8,7 @@ async function updateSuspension(req, res) {
         if (typeof suspended !== 'boolean') {
             return res.status(400).json({ error: 'Suspension status must be a boolean.' });
         }
-        if (!mongoose.isObjectIdOrHexString(userId)) {
-            return res.status(400).json({ error: 'Invalid user ID.' });
-        }
+        
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ error: 'User not found.' });
@@ -34,10 +31,8 @@ async function updateSuspension(req, res) {
 async function viewUserDetails(req, res) {
     try {
         const userId = req.params.id;
-        if (!mongoose.isObjectIdOrHexString(userId)) {
-            return res.status(400).json({ error: 'Invalid user ID.' });
-        }
-        const user = await User.findById(userId).select('-password -__v');
+        const profileFields = 'username role profile.name profile.email profile.phone profile.address';
+        const user = await User.findById(userId).select(profileFields);
         if (!user) {
             return res.status(404).json({ error: 'User not found.' });
         }

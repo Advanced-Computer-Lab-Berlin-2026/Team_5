@@ -264,6 +264,7 @@ describe('POST /api/auth/login', () => {
 
         const response = await request(app)
             .post('/api/auth/login')
+            .set('Origin', 'http://localhost:3000')
             .send({
                 username: "martythebest",
                 password: "malakshDa3wa?"
@@ -272,7 +273,12 @@ describe('POST /api/auth/login', () => {
         expect(response.status).toBe(403);
         expect(response.body).toEqual({ message: "Your account has been suspended. Please contact support." });
         expect(RefreshSession.create).not.toHaveBeenCalled();
-        expect(response.headers['set-cookie']).toBeUndefined();
+        expect(response.headers['set-cookie']).toEqual(
+            expect.arrayContaining([
+                expect.stringContaining('accessToken=;'),
+                expect.stringContaining('refreshToken=;')
+            ])
+        );
         expect(response.body).not.toHaveProperty('accessToken');
     });
 
@@ -468,11 +474,18 @@ describe('POST /api/auth/refresh', () => {
         User.findById.mockResolvedValue({ ...user, suspended: true });
 
         const response = await request(app).post('/api/auth/refresh')
-            .set('Cookie', `refreshToken=${oldToken}`);
+            .set('Origin', 'http://localhost:3000')
+            .set('Cookie', `refreshToken=${oldToken}`)
+            ;
 
         expect(response.status).toBe(403);
         expect(response.body).toEqual({ message: "Your account has been suspended. Please contact support." });
-        expect(response.headers['set-cookie'][0]).toContain('refreshToken=;');
+        expect(response.headers['set-cookie']).toEqual(
+            expect.arrayContaining([
+                expect.stringContaining('accessToken=;'),
+                expect.stringContaining('refreshToken=;')
+            ])
+        );
         expect(response.body).not.toHaveProperty('accessToken');
         expect(RefreshSession.create).not.toHaveBeenCalled();
     });
