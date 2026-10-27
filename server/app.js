@@ -5,6 +5,8 @@ import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { csrfProtection } from './middleware/authSecurity.js';
+import wishlistRoutes from './routes/wishlist.js';
+import walletRoutes from './routes/wallet.js';
 // Define route imports
 
 const app = express();
@@ -26,6 +28,8 @@ app.use('/api/admin', adminRoutes);
 // Define your routes here
 
 app.use('/api/auth', authRoutes)
+app.use('/api/wishlist', wishlistRoutes)
+app.use('/api/wallet', walletRoutes)
 
 // Keep These at the end for fallback errors
 app.use(notFound);
