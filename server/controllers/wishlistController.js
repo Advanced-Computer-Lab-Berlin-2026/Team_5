@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { User } from '../models/User.js';
-import { ItemListing } from '../models/ItemListing.js';
+import {  Item } from '../models/Item.js';
 import { requireAuth } from '../middleware/auth.js';
 
     // TEMP: function to get user id from cookie
@@ -10,15 +10,12 @@ import { requireAuth } from '../middleware/auth.js';
 export async function addToWishlist(req, res, next) {
    try {
 
-        requireAuth(req, res, () => {}); // Call requireAuth to ensure the user is authenticated
-        const userId = req.user?.id;
-
-        if (!userId) return res.status(401).json({ message: 'User is null' });
+         const userId = req.user?.id;
 
         const { itemId } = req.params;
         if (!mongoose.isValidObjectId(itemId)) return res.status(400).json({ message: 'Invalid item id' });
 
-        const item = await ItemListing.exists({ _id: itemId });
+        const item = await  Item.exists({ _id: itemId });
         if (!item) return res.status(404).json({ message: 'Item not found' });
 
         const result = await User.updateOne({ _id: userId }, { $addToSet: { wishlist: itemId } });
@@ -35,10 +32,7 @@ export async function addToWishlist(req, res, next) {
 export async function removeFromWishlist(req, res, next) {
     try {
 
-        requireAuth(req, res, () => {}); // Call requireAuth to ensure the user is authenticated
-        const userId = req.user?.id;
-
-        if (!userId) return res.status(401).json({ message: 'User is null' });
+         const userId = req.user?.id;
 
         const { itemId } = req.params;
         if (!mongoose.isValidObjectId(itemId)) return res.status(400).json({ message: 'Invalid item id' });
@@ -56,10 +50,7 @@ export async function removeFromWishlist(req, res, next) {
 export async function getWishlist(req, res, next) {
     try {
 
-        requireAuth(req, res, () => {}); // Call requireAuth to ensure the user is authenticated
-        const userId = req.user?.id;
-
-        if (!userId) return res.status(401).json({ message: 'User is null' });
+         const userId = req.user?.id;
 
         const user = await User.findById(userId).select('wishlist').populate('wishlist');
         if (!user) return res.status(401).json({ message: 'User not found' });
