@@ -2,6 +2,7 @@ import express from "express";
 import dns from 'dns';
 import cookieParser from "cookie-parser";
 import authRoutes from './routes/auth.js';
+import adminRoutes from './routes/admin.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { csrfProtection } from './middleware/authSecurity.js';
 import wishlistRoutes from './routes/wishlist.js';
@@ -17,10 +18,13 @@ app.use(cookieParser());
 app.use('/api', csrfProtection);
 app.use(express.json());
 
+
 app.get('/api/health', (req, res) =>
   res.status(200).json({ status : "ok" })
 );
 
+
+app.use('/api/admin', adminRoutes);
 // Define your routes here
 
 app.use('/api/auth', authRoutes)

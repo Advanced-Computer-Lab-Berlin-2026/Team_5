@@ -202,6 +202,7 @@ describe('POST /api/auth/login', () => {
                 role: 'member',
                 profile: { name: 'Martin', email: 'martin@example.com' },
                 password: await bcrypt.hash("malakshDa3wa?", 10)
+                
         });
 
         const response = await request(app)
@@ -249,6 +250,36 @@ describe('POST /api/auth/login', () => {
         expect(session.tokenHash).toBe(crypto.createHash('sha256').update(refreshToken).digest('hex'));
         expect(session.expiresAt.getTime()).toBeGreaterThan(Date.now() + 604790000);
         expect(session.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 604800000);
+    });
+
+    it('Returns 403 for suspended user login', async () => {
+        User.findOne.mockResolvedValue({
+            _id: 123,
+            username: 'martythebest',
+            name: 'Martin',
+            email: 'martin@example.com',
+            password: await bcrypt.hash("malakshDa3wa?", 10),
+            suspended: true
+        });
+
+        const response = await request(app)
+            .post('/api/auth/login')
+            .set('Origin', 'http://localhost:3000')
+            .send({
+                username: "martythebest",
+                password: "malakshDa3wa?"
+            });
+
+        expect(response.status).toBe(403);
+        expect(response.body).toEqual({ message: "Your account has been suspended. Please contact support." });
+        expect(RefreshSession.create).not.toHaveBeenCalled();
+        expect(response.headers['set-cookie']).toEqual(
+            expect.arrayContaining([
+                expect.stringContaining('accessToken=;'),
+                expect.stringContaining('refreshToken=;')
+            ])
+        );
+        expect(response.body).not.toHaveProperty('accessToken');
     });
 
     it.each(invalidLogin)(
@@ -436,6 +467,27 @@ describe('POST /api/auth/refresh', () => {
         const replay = await sendRefresh();
         expect(replay.status).toBe(401);
         expect(RefreshSession.create).toHaveBeenCalledOnce();
+    });
+
+    it('rejects suspended users', async () => {
+        RefreshSession.findOneAndDelete.mockResolvedValueOnce({ userId: user._id });
+        User.findById.mockResolvedValue({ ...user, suspended: true });
+
+        const response = await request(app).post('/api/auth/refresh')
+            .set('Origin', 'http://localhost:3000')
+            .set('Cookie', `refreshToken=${oldToken}`)
+            ;
+
+        expect(response.status).toBe(403);
+        expect(response.body).toEqual({ message: "Your account has been suspended. Please contact support." });
+        expect(response.headers['set-cookie']).toEqual(
+            expect.arrayContaining([
+                expect.stringContaining('accessToken=;'),
+                expect.stringContaining('refreshToken=;')
+            ])
+        );
+        expect(response.body).not.toHaveProperty('accessToken');
+        expect(RefreshSession.create).not.toHaveBeenCalled();
     });
 
     it.each(['consume', 'lookup', 'save'])('returns 500 when %s fails', async (stage) => {

@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
+import { User } from '../models/User.js';
 
 // Returns the access token from the httpOnly "accessToken" cookie, or null if there is none
 function getAccessToken(req) {
@@ -17,7 +18,7 @@ function readToken(token) {
 }
 
 // Only lets logged-in users through and stores them on req.user as { id, username }
-export function requireAuth(req, res, next) {
+export async function requireAuth(req, res, next) {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ message: 'Authentication required' });
 
@@ -27,8 +28,22 @@ export function requireAuth(req, res, next) {
     if (!payload?.id) return res.status(401).json({ message: 'Invalid access token' });
 
     // the user id is the username
-    req.user = { id: payload.id, role: payload.role };
-    next();
+    // req.user = { id: payload.id, role: payload.role };
+    // next();
+    try {
+        const user = await User.findById(payload.id);
+        if (!user) return res.status(401).json({ message: 'User not found' });
+        if (user.suspended){
+            res.clearCookie('accessToken', { path: '/' });
+            res.clearCookie('refreshToken', { path: '/api/auth' });
+            return res.status(403).json({ message: 'User account is suspended' });
+        }
+        req.user = { id: payload.id, role: user.role };
+        next();
+    } catch (error) {
+        console.error('Error in requireAuth middleware:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
 }
 
 // Only lets users whose role is in the list through ('member', 'lender' or 'admin').
