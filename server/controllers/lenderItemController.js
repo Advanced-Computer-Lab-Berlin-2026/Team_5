@@ -33,7 +33,7 @@ export async function createItem(req, res, next){
                 depositAmount: value.depositAmount, 
                 conditionNotes: value.conditionNotes, 
                 pickup: { location: value.pickupLocation }, 
-                owner: 'TEMP_OWNER'
+                owner: req.user.id
             })
             res.status(201).json({ item })
     }
