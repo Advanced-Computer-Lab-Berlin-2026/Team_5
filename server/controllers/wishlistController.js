@@ -3,7 +3,8 @@ import { User } from '../models/User.js';
 import { getUserIdFromCookie } from '../getUserIdFromCookieDummy.js';
 import { ItemListing } from '../models/ItemListing.js';
 
-    // uses dummy function to get user id from cookie, will be replaced with middleware later
+    // TEMP: function to get user id from cookie
+    // TODO: will be replaced with middleware later
 
 // POST /api/wishlist/:itemId
 export async function addToWishlist(req, res, next) {
