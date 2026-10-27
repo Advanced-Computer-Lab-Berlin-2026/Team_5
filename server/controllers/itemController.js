@@ -66,6 +66,7 @@ export async function getItem(req, res, next) {
         const item = await Item.findOne(
             // flagged is hidden from everyone, even from a direct link, so it looks like it doesn't exist
             // archived isn't filtered, so it still opens from a direct link
+            // kept for reservation history (req 15). hiding it here too is a follow-up once that has its own endpoint, see SHARESHED-NOTES.md line 109
             { _id: req.params.id, flagged: { $ne: true } },
             { flagged: 0, __v: 0 },
             {
