@@ -71,8 +71,8 @@ export async function getItem(req, res, next) {
             { flagged: 0, __v: 0 }, // hides flagged from the response
             {
                 lean: true,
-                // owner is name only, lean skips User toJSON so password/email/phone/wallet must never be read. populate's select asks User lookup for just name + suspended
-                populate: { path: 'owner', select: 'profile.name suspended' }
+                // owner is name only, lean skips User toJSON so password/email/phone/wallet must never be read. populate's select asks User lookup for just name + suspended + trust score
+                populate: { path: 'owner', select: 'profile.name suspended trustScore' }
             }
         );
         // a suspended lender's item 404s like it doesn't exist, same as in the list
@@ -80,7 +80,8 @@ export async function getItem(req, res, next) {
 
         // owner is null if the user got deleted, so I don't crash on owner.profile
         // username is the login id and populate always reads _id (= username), so I rebuild owner as { name } only
-        const owner = item.owner ? { name: item.owner.profile?.name } : null;
+        // trust score is the stored 0-100 number on User, SCRUM-390 is the one that recalculates it
+        const owner = item.owner ? { name: item.owner.profile?.name, trustScore: item.owner.trustScore } : null;
 
         res.status(200).json({ item: { ...item, owner } });
     } catch (error) {

@@ -263,7 +263,7 @@ describe('GET /api/items/:id', () => {
         expect(Item.findOne).toHaveBeenCalledExactlyOnceWith(
             { _id: 'ITM-1', flagged: { $ne: true } },
             { flagged: 0, __v: 0 },
-            { lean: true, populate: { path: 'owner', select: 'profile.name suspended' } }
+            { lean: true, populate: { path: 'owner', select: 'profile.name suspended trustScore' } }
         );
     });
 
@@ -303,12 +303,12 @@ describe('GET /api/items/:id', () => {
         expect(Item.findOne.mock.calls[0][0]).not.toHaveProperty('archived');
     });
 
-    it('only asks the database for owner name and suspended flag', async () => {
+    it('only asks the database for owner name, suspended flag and trust score', async () => {
         Item.findOne.mockResolvedValue(fullDrill);
 
         await details('ITM-1');
 
-        expect(Item.findOne.mock.calls[0][2].populate.select).toBe('profile.name suspended');
+        expect(Item.findOne.mock.calls[0][2].populate.select).toBe('profile.name suspended trustScore');
     });
 
     // owner is name only
@@ -354,6 +354,15 @@ describe('GET /api/items/:id', () => {
 
         expect(response.status).toBe(200);
         expect(response.body.item.owner).toEqual({});
+    });
+
+    it('includes the owner trust score', async () => {
+        Item.findOne.mockResolvedValue({ ...fullDrill, owner: { ...ownerFromDb, trustScore: 72 } });
+
+        const response = await details('ITM-1');
+
+        expect(response.status).toBe(200);
+        expect(response.body.item.owner).toEqual({ name: 'Martin', trustScore: 72 });
     });
 
     it('returns owner null when the owner account is gone', async () => {
