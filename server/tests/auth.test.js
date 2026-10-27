@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi} from "vitest";
+import { authLimiters } from '../middleware/authSecurity.js';
+import { afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import request from "supertest";
 import app from "../app.js";
 import { User, RefreshSession } from "../models/index.js";
@@ -24,6 +25,11 @@ vi.mock('../models/RefreshSession.js', () => ({
 beforeEach( () => {
     // resets mocks after each test to empty mocks, good ethic to always clean up before/after tests.
     vi.resetAllMocks();
+    for (const limiter of Object.values(authLimiters)) {
+        limiter.resetKey('::/56');
+        limiter.resetKey('127.0.0.1');
+        limiter.resetKey('::ffff:127.0.0.1');
+    }
     
     // create the actual mock return values for the Model mock created above
     User.findOne.mockResolvedValue(null);
@@ -40,6 +46,10 @@ const getCookie = (response, name) =>
 
 // Returns just the value of a Set-Cookie string
 const cookieValue = cookie => cookie.split(';')[0].slice(cookie.indexOf('=') + 1);
+const originalNodeEnv = env.nodeEnv;
+afterEach(() => {
+    env.nodeEnv = originalNodeEnv;
+});
 
 function expectAccessCookie(cookie) {
     expect(cookie).toContain('HttpOnly');
@@ -79,7 +89,7 @@ const invalidMembers= [
 describe('POST /api/auth/register', () => {
     it('Returns 201 for valid registration', async() => {
         const response = await request(app)
-            .post('/api/auth/register')
+            .post('/api/auth/register').set('Origin', 'http://localhost:3000')
             .send(validMember);
         
         expect(response.status).toBe(201);
@@ -105,7 +115,7 @@ describe('POST /api/auth/register', () => {
         );
 
         const response = await request(app)
-            .post('/api/auth/register')
+            .post('/api/auth/register').set('Origin', 'http://localhost:3000')
             .send(validMember);
 
         expect(response.status).toBe(500);
@@ -119,7 +129,7 @@ describe('POST /api/auth/register', () => {
         'returns 400 for invalid input %#', 
         async (member) => {
         const response = await request(app)
-            .post('/api/auth/register')
+            .post('/api/auth/register').set('Origin', 'http://localhost:3000')
             .send(member);
 
         expect(response.status).toBe(400);
@@ -131,7 +141,7 @@ describe('POST /api/auth/register', () => {
         User.findOne.mockResolvedValue({ username: 'martin123' });
 
         const response = await request(app)
-            .post('/api/auth/register')
+            .post('/api/auth/register').set('Origin', 'http://localhost:3000')
             .send(validMember);
 
         expect(response.status).toBe(409);
@@ -142,7 +152,7 @@ describe('POST /api/auth/register', () => {
         User.create.mockRejectedValue({ code: 11000 });
 
         const response = await request(app)
-            .post('/api/auth/register')
+            .post('/api/auth/register').set('Origin', 'http://localhost:3000')
             .send(validMember);
 
         expect(response.status).toBe(409);
@@ -177,7 +187,7 @@ describe('POST /api/auth/login', () => {
         });
         RefreshSession.create.mockRejectedValue(new Error('Session storage unavailable'));
 
-        const response = await request(app).post('/api/auth/login')
+        const response = await request(app).post('/api/auth/login').set('Origin', 'http://localhost:3000')
             .send({ username: 'martin123', password: 'secret123' });
 
         expect(response.status).toBe(500);
@@ -195,7 +205,7 @@ describe('POST /api/auth/login', () => {
         });
 
         const response = await request(app)
-            .post('/api/auth/login')
+            .post('/api/auth/login').set('Origin', 'http://localhost:3000')
             .send({
                 username: "martythebest",
                 password: "malakshDa3wa?"
@@ -247,7 +257,7 @@ describe('POST /api/auth/login', () => {
         User.findOne.mockResolvedValue(invalidLogin);
 
         const response = await request(app)
-            .post('/api/auth/login')
+            .post('/api/auth/login').set('Origin', 'http://localhost:3000')
             .send({
                 username: "martythebest",
                 password: "malakshDa3wa?"
@@ -263,7 +273,7 @@ describe('POST /api/auth/login', () => {
     it.each(incompleteLogin)('Returns 400 for incomplete login data',
         async (incompleteLogin) =>{
         const response = await request(app)
-            .post('/api/auth/login')
+            .post('/api/auth/login').set('Origin', 'http://localhost:3000')
             .send(incompleteLogin);
         
         expect(User.findOne).not.toHaveBeenCalled();
@@ -278,7 +288,7 @@ describe('POST /api/auth/login', () => {
     User.findOne.mockRejectedValue(new Error('Database unavailable'));
 
     const response = await request(app)
-        .post('/api/auth/login')
+        .post('/api/auth/login').set('Origin', 'http://localhost:3000')
         .send({
             username: 'martythebest',
             password: 'secret123'
@@ -301,7 +311,7 @@ describe('POST /api/auth/logout', () => {
 
     it('deletes the matching session and clears the cookie', async () => {
         const refreshToken = 'test-refresh-token';
-        const response = await request(app).post('/api/auth/logout')
+        const response = await request(app).post('/api/auth/logout').set('Origin', 'http://localhost:3000')
             .set('Cookie', `refreshToken=${refreshToken}`);
 
         expect(response.status).toBe(200);
@@ -313,7 +323,7 @@ describe('POST /api/auth/logout', () => {
     });
 
     it('succeeds without a cookie and skips database deletion', async () => {
-        const response = await request(app).post('/api/auth/logout');
+        const response = await request(app).post('/api/auth/logout').set('Origin', 'http://localhost:3000');
 
         expect(response.status).toBe(200);
         expect(RefreshSession.deleteOne).not.toHaveBeenCalled();
@@ -322,7 +332,7 @@ describe('POST /api/auth/logout', () => {
 
     it('returns 500 when session deletion fails', async () => {
         RefreshSession.deleteOne.mockRejectedValue(new Error('Database unavailable'));
-        const response = await request(app).post('/api/auth/logout')
+        const response = await request(app).post('/api/auth/logout').set('Origin', 'http://localhost:3000')
             .set('Cookie', 'refreshToken=test-token');
 
         expect(response.status).toBe(500);
@@ -333,19 +343,40 @@ describe('POST /api/auth/logout', () => {
 describe('POST /api/auth/refresh', () => {
     const oldToken = 'old-refresh-token';
     const user = { _id: 'user123', username: 'martin123', role: 'lender' };
-    const sendRefresh = () => request(app).post('/api/auth/refresh')
+    const sendRefresh = () => request(app).post('/api/auth/refresh').set('Origin', 'http://localhost:3000')
         .set('Cookie', `refreshToken=${oldToken}`);
+
+    it.each(['production', 'development'])('sets Secure only in production (%s)', async mode => {
+        // The controller reads the configuration captured when env.js loads.
+        env.nodeEnv = mode;
+        RefreshSession.findOneAndDelete.mockResolvedValueOnce({ userId: user._id });
+        User.findById.mockResolvedValue(user);
+        const response = await sendRefresh();
+        expect(response.status).toBe(200);
+        for (const cookie of response.headers['set-cookie']) {
+            expect(cookie.includes('; Secure')).toBe(mode === 'production');
+        }
+    });
+
+    it('a concurrent rejected refresh cannot erase the winning response cookies', async () => {
+        RefreshSession.findOneAndDelete.mockResolvedValueOnce({ userId: user._id });
+        User.findById.mockResolvedValue(user);
+        const responses = await Promise.all([sendRefresh(), sendRefresh()]);
+        expect(responses.map(response => response.status).sort()).toEqual([200, 401]);
+        expect(responses.find(response => response.status === 401).headers['set-cookie']).toBeUndefined();
+        expect(responses.find(response => response.status === 200).headers['set-cookie']).toHaveLength(2);
+        expect(RefreshSession.create).toHaveBeenCalledOnce();
+    });
 
     function expectRejected(response) {
         expect(response.status).toBe(401);
         expect(response.body).not.toHaveProperty('accessToken');
         expect(RefreshSession.create).not.toHaveBeenCalled();
-        expect(getCookie(response, 'refreshToken')).toContain('refreshToken=;');
-        expectAccessCookieCleared(response);
+        expect(response.headers['set-cookie']).toBeUndefined();
     }
 
     it('rejects missing cookies without accessing the database', async () => {
-        const response = await request(app).post('/api/auth/refresh');
+        const response = await request(app).post('/api/auth/refresh').set('Origin', 'http://localhost:3000');
         expectRejected(response);
         expect(RefreshSession.findOneAndDelete).not.toHaveBeenCalled();
     });

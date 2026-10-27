@@ -36,10 +36,10 @@ const runRole = (roles, user) => {
 
 describe('requireAuth', () => {
     describe('valid token', () => {
-        it('stores id and username on req.user from the accessToken cookie', () => {
+        it('stores id and role on req.user from the accessToken cookie', () => {
             const { req, res, next } = run(requireAuth, { accessToken: token });
             // the user id is the username
-            expect(req.user).toEqual({ id: 'martin', username: 'martin' });
+            expect(req.user).toEqual({ id: 'martin', role: 'member' });
             expect(next).toHaveBeenCalledExactlyOnceWith();
             expect(res.status).not.toHaveBeenCalled();
         });

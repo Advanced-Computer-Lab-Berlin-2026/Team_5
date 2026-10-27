@@ -54,7 +54,7 @@ describe('errorHandler', () => {
         // express.json() throws a 400 error for broken JSON bodies
         it('answers broken JSON in a request with 400', async () => {
             const response = await request(app)
-                .post('/api/auth/login')
+                .post('/api/auth/login').set('Origin', 'http://localhost:3000')
                 .set('Content-Type', 'application/json')
                 .send('{ not json');
             expect(response.status).toBe(400);

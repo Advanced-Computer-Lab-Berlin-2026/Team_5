@@ -100,6 +100,7 @@ function signToken(user){
 function setRefreshCookie(res, refreshToken) {
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
+        secure: env.nodeEnv === 'production',
         sameSite: 'strict',
         path: '/api/auth',
         maxAge: 7 * 24 * 60 * 60 * 1000
@@ -110,6 +111,7 @@ function setRefreshCookie(res, refreshToken) {
 function setAccessCookie(res, accessToken) {
     res.cookie('accessToken', accessToken, {
         httpOnly: true,
+        secure: env.nodeEnv === 'production',
         sameSite: 'strict',
         path: '/',
         maxAge: 15 * 60 * 1000
@@ -173,8 +175,7 @@ export async function refresh(req, res, next) {
     try{
         const refreshToken = req.cookies?.refreshToken;
         if (typeof refreshToken !== 'string' || !refreshToken) {
-            clearAuthCookies(res);
-    return res.status(401).json({ message: 'Invalid or expired refresh token' });
+            return res.status(401).json({ message: 'Invalid or expired refresh token' });
         }
 
         const tokenHash = crypto
@@ -187,14 +188,12 @@ export async function refresh(req, res, next) {
             expiresAt: { $gt: new Date() }
         });
         if (!session) {
-            clearAuthCookies(res);
-    return res.status(401).json({ message: 'Invalid or expired refresh token' });
+            return res.status(401).json({ message: 'Invalid or expired refresh token' });
         }
 
         const user = await User.findById(session.userId);
         if (!user) {
-            clearAuthCookies(res);
-    return res.status(401).json({ message: 'Invalid or expired refresh token' });
+            return res.status(401).json({ message: 'Invalid or expired refresh token' });
         }
 
         const accessToken = signToken(user);

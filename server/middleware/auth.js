@@ -27,7 +27,7 @@ export function requireAuth(req, res, next) {
     if (!payload?.id) return res.status(401).json({ message: 'Invalid access token' });
 
     // the user id is the username
-    req.user = { id: payload.id, username: payload.id };
+    req.user = { id: payload.id, role: payload.role };
     next();
 }
 

@@ -3,6 +3,7 @@ import dns from 'dns';
 import cookieParser from "cookie-parser";
 import authRoutes from './routes/auth.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
+import { csrfProtection } from './middleware/authSecurity.js';
 // Define route imports
 
 const app = express();
@@ -10,6 +11,8 @@ const app = express();
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 app.use(cookieParser());
+// Covers current and future API routers before they can process a mutation.
+app.use('/api', csrfProtection);
 app.use(express.json());
 
 app.get('/api/health', (req, res) =>

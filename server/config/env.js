@@ -39,9 +39,16 @@ if(!SMTP_PASS){
   process.exit(1);
 }
 
+const NODE_ENV = process.env.NODE_ENV;
+if(!NODE_ENV){
+  console.error("Error: SMTP_PASS is not defined in the .env file.");
+  process.exit(1);
+}
+
 export const env = {
   backendPort: PORT,
   jwtSecret: JWT_SECRET,
   mongoDB: MONGODB_URI,
-  smtpPass: SMTP_PASS
+  smtpPass: SMTP_PASS,
+  nodeEnv: NODE_ENV
 };

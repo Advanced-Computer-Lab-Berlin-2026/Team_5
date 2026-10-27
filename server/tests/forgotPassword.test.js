@@ -1,3 +1,4 @@
+import { authLimiters } from '../middleware/authSecurity.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
@@ -9,10 +10,15 @@ vi.mock('../models/User.js', () => ({ User: { findOne: vi.fn() } }));
 vi.mock('../models/PasswordReset.js', () => ({ PasswordReset: { findOneAndUpdate: vi.fn() } }));
 vi.mock('../services/emailService.js', () => ({ sendResetEmail: vi.fn() }));
 const message = 'If an account exists, a reset code has been sent.';
-const send = body => request(app).post('/api/auth/forget-password').send(body);
+const send = body => request(app).post('/api/auth/forget-password').set('Origin', 'http://localhost:3000').send(body);
 
 beforeEach(() => {
     vi.resetAllMocks();
+    for (const limiter of Object.values(authLimiters)) {
+        limiter.resetKey('::/56');
+        limiter.resetKey('127.0.0.1');
+        limiter.resetKey('::ffff:127.0.0.1');
+    }
     User.findOne.mockResolvedValue({ _id: 'user123', profile: { email: 'martin@example.com' } });
     PasswordReset.findOneAndUpdate.mockResolvedValue({});
     sendResetEmail.mockResolvedValue(undefined);
