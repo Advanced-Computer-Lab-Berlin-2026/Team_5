@@ -16,9 +16,9 @@ describe('viewUserDetails', () => {
         vi.resetAllMocks();
     })
 
-    it('should return 400 if userId is not a valid ObjectId', async () => {
+    it.each([undefined, '', '   ', 123, {}])('returns 400 for an invalid username ID %j', async id => {
         const req = {
-            params: { id: 'invalid-id' }
+            params: { id }
         };
         const res = {
             status: vi.fn().mockReturnThis(),
@@ -33,7 +33,7 @@ describe('viewUserDetails', () => {
 
     it('should return 404 if user is not found', async () => {
         const req = {
-            params: { id: '507f1f77bcf86cd799439011' }
+            params: { id: 'member123' }
         };
         const res = {
             status: vi.fn().mockReturnThis(),
@@ -47,7 +47,7 @@ describe('viewUserDetails', () => {
 
     it('should return 403 if user role is not member or lender', async () => {
         const req = {
-            params: { id: '507f1f77bcf86cd799439011' }
+            params: { id: 'member123' }
         };
         const res = {
             status: vi.fn().mockReturnThis(),
@@ -61,26 +61,26 @@ describe('viewUserDetails', () => {
 
     it('should return 200 and user details if user is found and role is member or lender', async () => {
         const req = {
-            params: { id: '507f1f77bcf86cd799439011' }
+            params: { id: 'member123' }
         };
         const res = {
             status: vi.fn().mockReturnThis(),
             json: vi.fn()
         };
-        const mockUser = { _id: '507f1f77bcf86cd799439011', role: 'member', name: 'Ahmed' };
+        const mockUser = { _id: 'member123', username: 'member123', role: 'member', profile: { name: 'Ahmed', email: 'ahmed@example.com' } };
         const mockSelect = vi.fn().mockResolvedValue(mockUser);
         User.findById.mockReturnValue({select: mockSelect});
         await viewUserDetails(req, res);
         expect(res.status).toHaveBeenCalledWith(200);
         expect(res.json).toHaveBeenCalledWith({ user: mockUser });
-        expect(User.findById).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+        expect(User.findById).toHaveBeenCalledWith('member123');
         expect(res.json.mock.calls[0][0].user).not.toHaveProperty('password');
         expect(mockSelect).toHaveBeenCalledWith('-password -__v');
     });
 
     it('should return 500 if there is an unexpected error', async () => {
         const req = {
-            params: { id: '507f1f77bcf86cd799439014' },
+            params: { id: 'missinguser' },
         };
         const res = {
             status: vi.fn().mockReturnThis(),
@@ -92,7 +92,7 @@ describe('viewUserDetails', () => {
         await viewUserDetails(req, res);
         expect(res.status).toHaveBeenCalledWith(500);
         expect(res.json).toHaveBeenCalledWith({ error: 'An error occurred while viewing user details.' });
-        expect(User.findById).toHaveBeenCalledWith('507f1f77bcf86cd799439014');
+        expect(User.findById).toHaveBeenCalledWith('missinguser');
         expect(User.findById).toHaveBeenCalledTimes(1);
     });
 });

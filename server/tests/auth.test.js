@@ -162,7 +162,7 @@ describe('POST /api/auth/register', () => {
 const invalidLogin = [
     null,
     {
-        _id: 123,
+        _id: 'martythebest',
         username: 'martythebest',
         profile: { name: 'Martin', email: 'martin@example.com' },
         password: await bcrypt.hash("mesh_malakshDa3wa?", 10)
@@ -197,7 +197,7 @@ describe('POST /api/auth/login', () => {
 
     it('Returns 200 for successful login', async () =>{
         User.findOne.mockResolvedValue({
-                _id: 123,
+                _id: 'martythebest',
                 username: 'martythebest',
                 role: 'member',
                 profile: { name: 'Martin', email: 'martin@example.com' },
@@ -225,12 +225,12 @@ describe('POST /api/auth/login', () => {
         const payload = jwt.verify(cookieValue(accessCookie), env.jwtSecret);
 
         expect(response.body.user).toEqual({
-            id: '123',
+            id: 'martythebest',
             username: 'martythebest',
             name: 'Martin',
             email: 'martin@example.com'
         });
-        expect(payload.id).toBe('123');
+        expect(payload.id).toBe('martythebest');
         expect(payload.role).toBe('member');
         expect(payload.exp - payload.iat).toBe(15 * 60);
 
@@ -246,7 +246,7 @@ describe('POST /api/auth/login', () => {
         expect(RefreshSession.create).toHaveBeenCalledOnce();
 
         const session = RefreshSession.create.mock.calls[0][0];
-        expect(session.userId).toBe(123);
+        expect(session.userId).toBe('martythebest');
         expect(session.tokenHash).toBe(crypto.createHash('sha256').update(refreshToken).digest('hex'));
         expect(session.expiresAt.getTime()).toBeGreaterThan(Date.now() + 604790000);
         expect(session.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 604800000);
@@ -254,16 +254,15 @@ describe('POST /api/auth/login', () => {
 
     it('Returns 403 for suspended user login', async () => {
         User.findOne.mockResolvedValue({
-            _id: 123,
+            _id: 'martythebest',
             username: 'martythebest',
-            name: 'Martin',
-            email: 'martin@example.com',
+            profile: { name: 'Martin', email: 'martin@example.com' },
             password: await bcrypt.hash("malakshDa3wa?", 10),
             suspended: true
         });
 
         const response = await request(app)
-            .post('/api/auth/login')
+            .post('/api/auth/login').set('Origin', 'http://localhost:3000')
             .send({
                 username: "martythebest",
                 password: "malakshDa3wa?"
@@ -367,7 +366,7 @@ describe('POST /api/auth/logout', () => {
 
 describe('POST /api/auth/refresh', () => {
     const oldToken = 'old-refresh-token';
-    const user = { _id: 'user123', username: 'martin123', role: 'lender' };
+    const user = { _id: 'martin123', username: 'martin123', role: 'lender' };
     const sendRefresh = () => request(app).post('/api/auth/refresh').set('Origin', 'http://localhost:3000')
         .set('Cookie', `refreshToken=${oldToken}`);
 
@@ -467,7 +466,7 @@ describe('POST /api/auth/refresh', () => {
         RefreshSession.findOneAndDelete.mockResolvedValueOnce({ userId: user._id });
         User.findById.mockResolvedValue({ ...user, suspended: true });
 
-        const response = await request(app).post('/api/auth/refresh')
+        const response = await request(app).post('/api/auth/refresh').set('Origin', 'http://localhost:3000')
             .set('Cookie', `refreshToken=${oldToken}`);
 
         expect(response.status).toBe(403);

@@ -12,7 +12,7 @@ vi.mock('../models/User.js', () => ({
 
 describe('authenticate middleware', () => {
 
-    const userId = '507f1f77bcf86cd799439011';
+    const userId = 'testadmin';
 
     beforeEach(() => {
         vi.resetAllMocks();

@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { User } from '../models/User.js';
 import { RefreshSession } from '../models/RefreshSession.js';
 
@@ -9,7 +8,7 @@ async function updateSuspension(req, res) {
         if (typeof suspended !== 'boolean') {
             return res.status(400).json({ error: 'Suspension status must be a boolean.' });
         }
-        if (!mongoose.isObjectIdOrHexString(userId)) {
+        if (typeof userId !== 'string' || !userId.trim()) {
             return res.status(400).json({ error: 'Invalid user ID.' });
         }
         const user = await User.findById(userId);
@@ -34,7 +33,7 @@ async function updateSuspension(req, res) {
 async function viewUserDetails(req, res) {
     try {
         const userId = req.params.id;
-        if (!mongoose.isObjectIdOrHexString(userId)) {
+        if (typeof userId !== 'string' || !userId.trim()) {
             return res.status(400).json({ error: 'Invalid user ID.' });
         }
         const user = await User.findById(userId).select('-password -__v');

@@ -24,7 +24,7 @@ describe('updateSuspension', () => {
 
     it('should return 400 if suspended is not a boolean', async () => {
         const req = {
-            params: { id: '507f1f77bcf86cd799439011' },
+            params: { id: 'member123' },
             body: { suspended: "true" }
         };
         const res = {
@@ -40,9 +40,9 @@ describe('updateSuspension', () => {
 
 
 
-    it('should return 400 if userId is not a valid ObjectId', async () => {
+    it.each([undefined, '', '   ', 123, {}])('returns 400 for an invalid username ID %j', async (id) => {
         const req = {
-            params: { id: 'invalid-id' },
+            params: { id },
             body: { suspended: true }
         };
         const res = {
@@ -58,7 +58,7 @@ describe('updateSuspension', () => {
 
     it('should return 404 if user is not found', async () => {
         const req = {
-            params: { id: '507f1f77bcf86cd799439011' },
+            params: { id: 'member123' },
             body: { suspended: true }
         };
         const res = {
@@ -69,20 +69,20 @@ describe('updateSuspension', () => {
         await updateSuspension(req, res);
         expect(res.status).toHaveBeenCalledWith(404);
         expect(res.json).toHaveBeenCalledWith({ error: 'User not found.' });
-        expect(User.findById).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+        expect(User.findById).toHaveBeenCalledWith('member123');
         expect(User.findById).toHaveBeenCalledTimes(1);
     });
 
 
     it('should return 200 and update suspension status for valid member or lender', async () => {
         const mockUser = {
-            _id: '507f1f77bcf86cd799439011',
+            _id: 'member123',
             role: 'member',
             suspended: false,
             save: vi.fn().mockResolvedValue(true)
         };
         const req = {
-            params: { id: '507f1f77bcf86cd799439011' },
+            params: { id: 'member123' },
             body: { suspended: true }
         };  
         const res = {
@@ -102,13 +102,13 @@ describe('updateSuspension', () => {
 
     it('should return 200 for successful suspension update with false for a lender', async () => {
         const mockUser = {
-            _id: '507f1f77bcf86cd799439012',
+            _id: 'lender123',
             role: 'lender',
             suspended: true,
             save: vi.fn().mockResolvedValue(true)
         };  
         const req = {
-            params: { id: '507f1f77bcf86cd799439012' },
+            params: { id: 'lender123' },
             body: { suspended: false }
         };
         const res = {
@@ -126,13 +126,13 @@ describe('updateSuspension', () => {
 
     it('should return 403 if trying to suspend an admin', async () => {
         const mockUser = {
-            _id: '507f1f77bcf86cd799439013',
+            _id: 'admin123',
             role: 'admin',
             suspended: false,
             save: vi.fn().mockResolvedValue(true)
         };
         const req = {
-            params: { id: '507f1f77bcf86cd799439013' },
+            params: { id: 'admin123' },
             body: { suspended: true }
         };
         const res = {
@@ -148,7 +148,7 @@ describe('updateSuspension', () => {
     });
     it('should return 500 if there is an unexpected error', async () => {
         const req = {
-            params: { id: '507f1f77bcf86cd799439014' },
+            params: { id: 'missinguser' },
             body: { suspended: true }
         };
         const res = {
@@ -159,18 +159,18 @@ describe('updateSuspension', () => {
         await updateSuspension(req, res);
         expect(res.status).toHaveBeenCalledWith(500);
         expect(res.json).toHaveBeenCalledWith({ error: 'An error occurred while updating suspension status.' });
-        expect(User.findById).toHaveBeenCalledWith('507f1f77bcf86cd799439014');
+        expect(User.findById).toHaveBeenCalledWith('missinguser');
         expect(User.findById).toHaveBeenCalledTimes(1);
     });
     it('should handle database save failure gracefully', async () => {   
         const mockUser = {
-            _id: '507f1f77bcf86cd799439015',
+            _id: 'member456',
             role: 'member',
             suspended: false,
             save: vi.fn().mockRejectedValue(new Error('Database save error'))
         };  
         const req = {
-            params: { id: '507f1f77bcf86cd799439015' },
+            params: { id: 'member456' },
             body: { suspended: true }   
         }
         const res = {
