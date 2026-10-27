@@ -2,6 +2,7 @@ import express from "express";
 import dns from 'dns';
 import cookieParser from "cookie-parser";
 import authRoutes from './routes/auth.js';
+import { notFound, errorHandler } from './middleware/errorHandler.js';
 // Define route imports
 
 const app = express();
@@ -20,14 +21,7 @@ app.get('/api/health', (req, res) =>
 app.use('/api/auth', authRoutes)
 
 // Keep These at the end for fallback errors
-app.use( (req, res) =>
-  res.status(404).json({ message : "Endpoint not found"})
-);
-
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(err.status || 500).json({ message: err.message || 'Server Error' });
-});
+app.use(notFound);
+app.use(errorHandler);
 
 export default app;
