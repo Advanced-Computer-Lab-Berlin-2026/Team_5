@@ -9,8 +9,7 @@ const listItemsSchema = joi.object({
     page: joi.number().integer().min(1).default(1),
     limit: joi.number().integer().min(1).max(50).default(10),
     category: joi.string().trim(),
-    archived: joi.boolean().default(false),
-    // default false so archived drops out, thats the spec. SCRUM-298 is the ticket for keeping them out of list/search/filter
+    // no archived param, archived items never show in the list, search or filter (SCRUM-298). passing it is a 400 like any unknown param
     search: joi.string().trim().max(100)
 });
 
@@ -21,7 +20,8 @@ export async function listItems(req, res, next) {
         if (error) return res.status(400).json({ message: error.message });
 
         // flagged items are hidden here too, same as the details page
-        const filter = { archived: value.archived, flagged: { $ne: true } };
+        // "available" here just means not archived and not flagged. checking reservations and dates is sprint 2 (E11, SCRUM-419)
+        const filter = { archived: false, flagged: { $ne: true } };
         // exact match, categories come from a dropdown. also keeps the category + archived index usable
         // an unknown category just gives an empty list, the ticket doesn't ask for an error
         if (value.category) filter.category = value.category;
@@ -36,7 +36,6 @@ export async function listItems(req, res, next) {
         if (suspendedOwners.length) filter.owner = { $nin: suspendedOwners };
 
         const [items, total] = await Promise.all([
-            // mongoose turns this find() into a mongo query, not sql. temp so I remember
             Item.find(filter, LIST_FIELDS, {
                 // ID acts as a second sorter in case two items are created at the same exact moment to ensure consistency when sorting
                 sort: { createdAt: -1, _id: 1 },
@@ -68,10 +67,10 @@ export async function getItem(req, res, next) {
             // flagged is hidden from everyone, even from a direct link, so it looks like it doesn't exist
             // archived isn't filtered, so it still opens from a direct link
             { _id: req.params.id, flagged: { $ne: true } },
-            { flagged: 0, __v: 0 }, // hides flagged from the response
+            { flagged: 0, __v: 0 },
             {
                 lean: true,
-                // owner is name only, lean skips User toJSON so password/email/phone/wallet must never be read. populate's select asks User lookup for just name + suspended + trust score
+                // owner is name + trust score only, lean skips User toJSON so password/email/phone/wallet must never be read. populate's select asks User lookup for just name + suspended + trust score
                 populate: { path: 'owner', select: 'profile.name suspended trustScore' }
             }
         );
@@ -79,7 +78,7 @@ export async function getItem(req, res, next) {
         if (!item || item.owner?.suspended) return res.status(404).json({ message: 'Item not found' });
 
         // owner is null if the user got deleted, so I don't crash on owner.profile
-        // username is the login id and populate always reads _id (= username), so I rebuild owner as { name } only
+        // username is the login id and populate always reads _id (= username), so I rebuild owner as { name, trustScore } only
         // trust score is the stored 0-100 number on User, SCRUM-390 is the one that recalculates it
         const owner = item.owner ? { name: item.owner.profile?.name, trustScore: item.owner.trustScore } : null;
 

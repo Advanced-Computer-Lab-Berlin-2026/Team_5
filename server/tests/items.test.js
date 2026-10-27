@@ -82,14 +82,22 @@ describe('GET /api/items', () => {
         });
     });
 
-    it.each([
-        [undefined, false],
-        ['false', false],
-        ['true', true]
-    ])('uses archived=%s as %s', async (archived, expected) => {
-        await list(archived === undefined ? {} : { archived });
+    // SCRUM-298, archived items never come back and there's no param to ask for them
+    it.each(['true', 'false'])('returns 400 for archived=%s', async archived => {
+        const response = await list({ archived });
 
-        expect(Item.find.mock.calls[0][0].archived).toBe(expected);
+        expect(response.status).toBe(400);
+        expect(Item.find).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['search', { search: 'drill' }],
+        ['category filter', { category: 'Tools' }]
+    ])('leaves archived items out of the %s', async (label, query) => {
+        await list(query);
+
+        expect(Item.find.mock.calls[0][0].archived).toBe(false);
+        expect(Item.countDocuments.mock.calls[0][0].archived).toBe(false);
     });
 
     it('searches names case insensitive', async () => {
@@ -101,7 +109,6 @@ describe('GET /api/items', () => {
     });
 
     // part of a word is enough, "dri" finds "Power Drill"
-    // I run the regex the controller built against the real name
     it('matches part of a name', async () => {
         await list({ search: 'dri' });
 
@@ -118,11 +125,11 @@ describe('GET /api/items', () => {
         expect(new RegExp(name.$regex, name.$options).test('Drill (18V)')).toBe(true);
     });
 
-    it('combines search, category and archived in one filter', async () => {
-        await list({ search: 'drill', category: 'Tools', archived: 'true' });
+    it('combines search and category in one filter', async () => {
+        await list({ search: 'drill', category: 'Tools' });
 
         expect(Item.find.mock.calls[0][0]).toEqual({
-            archived: true,
+            archived: false,
             flagged: { $ne: true },
             category: 'Tools',
             name: { $regex: 'drill', $options: 'i' }
@@ -197,9 +204,7 @@ describe('GET /api/items', () => {
         expect(response.body).not.toHaveProperty('items');
     });
 
-    // suspended lenders' items drop out of the list
     // the filter has to be in the query so total/totalPages don't count them
-    // I suspend sam and check his items are excluded while everyone else's still come back
     it('leaves out items from suspended owners and keeps the rest', async () => {
         User.distinct.mockResolvedValue(['sam']);
         Item.find.mockResolvedValue([drill]);
@@ -240,6 +245,7 @@ const ownerFromDb = {
     username: 'martin',
     password: '$2b$10$hashhashhash',
     wallet: 500,
+    trustScore: 50,
     profile: { name: 'Martin', email: 'martin@example.com', phone: '+201000000000' }
 };
 const fullDrill = {
@@ -259,7 +265,7 @@ describe('GET /api/items/:id', () => {
         const response = await details('ITM-1');
 
         expect(response.status).toBe(200);
-        expect(response.body.item).toEqual({ ...fullDrill, owner: { name: 'Martin' } });
+        expect(response.body.item).toEqual({ ...fullDrill, owner: { name: 'Martin', trustScore: 50 } });
         expect(Item.findOne).toHaveBeenCalledExactlyOnceWith(
             { _id: 'ITM-1', flagged: { $ne: true } },
             { flagged: 0, __v: 0 },
@@ -278,7 +284,6 @@ describe('GET /api/items/:id', () => {
 
     // flagged = 404 for everyone
     // reported items shouldn't be publicly accessible
-    // I check the query filters flagged out and the projection drops the field
     it('hides flagged items and never sends the flagged field', async () => {
         Item.findOne.mockResolvedValue(null);
 
@@ -292,7 +297,6 @@ describe('GET /api/items/:id', () => {
 
     // archived still opens from a direct link
     // reservation history needs it and the lender might unarchive
-    // I check it's a 200 and the query has no archived key
     it('still opens archived items from a direct link', async () => {
         Item.findOne.mockResolvedValue({ ...fullDrill, archived: true });
 
@@ -311,15 +315,13 @@ describe('GET /api/items/:id', () => {
         expect(Item.findOne.mock.calls[0][2].populate.select).toBe('profile.name suspended trustScore');
     });
 
-    // owner is name only
-    // username/password/email/phone/wallet must never show up in the body
-    // I feed it a fake owner with all of them and search the raw json
+    // owner is name + trust score only
     it('never leaks owner username, password, email, phone or wallet', async () => {
         Item.findOne.mockResolvedValue(fullDrill);
 
         const response = await details('ITM-1');
 
-        expect(response.body.item.owner).toEqual({ name: 'Martin' });
+        expect(response.body.item.owner).toEqual({ name: 'Martin', trustScore: 50 });
         const raw = JSON.stringify(response.body);
         for (const secret of ['"martin"', 'username', '$2b$10$hashhashhash', 'martin@example.com', '+201000000000', 'password', 'wallet']) {
             expect(raw).not.toContain(secret);
@@ -328,7 +330,6 @@ describe('GET /api/items/:id', () => {
 
     // suspended lender = 404, like the item doesn't exist
     // matches the list, which leaves their items out
-    // I give the fake owner suspended true and expect the same 404 as a missing item
     it('returns 404 when the owner is suspended', async () => {
         Item.findOne.mockResolvedValue({ ...fullDrill, owner: { ...ownerFromDb, suspended: true } });
 
@@ -344,16 +345,16 @@ describe('GET /api/items/:id', () => {
         const response = await details('ITM-1');
 
         expect(response.status).toBe(200);
-        expect(response.body.item.owner).toEqual({ name: 'Martin' });
+        expect(response.body.item.owner).toEqual({ name: 'Martin', trustScore: 50 });
     });
 
-    it('returns an empty owner when the owner has no profile', async () => {
-        Item.findOne.mockResolvedValue({ ...fullDrill, owner: { _id: 'martin' } });
+    it('leaves out the name when the owner has no profile', async () => {
+        Item.findOne.mockResolvedValue({ ...fullDrill, owner: { _id: 'martin', trustScore: 50 } });
 
         const response = await details('ITM-1');
 
         expect(response.status).toBe(200);
-        expect(response.body.item.owner).toEqual({});
+        expect(response.body.item.owner).toEqual({ trustScore: 50 });
     });
 
     it('includes the owner trust score', async () => {
@@ -363,6 +364,15 @@ describe('GET /api/items/:id', () => {
 
         expect(response.status).toBe(200);
         expect(response.body.item.owner).toEqual({ name: 'Martin', trustScore: 72 });
+    });
+
+    it('keeps a trust score of 0', async () => {
+        Item.findOne.mockResolvedValue({ ...fullDrill, owner: { ...ownerFromDb, trustScore: 0 } });
+
+        const response = await details('ITM-1');
+
+        expect(response.status).toBe(200);
+        expect(response.body.item.owner).toEqual({ name: 'Martin', trustScore: 0 });
     });
 
     it('returns owner null when the owner account is gone', async () => {
@@ -383,9 +393,7 @@ describe('GET /api/items/:id', () => {
         expect(response.body).not.toHaveProperty('item');
     });
 
-    // /api/items still goes to the list
     // checks the route order in routes/items.js
-    // I hit GET /api/items and expect find, not findOne
     it('does not route the list endpoint to details', async () => {
         await request(app).get('/api/items');
 
