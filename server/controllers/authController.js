@@ -84,25 +84,43 @@ export async function login(req, res, next) {
         const refreshToken = await createRefreshToken(user);
 
         setRefreshCookie(res, refreshToken);
+        setAccessCookie(res, accessToken);
 
-        res.status(200).json({ accessToken, user: publishUser(user)});
+        res.status(200).json({ user: publishUser(user)});
     } catch(error){
         next(error);
     }
 }
 
 function signToken(user){
-    const payload = {id: user._id.toString(), username:user.username};
+    const payload = {id: user._id.toString(), role: user.role};
     return jwt.sign(payload, env.jwtSecret, { expiresIn: '15m'} );
 }
 
 function setRefreshCookie(res, refreshToken) {
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
+        secure: env.nodeEnv === 'production',
         sameSite: 'strict',
         path: '/api/auth',
         maxAge: 7 * 24 * 60 * 60 * 1000
     });
+}
+
+// Sent to every route so requireAuth can read it
+function setAccessCookie(res, accessToken) {
+    res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: env.nodeEnv === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 15 * 60 * 1000
+    });
+}
+
+function clearAuthCookies(res) {
+    res.clearCookie('refreshToken', { path: '/api/auth' });
+    res.clearCookie('accessToken', { path: '/' });
 }
 
 async function createRefreshToken(user){
@@ -142,7 +160,7 @@ export async function logout(req, res, next) {
             await RefreshSession.deleteOne({ tokenHash });
         }
 
-        res.clearCookie('refreshToken', { path: '/api/auth' });
+        clearAuthCookies(res);
 
         return res.status(200).json({
             message: 'Logged out successfully'
@@ -157,7 +175,6 @@ export async function refresh(req, res, next) {
     try{
         const refreshToken = req.cookies?.refreshToken;
         if (typeof refreshToken !== 'string' || !refreshToken) {
-            res.clearCookie('refreshToken', { path: '/api/auth' });
             return res.status(401).json({ message: 'Invalid or expired refresh token' });
         }
 
@@ -171,20 +188,19 @@ export async function refresh(req, res, next) {
             expiresAt: { $gt: new Date() }
         });
         if (!session) {
-            res.clearCookie('refreshToken', { path: '/api/auth' });
             return res.status(401).json({ message: 'Invalid or expired refresh token' });
         }
 
         const user = await User.findById(session.userId);
         if (!user) {
-            res.clearCookie('refreshToken', { path: '/api/auth' });
             return res.status(401).json({ message: 'Invalid or expired refresh token' });
         }
 
         const accessToken = signToken(user);
         const newRefreshToken = await createRefreshToken(user);
         setRefreshCookie(res, newRefreshToken);
-        return res.status(200).json({ accessToken });
+        setAccessCookie(res, accessToken);
+        return res.status(200).json({ message: 'Token refreshed' });
     } catch(error) {
         next(error);
     }
@@ -283,7 +299,7 @@ export async function resetPassword(req, res, next) {
         }
 
         await RefreshSession.deleteMany({ userId: reset.userId });
-        res.clearCookie('refreshToken', { path: '/api/auth' });
+        clearAuthCookies(res);
         res.set('Cache-Control', 'no-store');
         return res.status(200).json({ message: 'Password reset successfully. Please log in.' });
     } catch (error) {
