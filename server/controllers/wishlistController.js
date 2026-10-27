@@ -9,7 +9,7 @@ import { ItemListing } from '../models/ItemListing.js';
 export async function addToWishlist(req, res, next) {
    try {
         const userId = await getUserIdFromCookie(req);
-        if (!userId) return res.status(401).json({ message: 'user is null' });
+        if (!userId) return res.status(401).json({ message: 'User is null' });
 
         const { itemId } = req.params;
         if (!mongoose.isValidObjectId(itemId)) return res.status(400).json({ message: 'Invalid item id' });
@@ -31,7 +31,7 @@ export async function addToWishlist(req, res, next) {
 export async function removeFromWishlist(req, res, next) {
     try {
         const userId = await getUserIdFromCookie(req);
-        if (!userId) return res.status(401).json({ message: 'user is null' });
+        if (!userId) return res.status(401).json({ message: 'User is null' });
 
         const { itemId } = req.params;
         if (!mongoose.isValidObjectId(itemId)) return res.status(400).json({ message: 'Invalid item id' });
@@ -49,10 +49,10 @@ export async function removeFromWishlist(req, res, next) {
 export async function getWishlist(req, res, next) {
     try {
         const userId = await getUserIdFromCookie(req);
-        if (!userId) return res.status(401).json({ message: 'user is null' });
+        if (!userId) return res.status(401).json({ message: 'User is null' });
 
         const user = await User.findById(userId).select('wishlist').populate('wishlist');
-        if (!user) return res.status(401).json({ message: 'user not' });
+        if (!user) return res.status(401).json({ message: 'User not found' });
 
         return res.status(200).json({ wishlist: user.wishlist });
     } catch (error) {
