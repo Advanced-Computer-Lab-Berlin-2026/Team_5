@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { User } from '../models/User.js';
-import { getUserIdFromCookie } from '../getUserIdFromCookieDummy.js';
 import { ItemListing } from '../models/ItemListing.js';
+import { requireAuth } from '../middleware/auth.js';
 
     // TEMP: function to get user id from cookie
     // TODO: will be replaced with middleware later
@@ -9,7 +9,10 @@ import { ItemListing } from '../models/ItemListing.js';
 // POST /api/wishlist/:itemId
 export async function addToWishlist(req, res, next) {
    try {
-        const userId = await getUserIdFromCookie(req);
+
+        requireAuth(req, res, () => {}); // Call requireAuth to ensure the user is authenticated
+        const userId = req.user?.id;
+
         if (!userId) return res.status(401).json({ message: 'User is null' });
 
         const { itemId } = req.params;
@@ -31,7 +34,10 @@ export async function addToWishlist(req, res, next) {
 // DELETE /api/wishlist/:itemId
 export async function removeFromWishlist(req, res, next) {
     try {
-        const userId = await getUserIdFromCookie(req);
+
+        requireAuth(req, res, () => {}); // Call requireAuth to ensure the user is authenticated
+        const userId = req.user?.id;
+
         if (!userId) return res.status(401).json({ message: 'User is null' });
 
         const { itemId } = req.params;
@@ -49,7 +55,10 @@ export async function removeFromWishlist(req, res, next) {
 // GET /api/wishlist
 export async function getWishlist(req, res, next) {
     try {
-        const userId = await getUserIdFromCookie(req);
+
+        requireAuth(req, res, () => {}); // Call requireAuth to ensure the user is authenticated
+        const userId = req.user?.id;
+
         if (!userId) return res.status(401).json({ message: 'User is null' });
 
         const user = await User.findById(userId).select('wishlist').populate('wishlist');

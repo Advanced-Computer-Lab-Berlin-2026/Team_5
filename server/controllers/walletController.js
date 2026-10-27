@@ -1,11 +1,15 @@
 import { User } from '../models/User.js';
-import { getUserIdFromCookie } from '../getUserIdFromCookieDummy.js';
+import { requireAuth } from '../middleware/auth.js';
 
 // GET /api/wallet
 export async function getWalletBalance(req, res, next) {
     try {
         // uses dummy function to get user id from cookie, will be replaced with middleware later
-        const userId = await getUserIdFromCookie(req);
+        //const userId = await getUserIdFromCookie(req);
+
+        requireAuth(req, res, () => {}); // Call requireAuth to ensure the user is authenticated
+        const userId = req.user?.id;
+
         if (!userId) return res.status(401).json({ message: 'User id is null' });
 
         const user = await User.findById(userId).select('wallet');
