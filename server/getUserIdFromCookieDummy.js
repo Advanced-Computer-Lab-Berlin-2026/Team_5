@@ -1,11 +1,8 @@
 import crypto from 'node:crypto';
 import { RefreshSession } from './models/RefreshSession.js';
-/* 
-this is a temporary file made till we implement the middleware 
-it will most likly be deleted after
-*/
 
-// Function to get user ID from req by cookie
+// DEPRECIATED: This file is no longer in use updated to use middleware
+// ********************************************************************
 
 export async function getUserIdFromCookie(req) {
     const refreshToken = req.cookies?.refreshToken;
