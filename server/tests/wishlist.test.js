@@ -2,21 +2,38 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import app from "../app.js";
 import { User } from "../models/User.js";
-import { ItemListing } from "../models/ItemListing.js";
-import { getUserIdFromCookie } from "../getUserIdFromCookieDummy.js"; // <-- change to your real path
+import {  Item } from "../models/Item.js";
+import { requireAuth } from "../middleware/auth.js";
 
 vi.mock('../models/User.js', () => ({
     User: { findById: vi.fn(), updateOne: vi.fn() }
 }));
 
-// new compared to the wallet file: addToWishlist calls ItemListing.exists
-vi.mock('../models/ItemListing.js', () => ({
-    ItemListing: { exists: vi.fn() }
+// addToWishlist calls  Item.exists
+vi.mock('../models/Item.js', () => ({
+     Item: { exists: vi.fn() }
 }));
 
-vi.mock('../getUserIdFromCookieDummy.js', () => ({
-    getUserIdFromCookie: vi.fn()
+// replace only requireAuth, keep the other exports of the file
+vi.mock('../middleware/auth.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    requireAuth: vi.fn()
 }));
+
+const TRUSTED_ORIGIN = 'http://localhost:3000';
+
+function authenticateAs(id = 'member123', role = 'member') {
+    requireAuth.mockImplementation((req, res, next) => {
+        req.user = { id, role };
+        next();
+    });
+}
+
+function rejectAuth() {
+    requireAuth.mockImplementation((req, res) =>
+        res.status(401).json({ message: 'Authentication required' })
+    );
+}
 
 /**
  * The controller does: await User.findById(userId).select('wishlist').populate('wishlist')
@@ -39,34 +56,35 @@ beforeEach(() => {
     vi.resetAllMocks();
 
     // default happy baseline
-    getUserIdFromCookie.mockResolvedValue('member123');
-    ItemListing.exists.mockResolvedValue({ _id: validItemId });
+    authenticateAs();
+     Item.exists.mockResolvedValue({ _id: validItemId });
     User.updateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     mockWishlistQuery({ wishlist: [] });
 });
 
 describe('POST /api/wishlist/:itemId', () => {
-    const sendAdd = (itemId = validItemId) => request(app).post(`/api/wishlist/${itemId}`);
+    const sendAdd = (itemId = validItemId) =>
+        request(app).post(`/api/wishlist/${itemId}`).set('Origin', TRUSTED_ORIGIN);
 
     it('returns 200 and adds the item to the wishlist', async () => {
         const response = await sendAdd();
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual({ message: 'Item added to wishlist' });
-        expect(ItemListing.exists).toHaveBeenCalledExactlyOnceWith({ _id: validItemId });
+        expect( Item.exists).toHaveBeenCalledExactlyOnceWith({ _id: validItemId });
         expect(User.updateOne).toHaveBeenCalledExactlyOnceWith(
             { _id: 'member123' },
             { $addToSet: { wishlist: validItemId } }
         );
     });
 
-    it('returns 401 when the cookie helper finds no user id', async () => {
-        getUserIdFromCookie.mockResolvedValue(null);
+    it('returns 401 when the request is not authenticated', async () => {
+        rejectAuth();
 
         const response = await sendAdd();
 
         expect(response.status).toBe(401);
-        expect(ItemListing.exists).not.toHaveBeenCalled();
+        expect( Item.exists).not.toHaveBeenCalled();
         expect(User.updateOne).not.toHaveBeenCalled();
     });
 
@@ -74,14 +92,12 @@ describe('POST /api/wishlist/:itemId', () => {
         const response = await sendAdd(itemId);
 
         expect(response.status).toBe(400);
-        expect(ItemListing.exists).not.toHaveBeenCalled();
+        expect( Item.exists).not.toHaveBeenCalled();
         expect(User.updateOne).not.toHaveBeenCalled();
     });
 
-    //BOOKMARK: Go forward from here
-
     it('returns 404 when the item does not exist', async () => {
-        ItemListing.exists.mockResolvedValue(null);
+         Item.exists.mockResolvedValue(null);
 
         const response = await sendAdd();
 
@@ -107,7 +123,7 @@ describe('POST /api/wishlist/:itemId', () => {
 
     it.each(['exists', 'updateOne'])('returns 500 when %s fails', async (operation) => {
         // two different models, so a lookup instead of User[operation] like in the auth file
-        const failing = { exists: ItemListing.exists, updateOne: User.updateOne };
+        const failing = { exists:  Item.exists, updateOne: User.updateOne };
         failing[operation].mockRejectedValue(new Error('Database unavailable'));
 
         const response = await sendAdd();
@@ -120,7 +136,8 @@ describe('POST /api/wishlist/:itemId', () => {
 });
 
 describe('DELETE /api/wishlist/:itemId', () => {
-    const sendRemove = (itemId = validItemId) => request(app).delete(`/api/wishlist/${itemId}`);
+    const sendRemove = (itemId = validItemId) =>
+        request(app).delete(`/api/wishlist/${itemId}`).set('Origin', TRUSTED_ORIGIN);
 
     it('returns 200 and removes the item from the wishlist', async () => {
         const response = await sendRemove();
@@ -133,8 +150,8 @@ describe('DELETE /api/wishlist/:itemId', () => {
         );
     });
 
-    it('returns 401 when the cookie helper finds no user id', async () => {
-        getUserIdFromCookie.mockResolvedValue(null);
+    it('returns 401 when the request is not authenticated', async () => {
+        rejectAuth();
 
         const response = await sendRemove();
 
@@ -167,7 +184,8 @@ describe('DELETE /api/wishlist/:itemId', () => {
 });
 
 describe('GET /api/wishlist', () => {
-    const sendGetWishlist = () => request(app).get('/api/wishlist');
+    const sendGetWishlist = () =>
+        request(app).get('/api/wishlist').set('Origin', TRUSTED_ORIGIN);
 
     function expectNoWishlist(response) {
         expect(response.body).not.toHaveProperty('wishlist');
@@ -193,8 +211,8 @@ describe('GET /api/wishlist', () => {
         expect(response.body).toEqual({ wishlist: [] });
     });
 
-    it('returns 401 when the cookie helper finds no user id', async () => {
-        getUserIdFromCookie.mockResolvedValue(null);
+    it('returns 401 when the request is not authenticated', async () => {
+        rejectAuth();
 
         const response = await sendGetWishlist();
 

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import app from "../app.js";
 import { User } from "../models/User.js";
-import { getUserIdFromCookie } from "../getUserIdFromCookieDummy.js";
+import { requireAuth } from "../middleware/auth.js";
 
 vi.mock('../models/User.js', () => ({
     User: {
@@ -10,11 +10,26 @@ vi.mock('../models/User.js', () => ({
     }
 }));
 
-
-vi.mock('../getUserIdFromCookieDummy.js', () => ({
-    getUserIdFromCookie: vi.fn()
+// replace only requireAuth, keep the other exports of the file
+vi.mock('../middleware/auth.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    requireAuth: vi.fn()
 }));
 
+const TRUSTED_ORIGIN = 'http://localhost:3000';
+
+function authenticateAs(id = 'member123', role = 'member') {
+    requireAuth.mockImplementation((req, res, next) => {
+        req.user = { id, role };
+        next();
+    });
+}
+
+function rejectAuth() {
+    requireAuth.mockImplementation((req, res) =>
+        res.status(401).json({ message: 'Authentication required' })
+    );
+}
 
 function mockWalletQuery(result) {
     const select = vi.fn().mockResolvedValue(result);
@@ -25,12 +40,13 @@ function mockWalletQuery(result) {
 beforeEach(() => {
     vi.resetAllMocks();
 
-    getUserIdFromCookie.mockResolvedValue('member123');
+    authenticateAs();
     mockWalletQuery({ wallet: 250 });
 });
 
 describe('GET /api/wallet', () => {
-    const sendGetWallet = () => request(app).get('/api/wallet');
+    const sendGetWallet = () =>
+        request(app).get('/api/wallet').set('Origin', TRUSTED_ORIGIN);
 
     function expectNoBalance(response) {
         expect(response.body).not.toHaveProperty('balance');
@@ -56,8 +72,8 @@ describe('GET /api/wallet', () => {
         expect(response.body).toEqual({ balance: 0 });
     });
 
-    it('returns 401 when the cookie helper finds no user id', async () => {
-        getUserIdFromCookie.mockResolvedValue(null);
+    it('returns 401 when the request is not authenticated', async () => {
+        rejectAuth();
 
         const response = await sendGetWallet();
 
