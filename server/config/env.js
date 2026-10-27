@@ -41,7 +41,7 @@ if(!SMTP_PASS){
 
 const NODE_ENV = process.env.NODE_ENV;
 if(!NODE_ENV){
-  console.error("Error: SMTP_PASS is not defined in the .env file.");
+  console.error("Error: NODE_ENV is not defined in the .env file.");
   process.exit(1);
 }
 
