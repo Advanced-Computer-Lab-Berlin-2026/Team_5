@@ -139,11 +139,11 @@ describe('DELETE /api/wishlist/:itemId', () => {
     const sendRemove = (itemId = validItemId) =>
         request(app).delete(`/api/wishlist/${itemId}`).set('Origin', TRUSTED_ORIGIN);
 
-    it('returns 200 and removes the item from the wishlist', async () => {
+    it('returns 200 and removes the item from the wishlist and returns the updated wishlist', async () => {
         const response = await sendRemove();
 
         expect(response.status).toBe(200);
-        expect(response.body).toEqual({ message: 'Item removed from wishlist' });
+        expect(response.body).toEqual({ message: 'Item removed from wishlist', wishlist: [] });
         expect(User.updateOne).toHaveBeenCalledExactlyOnceWith(
             { _id: 'member123' },
             { $pull: { wishlist: validItemId } }

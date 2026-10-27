@@ -36,8 +36,8 @@ export async function removeFromWishlist(req, res, next) {
 
         const result = await User.updateOne({ _id: userId }, { $pull: { wishlist: itemId } });
         if (result.modifiedCount === 0) return res.status(404).json({ message: 'Item not in wishlist' });
-
-        return res.status(200).json({ message: 'Item removed from wishlist' });
+        const user = await User.findById(userId).select('wishlist').populate('wishlist');
+        return res.status(200).json({ message: 'Item removed from wishlist', wishlist: user.wishlist });
     } catch (error) {
         next(error);
     }
