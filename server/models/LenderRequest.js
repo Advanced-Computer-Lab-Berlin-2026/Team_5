@@ -27,7 +27,7 @@ const documentSchema = new mongoose.Schema(
 const lenderRequestSchema = new mongoose.Schema(
     {
         user: {
-            type: mongoose.Schema.Types.ObjectId,
+            type: String,
             ref: 'User',
             required: true
         },
@@ -38,7 +38,7 @@ const lenderRequestSchema = new mongoose.Schema(
         },
         idDocument: {type: documentSchema},
         proofOfAddress: {type: documentSchema},
-        reviewedBy: {type: mongoose.Schema.Types.ObjectId, ref: 'User'},
+        reviewedBy:{type: String, ref: 'User'},
         reviewedAt: {type: Date},
         rejectionReason: {type: String}
     },

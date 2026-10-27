@@ -1,11 +1,10 @@
 import { Router } from 'express';
-import { tempAuth } from '../middleware/tempAuth.js';
-import { requireAdmin } from '../middleware/requireAdmin.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { listLenderRequests, getLenderRequest, getLenderRequestDocument , decideLenderRequest } from '../controllers/adminLenderRequestController.js';
 
 const router = Router();
 
-router.use(tempAuth, requireAdmin);
+router.use(requireAuth, requireRole('admin'));
 
 router.get('/', listLenderRequests);
 router.get('/:id', getLenderRequest);

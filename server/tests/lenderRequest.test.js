@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import fs from "node:fs";
 import path from "node:path";
+import jwt from "jsonwebtoken";
 import app from "../app.js";
+import { env } from "../config/env.js";
 import { LenderRequest } from "../models/LenderRequest.js";
 import { User } from "../models/User.js";
 import { UPLOAD_DIR } from "../middleware/uploadLenderDocument.js";
@@ -17,8 +19,14 @@ vi.mock('../models/User.js', () => ({
     User: { findByIdAndUpdate: vi.fn() }
 }));
 
-const USER_ID = '64b000000000000000000001';
+const USER_ID = 'sara123';
 const BASE_URL = '/api/lender-requests';
+const ORIGIN = 'http://localhost:3000';
+
+// Logs in the way the auth middleware expects: a signed accessToken cookie with the user's id and role.
+function loginCookie(role = 'member') {
+    return `accessToken=${jwt.sign({ id: USER_ID, role }, env.jwtSecret, { expiresIn: '15m' })}`;
+}
 
 
 // Before each test, this stores the list of files already in the uploads folder. Later, tells me which files the test created.
@@ -70,7 +78,7 @@ describe('GET /api/lender-requests', () => {
 
         const response = await request(app)
             .get(BASE_URL)
-            .set('x-user-id', USER_ID);
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(200);
         expect(response.body.status).toBe('draft');
@@ -83,7 +91,7 @@ describe('GET /api/lender-requests', () => {
 
         const response = await request(app)
             .get(BASE_URL)
-            .set('x-user-id', USER_ID);
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(200);
         expect(response.body).toBeNull();
@@ -94,7 +102,7 @@ describe('GET /api/lender-requests', () => {
 
         const response = await request(app)
             .get(BASE_URL)
-            .set('x-user-id', USER_ID);
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(500);
     });
@@ -111,8 +119,8 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         'returns 200 and creates a draft request when uploading %s for the first time',
         async (slot) => {
         const response = await request(app)
-            .post(`${BASE_URL}/documents/${slot}`)
-            .set('x-user-id', USER_ID)
+            .post(`${BASE_URL}/documents/${slot}`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie())
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(200);
@@ -131,8 +139,8 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         LenderRequest.findOne.mockResolvedValue(existing);
 
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`)
-            .set('x-user-id', USER_ID)
+            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie())
             .attach('file', Buffer.from('new image'), 'new-id.png');
 
         expect(response.status).toBe(200);
@@ -145,7 +153,7 @@ describe('POST /api/lender-requests/documents/:slot', () => {
 
     it('returns 401 when not logged in', async () => {
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`)
+            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(401);
@@ -154,8 +162,8 @@ describe('POST /api/lender-requests/documents/:slot', () => {
 
     it('returns 400 when no file is sent', async () => {
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`)
-            .set('x-user-id', USER_ID);
+            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe('Please choose a file to upload');
@@ -164,8 +172,8 @@ describe('POST /api/lender-requests/documents/:slot', () => {
 
     it('returns 400 for an invalid slot and does not keep the file', async () => {
         const response = await request(app)
-            .post(`${BASE_URL}/documents/banana`)
-            .set('x-user-id', USER_ID)
+            .post(`${BASE_URL}/documents/banana`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie())
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(400);
@@ -178,8 +186,8 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         'returns 400 for an invalid file ($name)',
         async (file) => {
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`)
-            .set('x-user-id', USER_ID)
+            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie())
             .attach('file', file.content, file.name);
 
         expect(response.status).toBe(400);
@@ -193,8 +201,8 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         LenderRequest.findOne.mockResolvedValue(submitted);
 
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`)
-            .set('x-user-id', USER_ID)
+            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie())
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(409);
@@ -208,8 +216,8 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         LenderRequest.findOne.mockResolvedValue(existing);
 
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`)
-            .set('x-user-id', USER_ID)
+            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie())
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(500);
@@ -223,8 +231,8 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
         LenderRequest.findOne.mockResolvedValue(existing);
 
         const response = await request(app)
-            .delete(`${BASE_URL}/documents/proofOfAddress`)
-            .set('x-user-id', USER_ID);
+            .delete(`${BASE_URL}/documents/proofOfAddress`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(200);
         expect(existing.proofOfAddress).toBeUndefined();
@@ -233,15 +241,15 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
     });
 
     it('returns 401 when not logged in', async () => {
-        const response = await request(app).delete(`${BASE_URL}/documents/idDocument`);
+        const response = await request(app).delete(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN);
 
         expect(response.status).toBe(401);
     });
 
     it('returns 400 for an invalid slot', async () => {
         const response = await request(app)
-            .delete(`${BASE_URL}/documents/banana`)
-            .set('x-user-id', USER_ID);
+            .delete(`${BASE_URL}/documents/banana`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(400);
         expect(LenderRequest.findOne).not.toHaveBeenCalled();
@@ -253,8 +261,8 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
         LenderRequest.findOne.mockResolvedValue(existing);
 
         const response = await request(app)
-            .delete(`${BASE_URL}/documents/idDocument`)
-            .set('x-user-id', USER_ID);
+            .delete(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(404);
     });
@@ -264,8 +272,8 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
         LenderRequest.findOne.mockResolvedValue(submitted);
 
         const response = await request(app)
-            .delete(`${BASE_URL}/documents/idDocument`)
-            .set('x-user-id', USER_ID);
+            .delete(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(409);
         expect(submitted.save).not.toHaveBeenCalled();
@@ -276,8 +284,8 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
         LenderRequest.findOne.mockRejectedValue(new Error('Database unavailable'));
 
         const response = await request(app)
-            .delete(`${BASE_URL}/documents/idDocument`)
-            .set('x-user-id', USER_ID);
+            .delete(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(500);
     });
@@ -295,19 +303,19 @@ describe('POST /api/lender-requests/submit', () => {
         LenderRequest.findOne.mockResolvedValue(draft);
 
         const response = await request(app)
-            .post(`${BASE_URL}/submit`)
-            .set('x-user-id', USER_ID);
+            .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(200);
         expect(response.body.status).toBe('pending');
         expect(draft.status).toBe('pending');
         expect(draft.save).toHaveBeenCalledOnce();
         expect(LenderRequest.findOne).toHaveBeenCalledWith({ user: USER_ID, status: { $in: ['draft', 'pending'] } });
-        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(USER_ID, { verificationStatus: 'pending' });
+        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(USER_ID, { 'verification.status': 'pending' });
     });
 
     it('returns 401 when not logged in', async () => {
-        const response = await request(app).post(`${BASE_URL}/submit`);
+        const response = await request(app).post(`${BASE_URL}/submit`).set('Origin', ORIGIN);
 
         expect(response.status).toBe(401);
         expect(LenderRequest.findOne).not.toHaveBeenCalled();
@@ -315,8 +323,8 @@ describe('POST /api/lender-requests/submit', () => {
 
     it('returns 404 when the member has no request', async () => {
         const response = await request(app)
-            .post(`${BASE_URL}/submit`)
-            .set('x-user-id', USER_ID);
+            .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(404);
     });
@@ -328,8 +336,8 @@ describe('POST /api/lender-requests/submit', () => {
         LenderRequest.findOne.mockResolvedValue(draft);
 
         const response = await request(app)
-            .post(`${BASE_URL}/submit`)
-            .set('x-user-id', USER_ID);
+            .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe(message);
@@ -343,8 +351,8 @@ describe('POST /api/lender-requests/submit', () => {
         LenderRequest.findOne.mockResolvedValue(submitted);
 
         const response = await request(app)
-            .post(`${BASE_URL}/submit`)
-            .set('x-user-id', USER_ID);
+            .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(409);
         expect(submitted.save).not.toHaveBeenCalled();
@@ -361,8 +369,8 @@ describe('POST /api/lender-requests/submit', () => {
         if (operation === 'findByIdAndUpdate') User.findByIdAndUpdate.mockRejectedValue(new Error('Database unavailable'));
 
         const response = await request(app)
-            .post(`${BASE_URL}/submit`)
-            .set('x-user-id', USER_ID);
+            .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(500);
     });
@@ -380,9 +388,8 @@ describe('Only members can apply to become a lender', () => {
         { role: 'admin', message: 'Admins cannot apply to become a lender' }
     ])('as $role', ({ role, message }) => {
         it.each(applyRequests)('returns 403 for $method $url', async ({ method, url, withFile }) => {
-            let req = request(app)[method](`${BASE_URL}${url}`)
-                .set('x-user-id', USER_ID)
-                .set('x-user-role', role);
+            let req = request(app)[method](`${BASE_URL}${url}`).set('Origin', ORIGIN)
+                .set('Cookie', loginCookie(role));
             if (withFile) req = req.attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
             const response = await req;
@@ -399,8 +406,7 @@ describe('Only members can apply to become a lender', () => {
 
         const response = await request(app)
             .get(BASE_URL)
-            .set('x-user-id', USER_ID)
-            .set('x-user-role', 'lender');
+            .set('Cookie', loginCookie('lender'));
 
         expect(response.status).toBe(200);
         expect(response.body.status).toBe('approved');

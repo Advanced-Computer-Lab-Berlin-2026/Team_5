@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { tempAuth } from '../middleware/tempAuth.js';
+import { requireAuth } from '../middleware/auth.js'; 
 import { blockLendersAndAdmins } from '../middleware/blockLendersAndAdmins.js';
 import { uploadLenderDocument, handleUploadErrors } from '../middleware/uploadLenderDocument.js';
 import { getMyRequest, uploadDocument, removeDocument, submitRequest } from '../controllers/lenderRequestController.js';
 
 const router = Router();
 
-router.use(tempAuth);
+router.use(requireAuth);
 
 router.get('/', getMyRequest);
 router.post('/documents/:slot', blockLendersAndAdmins, uploadLenderDocument, uploadDocument, handleUploadErrors);
