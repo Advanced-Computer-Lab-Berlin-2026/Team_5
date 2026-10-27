@@ -1,17 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
-import { User } from '../models/User.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
-// Tests for middleware/auth.js. The User model is mocked, so no database is needed.
-vi.mock('../models/User.js', () => ({ User: { findById: vi.fn() } }));
+// Tests for middleware/auth.js. requireAuth only verifies the JWT, so no database is needed.
 
-const martin = { _id: 'martin', username: 'martin', role: 'member', suspended: false };
-const token = jwt.sign({ id: 'martin', username: 'martin' }, env.jwtSecret, { expiresIn: '15m' });
+const token = jwt.sign({ id: 'martin', role: 'member' }, env.jwtSecret, { expiresIn: '15m' });
 
 // Fake Express objects so the middleware can be called directly, without a server
-const fakeReq = authorization => ({ headers: authorization ? { authorization } : {} });
+const fakeReq = cookies => ({ cookies: cookies ?? {} });
 const fakeRes = () => {
     const res = {};
     res.status = vi.fn(() => res);
@@ -19,12 +16,12 @@ const fakeRes = () => {
     return res;
 };
 
-// Calls the middleware with the given Authorization header
-const run = async (middleware, authorization) => {
-    const req = fakeReq(authorization);
+// Calls the middleware with the given cookies (as cookie-parser would put them on req.cookies)
+const run = (middleware, cookies) => {
+    const req = fakeReq(cookies);
     const res = fakeRes();
     const next = vi.fn();
-    await middleware(req, res, next);
+    middleware(req, res, next);
     return { req, res, next };
 };
 
@@ -37,69 +34,56 @@ const runRole = (roles, user) => {
     return { res, next };
 };
 
-beforeEach(() => {
-    vi.resetAllMocks();
-    User.findById.mockResolvedValue(martin);
-});
-
 describe('requireAuth', () => {
     describe('valid token', () => {
-        it('loads the user and stores id, username and role on req.user', async () => {
-            const { req, res, next } = await run(requireAuth, `Bearer ${token}`);
-            expect(User.findById).toHaveBeenCalledWith('martin');
-            expect(req.user).toEqual({ id: 'martin', username: 'martin', role: 'member' });
+        it('stores id and username on req.user from the accessToken cookie', () => {
+            const { req, res, next } = run(requireAuth, { accessToken: token });
+            // the user id is the username
+            expect(req.user).toEqual({ id: 'martin', username: 'martin' });
             expect(next).toHaveBeenCalledExactlyOnceWith();
             expect(res.status).not.toHaveBeenCalled();
         });
-
-        // the role comes from the database, so an admin's change applies immediately
-        it('uses the current role from the database', async () => {
-            User.findById.mockResolvedValue({ ...martin, role: 'lender' });
-            const { req } = await run(requireAuth, `Bearer ${token}`);
-            expect(req.user.role).toBe('lender');
-        });
     });
 
-    describe('missing or bad token', () => {
+    describe('missing token', () => {
         it.each([
             undefined,
-            'Bearer',
-            'Basic abc',
-            'Bearer not-a-jwt',
-            `Bearer ${jwt.sign({ id: 'martin' }, 'wrong-secret')}`,
-            `Bearer ${jwt.sign({ id: 'martin' }, env.jwtSecret, { expiresIn: -1 })}` // expired
-        ])('returns 401 %#', async authorization => {
-            const { res, next } = await run(requireAuth, authorization);
+            {},
+            { accessToken: '' },
+            // the refresh token alone must not log anyone in
+            { refreshToken: 'a'.repeat(64) }
+        ])('returns 401 Authentication required %#', cookies => {
+            const { req, res, next } = run(requireAuth, cookies);
             expect(res.status).toHaveBeenCalledWith(401);
-            expect(next).not.toHaveBeenCalled();
-            expect(User.findById).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('user checks', () => {
-        it('returns 401 when the user was deleted', async () => {
-            User.findById.mockResolvedValue(null);
-            const { req, res, next } = await run(requireAuth, `Bearer ${token}`);
-            expect(res.status).toHaveBeenCalledWith(401);
+            expect(res.json).toHaveBeenCalledWith({ message: 'Authentication required' });
             expect(next).not.toHaveBeenCalled();
             expect(req.user).toBeUndefined();
         });
+    });
 
-        it('returns 403 when the user is suspended', async () => {
-            User.findById.mockResolvedValue({ ...martin, suspended: true });
-            const { res, next } = await run(requireAuth, `Bearer ${token}`);
-            expect(res.status).toHaveBeenCalledWith(403);
-            expect(res.json).toHaveBeenCalledWith({ message: 'Your account is suspended' });
+    describe('expired token', () => {
+        // the client should call POST /api/auth/refresh and retry
+        it('returns 401 with code TOKEN_EXPIRED', () => {
+            const expired = jwt.sign({ id: 'martin', role: 'member' }, env.jwtSecret, { expiresIn: -1 });
+            const { res, next } = run(requireAuth, { accessToken: expired });
+            expect(res.status).toHaveBeenCalledWith(401);
+            expect(res.json).toHaveBeenCalledWith({ message: 'Access token expired', code: 'TOKEN_EXPIRED' });
             expect(next).not.toHaveBeenCalled();
         });
+    });
 
-        // the error goes to errorHandler, which answers 500
-        it('passes database errors to next', async () => {
-            const error = new Error('Database unavailable');
-            User.findById.mockRejectedValue(error);
-            const { res, next } = await run(requireAuth, `Bearer ${token}`);
-            expect(next).toHaveBeenCalledExactlyOnceWith(error);
-            expect(res.status).not.toHaveBeenCalled();
+    describe('invalid token', () => {
+        it.each([
+            'not-a-jwt',
+            jwt.sign({ id: 'martin' }, 'wrong-secret'),
+            jwt.sign({ id: 'martin' }, env.jwtSecret, { algorithm: 'HS512' }),
+            jwt.sign({ role: 'member' }, env.jwtSecret) // no id
+        ])('returns 401 Invalid access token %#', accessToken => {
+            const { req, res, next } = run(requireAuth, { accessToken });
+            expect(res.status).toHaveBeenCalledWith(401);
+            expect(res.json).toHaveBeenCalledWith({ message: 'Invalid access token' });
+            expect(next).not.toHaveBeenCalled();
+            expect(req.user).toBeUndefined();
         });
     });
 });

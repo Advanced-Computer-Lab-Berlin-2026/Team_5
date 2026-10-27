@@ -34,6 +34,26 @@ beforeEach( () => {
     RefreshSession.deleteOne.mockResolvedValue({ deletedCount: 1 });
 });
 
+// Returns the full Set-Cookie string for the cookie called `name`
+const getCookie = (response, name) =>
+    response.headers['set-cookie'].find(value => value.startsWith(`${name}=`));
+
+// Returns just the value of a Set-Cookie string
+const cookieValue = cookie => cookie.split(';')[0].slice(cookie.indexOf('=') + 1);
+
+function expectAccessCookie(cookie) {
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('SameSite=Strict');
+    expect(cookie).toContain('Path=/;');
+    expect(cookie).toContain('Max-Age=900');
+}
+
+function expectAccessCookieCleared(response) {
+    const cookie = getCookie(response, 'accessToken');
+    expect(cookie.split(';')[0]).toBe('accessToken=');
+    expect(cookie).toContain('Path=/;');
+}
+
 const validMember = {
     username: 'martin123',
     name: 'Martin',
@@ -169,6 +189,7 @@ describe('POST /api/auth/login', () => {
         User.findOne.mockResolvedValue({
                 _id: 123,
                 username: 'martythebest',
+                role: 'member',
                 profile: { name: 'Martin', email: 'martin@example.com' },
                 password: await bcrypt.hash("malakshDa3wa?", 10)
         });
@@ -185,9 +206,12 @@ describe('POST /api/auth/login', () => {
         });
 
         expect(response.status).toBe(200);
-        expect(response.body.accessToken).toEqual(expect.any(String));
-        
-        const payload = jwt.verify(response.body.accessToken, env.jwtSecret);
+        // the access token is only sent as an httpOnly cookie, never in the body
+        expect(response.body).not.toHaveProperty('accessToken');
+
+        const accessCookie = getCookie(response, 'accessToken');
+        expectAccessCookie(accessCookie);
+        const payload = jwt.verify(cookieValue(accessCookie), env.jwtSecret);
 
         expect(response.body.user).toEqual({
             id: '123',
@@ -196,10 +220,10 @@ describe('POST /api/auth/login', () => {
             email: 'martin@example.com'
         });
         expect(payload.id).toBe('123');
-        expect(payload.username).toBe('martythebest');
+        expect(payload.role).toBe('member');
         expect(payload.exp - payload.iat).toBe(15 * 60);
 
-        const cookie = response.headers['set-cookie'].find(value => value.startsWith('refreshToken='));
+        const cookie = getCookie(response, 'refreshToken');
         expect(cookie).toContain('HttpOnly');
         expect(cookie).toContain('SameSite=Strict');
         expect(cookie).toContain('Path=/api/auth');
@@ -272,6 +296,7 @@ describe('POST /api/auth/logout', () => {
         expect(cookie).toContain('Path=/api/auth');
         const expires = cookie.match(/Expires=([^;]+)/)[1];
         expect(new Date(expires).getTime()).toBeLessThan(Date.now());
+        expectAccessCookieCleared(response);
     }
 
     it('deletes the matching session and clears the cookie', async () => {
@@ -307,7 +332,7 @@ describe('POST /api/auth/logout', () => {
 
 describe('POST /api/auth/refresh', () => {
     const oldToken = 'old-refresh-token';
-    const user = { _id: 'user123', username: 'martin123' };
+    const user = { _id: 'user123', username: 'martin123', role: 'lender' };
     const sendRefresh = () => request(app).post('/api/auth/refresh')
         .set('Cookie', `refreshToken=${oldToken}`);
 
@@ -315,7 +340,8 @@ describe('POST /api/auth/refresh', () => {
         expect(response.status).toBe(401);
         expect(response.body).not.toHaveProperty('accessToken');
         expect(RefreshSession.create).not.toHaveBeenCalled();
-        expect(response.headers['set-cookie'][0]).toContain('refreshToken=;');
+        expect(getCookie(response, 'refreshToken')).toContain('refreshToken=;');
+        expectAccessCookieCleared(response);
     }
 
     it('rejects missing cookies without accessing the database', async () => {
@@ -347,12 +373,14 @@ describe('POST /api/auth/refresh', () => {
         const finishedAt = Date.now();
 
         expect(response.status).toBe(200);
-        const payload = jwt.verify(response.body.accessToken, env.jwtSecret);
+        expect(response.body).toEqual({ message: 'Token refreshed' });
+        const accessCookie = getCookie(response, 'accessToken');
+        expectAccessCookie(accessCookie);
+        const payload = jwt.verify(cookieValue(accessCookie), env.jwtSecret);
         expect(payload.id).toBe(user._id);
-        expect(payload.username).toBe(user.username);
+        expect(payload.role).toBe(user.role);
         expect(payload.exp - payload.iat).toBe(900);
-        expect(response.body).not.toHaveProperty('refreshToken');
-        const cookie = response.headers['set-cookie'][0];
+        const cookie = getCookie(response, 'refreshToken');
         const newToken = cookie.split(';')[0].slice('refreshToken='.length);
         expect(newToken).toMatch(/^[a-f0-9]{64}$/);
         expect(newToken).not.toBe(oldToken);
