@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
-import { Item, Category } from '../models/index.js';
+import { Item, Category, User } from '../models/index.js';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
+
+vi.mock('../models/User.js', () => ({
+    User: { findById: vi.fn() }
+}));
 
 vi.mock('../models/Item.js', () => ({
     Item: { create: vi.fn() }
@@ -18,6 +22,11 @@ beforeEach(() => {
 });
 
 describe('POST /api/lender/items', () => {
+
+    beforeEach(() => {
+        User.findById.mockResolvedValue({ id: 'lender1', role: 'lender' });
+    });
+
     const mockCategory = { _id: 'categoryId' };
     const validBody = { name: 'Test Item', 
         description: 'Test Description', 
@@ -79,6 +88,7 @@ describe('POST /api/lender/items', () => {
     });
 
     it('should return 403 if a member tries to create an item', async () => {
+        User.findById.mockResolvedValue({ id: 'member1', role: 'member' });           
         const response = await request(app).post('/api/lender/items').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${memberToken}`).send(validBody);
         expect(response.status).toBe(403);
         expect(response.body.message).toBe('You do not have permission to do this');
