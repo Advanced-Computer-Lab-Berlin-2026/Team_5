@@ -46,4 +46,15 @@ async function viewUserDetails(req, res) {
     }
 }
 
-export { updateSuspension, viewUserDetails };
+async function listUsers(req, res) {
+    try {
+        const users = await User.find({ role: { $in: ['member', 'lender'] } }).select('username role profile.name profile.email profile.phone verification.status suspended')
+        .sort({ createdAt: -1 });
+        res.status(200).json({ users });
+    } catch (error) {
+        console.error('Error listing users:', error);
+        res.status(500).json({ error: 'An error occurred while listing users.' });
+    }
+}
+
+export { updateSuspension, viewUserDetails, listUsers };
