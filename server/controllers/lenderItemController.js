@@ -55,3 +55,17 @@ export async function getItems(req, res, next){
         next(error)
     }
 }
+
+export async function toggleArchiveItem(req, res, next){
+    try {
+        const item = await Item.findById(req.params.id)
+        if (!item) return res.status(404).json({ message: 'Item not found' })
+        if (item.owner !== req.user.id) return res.status(403).json({ message: 'You do not have permission to archive this item' })
+        item.archived = !item.archived
+        await item.save()
+        res.status(200).json({ item })
+    }
+    catch (error) {
+        next(error)
+    }
+}
