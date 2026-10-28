@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { User } from '../models/User.js';
 
+vi.mock('../models/User.js', () => ({
+    User: {
+        findById: vi.fn()
+    }
+}));
 // Tests for middleware/auth.js. requireAuth only verifies the JWT, so no database is needed.
 
 const token = jwt.sign({ id: 'martin', role: 'member' }, env.jwtSecret, { expiresIn: '15m' });
@@ -13,6 +19,7 @@ const fakeRes = () => {
     const res = {};
     res.status = vi.fn(() => res);
     res.json = vi.fn(() => res);
+    res.clearCookie = vi.fn(() => res);
     return res;
 };
 
@@ -21,8 +28,8 @@ const run = (middleware, cookies) => {
     const req = fakeReq(cookies);
     const res = fakeRes();
     const next = vi.fn();
-    middleware(req, res, next);
-    return { req, res, next };
+    const middlewareResult = middleware(req, res, next);
+    return { req, res, next, middlewareResult };
 };
 
 // Calls requireRole(...roles) for a request whose logged-in user is `user`
@@ -36,14 +43,52 @@ const runRole = (roles, user) => {
 
 describe('requireAuth', () => {
     describe('valid token', () => {
-        it('stores id and role on req.user from the accessToken cookie', () => {
-            const { req, res, next } = run(requireAuth, { accessToken: token });
+        it('stores id and role on req.user from the accessToken cookie', async () => {
+            User.findById.mockResolvedValue({ _id: 'martin', role: 'member', suspended: false });
+            const { req, res, next, middlewareResult } = run(requireAuth, { accessToken: token });
             // the user id is the username
+            await middlewareResult;
             expect(req.user).toEqual({ id: 'martin', role: 'member' });
             expect(next).toHaveBeenCalledExactlyOnceWith();
             expect(res.status).not.toHaveBeenCalled();
+            expect(User.findById).toHaveBeenCalledWith('martin');
         });
     });
+
+    
+    describe('suspended user', () => {
+        it('returns 403 and clears both cookies for a suspended user', async () => {
+            User.findById.mockResolvedValue({
+                _id: 'martin',
+                role: 'member',
+                suspended: true
+            });
+
+            const { req, res, next, middlewareResult } = run(requireAuth, {
+                accessToken: token
+            });
+
+            await middlewareResult;
+
+            expect(User.findById).toHaveBeenCalledWith('martin');
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(res.json).toHaveBeenCalledWith({
+                message: 'User account is suspended'
+            });
+
+            expect(res.clearCookie).toHaveBeenCalledWith('accessToken', {
+                path: '/'
+            });
+
+            expect(res.clearCookie).toHaveBeenCalledWith('refreshToken', {
+                path: '/api/auth'
+            });
+
+            expect(req.user).toBeUndefined();
+            expect(next).not.toHaveBeenCalled();
+        });
+    });
+
 
     describe('missing token', () => {
         it.each([

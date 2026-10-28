@@ -79,7 +79,10 @@ export async function login(req, res, next) {
         
         const passwordMatches = await bcrypt.compare(value.password, user.password);
         if (!passwordMatches) return res.status(401).json({ message: "Username or Password is incorrect!"});
-        
+        if (user.suspended){ 
+            clearAuthCookies(res);
+            return res.status(403).json({ message: "Your account has been suspended. Please contact support." });
+        }
         const accessToken = signToken(user);
         const refreshToken = await createRefreshToken(user);
 
@@ -194,6 +197,11 @@ export async function refresh(req, res, next) {
         const user = await User.findById(session.userId);
         if (!user) {
             return res.status(401).json({ message: 'Invalid or expired refresh token' });
+        }
+
+        if (user.suspended) {
+            clearAuthCookies(res);
+            return res.status(403).json({ message: "Your account has been suspended. Please contact support." });
         }
 
         const accessToken = signToken(user);
