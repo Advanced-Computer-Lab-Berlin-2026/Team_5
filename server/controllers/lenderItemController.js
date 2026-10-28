@@ -25,7 +25,6 @@ export async function createItem(req, res, next){
             const category = await Category.findById(value.category)
             if (!category) return res.status(400).json({ message: 'Category does not exist' })
             
-            // create item | TODO: replace TEMP_OWNER with actual owner id from auth
             const item = await Item.create({ 
                 name: value.name, 
                 description: value.description, 
@@ -47,6 +46,12 @@ export async function createItem(req, res, next){
     
 }
 
-export async function getItems(req, res){
-    res.status(200).json({ message: 'stub' })
+export async function getItems(req, res, next){
+    try {
+        const items = await Item.find({ owner: req.user.id }).sort({ createdAt: -1 })
+        res.status(200).json({ items })
+    }
+    catch (error) {
+        next(error)
+    }
 }
