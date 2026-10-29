@@ -1,5 +1,6 @@
 import { User } from '../models/User.js';
 import { RefreshSession } from '../models/RefreshSession.js';
+import { Category } from '../models/Category.js';
 
 async function updateSuspension(req, res) {
     try {
@@ -46,4 +47,34 @@ async function viewUserDetails(req, res) {
     }
 }
 
-export { updateSuspension, viewUserDetails };
+async function updateCategoryDepositMultiplier(req, res) {
+    try {
+        const { depositMultiplier } = req.body ?? {};
+        if (
+            typeof depositMultiplier !== 'number' ||
+            !Number.isFinite(depositMultiplier) ||
+            depositMultiplier < 1
+        ) {
+            return res.status(400).json({
+                error: 'Deposit multiplier must be a finite number greater than or equal to 1.'
+            });
+        }
+
+        const category = await Category.findById(req.params.id);
+        if (!category) {
+            return res.status(404).json({ error: 'Category not found.' });
+        }
+
+        category.depositMultiplier = depositMultiplier;
+        await category.save();
+
+        return res.status(200).json({ category });
+    } catch (error) {
+        console.error('Error updating category deposit multiplier:', error);
+        return res.status(500).json({
+            error: 'An error occurred while updating the category deposit multiplier.'
+        });
+    }
+}
+
+export { updateSuspension, viewUserDetails, updateCategoryDepositMultiplier };
