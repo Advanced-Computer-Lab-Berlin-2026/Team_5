@@ -10,10 +10,11 @@ function cleanText(value) {
     return text ? text : null;
 }
 
-// Finds a member by exact email or phone, but never the logged-in user themselves
+// Finds a member by exact email or phone, but never the logged-in user themselves or an admin
 function findOtherMember(userId, emailOrPhone) {
     return User.findOne({
         _id: { $ne: userId },
+        role: { $in: ['member', 'lender'] },
         $or: [{ 'profile.email': emailOrPhone }, { 'profile.phone': emailOrPhone }],
     });
 }
@@ -117,6 +118,57 @@ export async function respondToRequest(req, res, next) {
 
         const message = decision === 'accept' ? 'Household request accepted' : 'Household request declined';
         return res.status(200).json({ message, request });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// links where I am on either side, as the sender or the receiver
+function involvesMe(userId) {
+    return { $or: [{ requester: userId }, { recipient: userId }] };
+}
+
+// GET /api/household/links
+export async function getMyLinks(req, res, next) {
+    try {
+        const userId = req.user?.id;
+
+        const found = await FriendLink.find(involvesMe(userId))
+            .populate('requester', 'username profile.name')
+            .populate('recipient', 'username profile.name');
+
+        // for each link, show the other person and whether I sent it
+        const links = found.map((link) => {
+            // populate gives null when the linked account no longer exists, so use ?. everywhere
+            const sentByMe = link.requester?._id === userId;
+            const other = sentByMe ? link.recipient : link.requester;
+            return {
+                _id: link._id,
+                relation: link.relation,
+                status: link.status,
+                sentByMe,
+                // member is null for a missing account, so the link can still be seen and removed
+                member: other ? { username: other.username, name: other.profile?.name } : null,
+            };
+        });
+
+        return res.status(200).json({ links });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// DELETE /api/household/links/:linkId
+export async function removeLink(req, res, next) {
+    try {
+        const userId = req.user?.id;
+        const { linkId } = req.params;
+
+        // only a link I am part of can be removed
+        const removed = await FriendLink.findOneAndDelete({ _id: linkId, ...involvesMe(userId) });
+        if (!removed) return res.status(404).json({ message: 'Household link not found' });
+
+        return res.status(200).json({ message: 'Household link removed' });
     } catch (error) {
         next(error);
     }

@@ -10,7 +10,7 @@ vi.mock('../models/User.js', () => ({
 }));
 
 vi.mock('../models/FriendLink.js', () => ({
-    FriendLink: { exists: vi.fn(), create: vi.fn(), find: vi.fn(), findOneAndUpdate: vi.fn() }
+    FriendLink: { exists: vi.fn(), create: vi.fn(), find: vi.fn(), findOneAndUpdate: vi.fn(), findOneAndDelete: vi.fn() }
 }));
 
 // replace only requireAuth, keep the other exports of the file
@@ -28,9 +28,10 @@ const otherMember = {
     profile: { name: 'Omar', email: 'omar@mail.com', phone: '0100', address: ' 12 main st ' }
 };
 
-// the query findOtherMember must send: anyone with that email/phone except the logged-in user
+// the query findOtherMember must send: anyone with that email/phone except the logged-in user and admins
 const otherMemberQuery = (value) => ({
     _id: { $ne: 'member123' },
+    role: { $in: ['member', 'lender'] },
     $or: [{ 'profile.email': value }, { 'profile.phone': value }],
 });
 
@@ -162,6 +163,46 @@ describe('POST /api/household/requests', () => {
         expect(FriendLink.create).not.toHaveBeenCalled();
     });
 });
+describe('who can use household routes', () => {
+    const loginAs = (role) => requireAuth.mockImplementation((req, res, next) => {
+        req.user = { id: 'member123', role };
+        next();
+    });
+
+    it('returns 403 for an admin on every household route and never touches the database', async () => {
+        loginAs('admin');
+
+        const responses = [
+            await request(app).get('/api/household/search').query({ query: '0100' }),
+            await request(app).post('/api/household/requests').set('Origin', TRUSTED_ORIGIN)
+                .send({ emailOrPhone: '0100', relation: 'siblings' }),
+            await request(app).get('/api/household/requests/incoming'),
+            await request(app).patch('/api/household/requests/LNK-1').set('Origin', TRUSTED_ORIGIN)
+                .send({ decision: 'accept' }),
+            await request(app).get('/api/household/links'),
+            await request(app).delete('/api/household/links/LNK-1').set('Origin', TRUSTED_ORIGIN),
+        ];
+
+        for (const response of responses) expect(response.status).toBe(403);
+        expect(User.findOne).not.toHaveBeenCalled();
+        expect(FriendLink.create).not.toHaveBeenCalled();
+        expect(FriendLink.find).not.toHaveBeenCalled();
+        expect(FriendLink.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(FriendLink.findOneAndDelete).not.toHaveBeenCalled();
+    });
+
+    it('lets a verified lender search and send', async () => {
+        loginAs('lender');
+
+        const search = await request(app).get('/api/household/search').query({ query: '0100' });
+        const send = await request(app).post('/api/household/requests').set('Origin', TRUSTED_ORIGIN)
+            .send({ emailOrPhone: '0100', relation: 'siblings' });
+
+        expect(search.status).toBe(200);
+        expect(send.status).toBe(201);
+    });
+});
+
 describe('GET /api/household/requests/incoming', () => {
     it('returns 200 with the pending requests sent to me', async () => {
         const incoming = [{ _id: 'LNK-1', requester: { username: 'member456', profile: { name: 'Omar' } }, status: 'pending' }];
@@ -223,5 +264,100 @@ describe('PATCH /api/household/requests/:requestId', () => {
 
         expect(response.status).toBe(401);
         expect(FriendLink.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+});
+describe('GET /api/household/links', () => {
+    const sara = { _id: 'member123', username: 'member123', profile: { name: 'Sara' } };
+    const omar = { _id: 'member456', username: 'member456', profile: { name: 'Omar' } };
+    const lina = { _id: 'member789', username: 'member789', profile: { name: 'Lina' } };
+
+    // find -> { populate } -> { populate } -> the list
+    function mockLinksQuery(result) {
+        const secondPopulate = vi.fn().mockResolvedValue(result);
+        const firstPopulate = vi.fn().mockReturnValue({ populate: secondPopulate });
+        FriendLink.find.mockReturnValue({ populate: firstPopulate });
+        return { firstPopulate, secondPopulate };
+    }
+
+    it('returns 200 with the other member and status of every link I am part of', async () => {
+        const { firstPopulate, secondPopulate } = mockLinksQuery([
+            { _id: 'LNK-1', requester: sara, recipient: omar, relation: 'siblings', status: 'accepted' },
+            { _id: 'LNK-2', requester: lina, recipient: sara, relation: 'parent', status: 'pending' },
+        ]);
+
+        const response = await request(app).get('/api/household/links');
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({
+            links: [
+                { _id: 'LNK-1', relation: 'siblings', status: 'accepted', sentByMe: true,
+                    member: { username: 'member456', name: 'Omar' } },
+                { _id: 'LNK-2', relation: 'parent', status: 'pending', sentByMe: false,
+                    member: { username: 'member789', name: 'Lina' } },
+            ],
+        });
+        expect(FriendLink.find).toHaveBeenCalledExactlyOnceWith({
+            $or: [{ requester: 'member123' }, { recipient: 'member123' }],
+        });
+        expect(firstPopulate).toHaveBeenCalledExactlyOnceWith('requester', 'username profile.name');
+        expect(secondPopulate).toHaveBeenCalledExactlyOnceWith('recipient', 'username profile.name');
+    });
+
+    it('returns 200 with member null when the other account is missing', async () => {
+        // populate puts null where the linked user could not be found
+        mockLinksQuery([
+            { _id: 'LNK-3', requester: sara, recipient: null, relation: 'spouse', status: 'pending' },
+            { _id: 'LNK-4', requester: null, recipient: sara, relation: 'child', status: 'accepted' },
+        ]);
+
+        const response = await request(app).get('/api/household/links');
+
+        expect(response.status).toBe(200);
+        expect(response.body.links.map((link) => link.member)).toEqual([null, null]);
+    });
+
+    it('returns 200 with an empty list when I have no links', async () => {
+        mockLinksQuery([]);
+
+        const response = await request(app).get('/api/household/links');
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ links: [] });
+    });
+});
+
+describe('DELETE /api/household/links/:linkId', () => {
+    const sendRemove = (linkId = 'LNK-1') =>
+        request(app).delete(`/api/household/links/${linkId}`).set('Origin', TRUSTED_ORIGIN);
+
+    it('returns 200 and only deletes a link I am part of', async () => {
+        FriendLink.findOneAndDelete.mockResolvedValue({ _id: 'LNK-1' });
+
+        const response = await sendRemove();
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ message: 'Household link removed' });
+        expect(FriendLink.findOneAndDelete).toHaveBeenCalledExactlyOnceWith({
+            _id: 'LNK-1',
+            $or: [{ requester: 'member123' }, { recipient: 'member123' }],
+        });
+    });
+
+    it('returns 404 when the link does not exist or is not mine', async () => {
+        FriendLink.findOneAndDelete.mockResolvedValue(null);
+
+        const response = await sendRemove('LNK-someoneelse');
+
+        expect(response.status).toBe(404);
+        expect(response.body).toEqual({ message: 'Household link not found' });
+    });
+
+    it('returns 401 when not logged in', async () => {
+        requireAuth.mockImplementation((req, res) => res.status(401).json({ message: 'Authentication required' }));
+
+        const response = await sendRemove();
+
+        expect(response.status).toBe(401);
+        expect(FriendLink.findOneAndDelete).not.toHaveBeenCalled();
     });
 });
