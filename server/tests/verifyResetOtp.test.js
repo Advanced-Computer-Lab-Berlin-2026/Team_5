@@ -1,3 +1,4 @@
+import { authLimiters } from '../middleware/authSecurity.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
@@ -11,10 +12,15 @@ vi.mock('../models/PasswordReset.js', () => ({
 }));
 const body = { email: 'martin@example.com', otp: '004281' };
 const codeHash = await bcrypt.hash(body.otp, 10);
-const send = data => request(app).post('/api/auth/verify-reset-otp').send(data);
+const send = data => request(app).post('/api/auth/verify-reset-otp').set('Origin', 'http://localhost:3000').send(data);
 
 beforeEach(() => {
     vi.resetAllMocks();
+    for (const limiter of Object.values(authLimiters)) {
+        limiter.resetKey('::/56');
+        limiter.resetKey('127.0.0.1');
+        limiter.resetKey('::ffff:127.0.0.1');
+    }
     User.findOne.mockResolvedValue({ _id: 'user123' });
     PasswordReset.findOneAndUpdate.mockResolvedValue({ _id: 'reset123', codeHash });
     PasswordReset.updateOne.mockResolvedValue({ modifiedCount: 1 });
