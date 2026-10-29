@@ -44,11 +44,21 @@ if(!NODE_ENV){
   console.error("Error: NODE_ENV is not defined in the .env file.");
   process.exit(1);
 }
+// Optional: only lender documents use Cloudinary, so the app still starts without these 
+const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+
+
 
 export const env = {
   backendPort: PORT,
   jwtSecret: JWT_SECRET,
   mongoDB: MONGODB_URI,
   smtpPass: SMTP_PASS,
-  nodeEnv: NODE_ENV
+  nodeEnv: NODE_ENV,
+  cloudinaryCloudName: CLOUDINARY_CLOUD_NAME,
+  cloudinaryApiKey: CLOUDINARY_API_KEY,
+  cloudinaryApiSecret: CLOUDINARY_API_SECRET
 };
+

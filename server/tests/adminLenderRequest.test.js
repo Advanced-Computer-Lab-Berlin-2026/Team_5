@@ -1,13 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import fs from "node:fs";
-import path from "node:path";
 import jwt from "jsonwebtoken";
 import app from "../app.js";
 import { env } from "../config/env.js";
 import { LenderRequest } from "../models/LenderRequest.js";
 import { User } from "../models/User.js";
-import { UPLOAD_DIR } from "../middleware/uploadLenderDocument.js";
+import { isCloudinaryConfigured, getSignedDocumentUrl } from "../config/cloudinary.js";
 
 // Mock the LenderRequest model with the two functions the admin controller uses: find and findById.
 vi.mock('../models/LenderRequest.js', () => ({
@@ -22,19 +20,26 @@ vi.mock('../models/User.js', () => ({
     User: { findByIdAndUpdate: vi.fn() }
 }));
 
+// Mock Cloudinary: tests never create real links and do not need the Cloudinary keys.
+vi.mock('../config/cloudinary.js', () => ({
+    isCloudinaryConfigured: vi.fn(),
+    getSignedDocumentUrl: vi.fn()
+}));
+
 const ADMIN_ID = 'admin1';
 const REQUEST_ID = '64b0000000000000000000bb';
 const APPLICANT_ID = 'sara123';
 const BASE_URL = '/api/admin/lender-requests';
 const USER_FIELDS = 'username profile';
 const ORIGIN = 'http://localhost:3000';
+const SIGNED_URL = 'https://res.cloudinary.com/demo/image/authenticated/s--signature--/v1/lender-documents/sara-id.png';
 
 const sampleRequest = {
     _id: REQUEST_ID,
     status: 'pending',
     user: { username: 'sara123', profile: { name: 'Sara', email: 'sara@example.com' } },
-    idDocument: { originalName: 'passport.png', storedName: 'admin-test-id.png', docType: 'image/png', size: 8 },
-    proofOfAddress: { originalName: 'proof.pdf', storedName: 'admin-test-proof.pdf', docType: 'application/pdf', size: 8 }
+    idDocument: { originalName: 'passport.png', storedName: 'lender-documents/sara-id', docType: 'image/png', size: 8 },
+    proofOfAddress: { originalName: 'proof.pdf', storedName: 'lender-documents/sara-proof', docType: 'application/pdf', size: 8 }
 };
 
 // Logs in the way the auth middleware expects: a signed accessToken cookie with the user's id and role.
@@ -53,11 +58,8 @@ beforeEach(() => {
     LenderRequest.find.mockReturnValue({ populate: vi.fn().mockReturnValue({ sort: vi.fn().mockResolvedValue([sampleRequest]) }) });
     LenderRequest.findById.mockReturnValue({ populate: vi.fn().mockResolvedValue(sampleRequest) });
     User.findByIdAndUpdate.mockResolvedValue({});
-});
-
-afterEach(() => {
-    fs.rmSync(path.join(UPLOAD_DIR, 'admin-test-id.png'), { force: true });
-    fs.rmSync(path.join(UPLOAD_DIR, 'admin-test-proof.pdf'), { force: true });
+    isCloudinaryConfigured.mockReturnValue(true);
+    getSignedDocumentUrl.mockReturnValue(SIGNED_URL);
 });
 
 const protectedUrls = [
@@ -160,34 +162,21 @@ describe('GET /api/admin/lender-requests/:id', () => {
 describe('GET /api/admin/lender-requests/:id/documents/:slot', () => {
     beforeEach(() => {
         LenderRequest.findById.mockResolvedValue(sampleRequest);
-        fs.writeFileSync(path.join(UPLOAD_DIR, 'admin-test-id.png'), 'png data');
-        fs.writeFileSync(path.join(UPLOAD_DIR, 'admin-test-proof.pdf'), 'pdf data');
     });
 
-    it.each([
-        { slot: 'idDocument', type: 'image/png', content: 'png data' },
-        { slot: 'proofOfAddress', type: 'application/pdf', content: 'pdf data' }
-    ])('returns 200 with the $slot file for preview', async ({ slot, type, content }) => {
-        const response = await asAdmin(request(app).get(`${BASE_URL}/${REQUEST_ID}/documents/${slot}`))
-            .buffer(true)
-            .parse((res, done) => {
-                let data = '';
-                res.on('data', (chunk) => { data += chunk; });
-                res.on('end', () => done(null, data));
-            });
+    it.each(['idDocument', 'proofOfAddress'])('redirects to a signed Cloudinary link to preview the %s', async (slot) => {
+        const response = await asAdmin(request(app).get(`${BASE_URL}/${REQUEST_ID}/documents/${slot}`));
 
-        expect(response.status).toBe(200);
-        expect(response.headers['content-type']).toContain(type);
-        expect(response.headers['content-disposition']).toBeUndefined();
-        expect(response.body).toBe(content);
+        expect(response.status).toBe(302);
+        expect(response.headers.location).toBe(SIGNED_URL);
+        expect(getSignedDocumentUrl).toHaveBeenCalledWith(sampleRequest[slot], false);
     });
 
-    it('returns 200 as a download with the original file name', async () => {
+    it('redirects to a download link with ?download=true', async () => {
         const response = await asAdmin(request(app).get(`${BASE_URL}/${REQUEST_ID}/documents/proofOfAddress?download=true`));
 
-        expect(response.status).toBe(200);
-        expect(response.headers['content-disposition']).toContain('attachment');
-        expect(response.headers['content-disposition']).toContain('proof.pdf');
+        expect(response.status).toBe(302);
+        expect(getSignedDocumentUrl).toHaveBeenCalledWith(sampleRequest.proofOfAddress, true);
     });
 
     it('returns 400 for an invalid slot', async () => {
@@ -201,6 +190,16 @@ describe('GET /api/admin/lender-requests/:id/documents/:slot', () => {
         const response = await asAdmin(request(app).get(`${BASE_URL}/not-an-id/documents/idDocument`));
 
         expect(response.status).toBe(400);
+    });
+
+    it('returns 503 when Cloudinary is not configured', async () => {
+        isCloudinaryConfigured.mockReturnValue(false);
+
+        const response = await asAdmin(request(app).get(`${BASE_URL}/${REQUEST_ID}/documents/idDocument`));
+
+        expect(response.status).toBe(503);
+        expect(LenderRequest.findById).not.toHaveBeenCalled();
+        expect(getSignedDocumentUrl).not.toHaveBeenCalled();
     });
 
     it('returns 404 when the request does not exist', async () => {
@@ -218,15 +217,7 @@ describe('GET /api/admin/lender-requests/:id/documents/:slot', () => {
 
         expect(response.status).toBe(404);
         expect(response.body.message).toBe('Document not found');
-    });
-
-    it('returns 404 when the file is missing on disk', async () => {
-        fs.rmSync(path.join(UPLOAD_DIR, 'admin-test-id.png'));
-
-        const response = await asAdmin(request(app).get(`${BASE_URL}/${REQUEST_ID}/documents/idDocument`));
-
-        expect(response.status).toBe(404);
-        expect(response.body.message).toBe('Document file is missing');
+        expect(getSignedDocumentUrl).not.toHaveBeenCalled();
     });
 
     it('returns 500 when the lookup fails', async () => {

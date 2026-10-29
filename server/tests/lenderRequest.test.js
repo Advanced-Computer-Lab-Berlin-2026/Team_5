@@ -1,13 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import fs from "node:fs";
-import path from "node:path";
 import jwt from "jsonwebtoken";
 import app from "../app.js";
 import { env } from "../config/env.js";
 import { LenderRequest } from "../models/LenderRequest.js";
 import { User } from "../models/User.js";
-import { UPLOAD_DIR } from "../middleware/uploadLenderDocument.js";
+import { isCloudinaryConfigured, uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
 
 // Mock the LenderRequest model. 
 vi.mock('../models/LenderRequest.js', () => ({
@@ -19,49 +17,44 @@ vi.mock('../models/User.js', () => ({
     User: { findByIdAndUpdate: vi.fn() }
 }));
 
+// Mock Cloudinary: tests never upload real files and do not need the Cloudinary keys.
+vi.mock('../config/cloudinary.js', () => ({
+    isCloudinaryConfigured: vi.fn(),
+    uploadToCloudinary: vi.fn(),
+    deleteFromCloudinary: vi.fn()
+}));
+
 const USER_ID = 'sara123';
 const BASE_URL = '/api/lender-requests';
 const ORIGIN = 'http://localhost:3000';
+const NEW_FILE_ID = 'lender-documents/new-file';
 
 // Logs in the way the auth middleware expects: a signed accessToken cookie with the user's id and role.
 function loginCookie(role = 'member') {
     return `accessToken=${jwt.sign({ id: USER_ID, role }, env.jwtSecret, { expiresIn: '15m' })}`;
 }
 
-
-// Before each test, this stores the list of files already in the uploads folder. Later, tells me which files the test created.
-let filesBefore = [];
-
 // Builds a fake request document the way Mongoose would return it.
 function fakeRequest(fields = {}) {
     return { user: USER_ID, status: 'draft', save: vi.fn().mockResolvedValue(), ...fields };
 }
 
-// Puts a real file in the upload folder, so we can check that the controller deletes it.
-function createStoredFile(storedName) {
-    fs.writeFileSync(path.join(UPLOAD_DIR, storedName), 'old file');
+// A document that is already stored in Cloudinary under the given id.
+function storedFile(storedName) {
     return { originalName: 'old.pdf', storedName, docType: 'application/pdf', size: 8 };
-}
-
-function uploadedFiles() {
-    return fs.readdirSync(UPLOAD_DIR).filter((name) => !filesBefore.includes(name));
 }
 
 beforeEach(() => {
     vi.resetAllMocks();
-    filesBefore = fs.readdirSync(UPLOAD_DIR);
 
     LenderRequest.findOne.mockResolvedValue(null);
     User.findByIdAndUpdate.mockResolvedValue({});
     LenderRequest.mockImplementation(function (data) {
         return fakeRequest(data);
     });
-});
-
-afterEach(() => {
-    for (const name of uploadedFiles()) {
-        fs.rmSync(path.join(UPLOAD_DIR, name), { force: true });
-    }
+    isCloudinaryConfigured.mockReturnValue(true);
+    uploadToCloudinary.mockResolvedValue({ public_id: NEW_FILE_ID });
+    deleteFromCloudinary.mockResolvedValue({ result: 'ok' });
 });
 
 describe('GET /api/lender-requests', () => {
@@ -125,17 +118,18 @@ describe('POST /api/lender-requests/documents/:slot', () => {
 
         expect(response.status).toBe(200);
         expect(LenderRequest).toHaveBeenCalledWith({ user: USER_ID });
+        expect(uploadToCloudinary).toHaveBeenCalledWith(Buffer.from('fake pdf'));
 
         const savedRequest = LenderRequest.mock.results[0].value;
         expect(savedRequest.save).toHaveBeenCalledOnce();
         expect(savedRequest[slot].originalName).toBe('passport.pdf');
+        expect(savedRequest[slot].storedName).toBe(NEW_FILE_ID);
         expect(savedRequest[slot].docType).toBe('application/pdf');
-        expect(uploadedFiles()).toContain(savedRequest[slot].storedName);
+        expect(deleteFromCloudinary).not.toHaveBeenCalled();
     });
 
     it('returns 200 and replaces the old file in an existing draft', async () => {
-        const oldFile = createStoredFile('old-id.pdf');
-        const existing = fakeRequest({ idDocument: oldFile });
+        const existing = fakeRequest({ idDocument: storedFile('lender-documents/old-id') });
         LenderRequest.findOne.mockResolvedValue(existing);
 
         const response = await request(app)
@@ -147,8 +141,22 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         expect(LenderRequest).not.toHaveBeenCalled();
         expect(existing.save).toHaveBeenCalledOnce();
         expect(existing.idDocument.originalName).toBe('new-id.png');
+        expect(existing.idDocument.storedName).toBe(NEW_FILE_ID);
         expect(existing.idDocument.docType).toBe('image/png');
-        expect(uploadedFiles()).not.toContain('old-id.pdf');
+        expect(deleteFromCloudinary).toHaveBeenCalledWith('lender-documents/old-id');
+    });
+
+    it('still returns 200 when the old file cannot be deleted from Cloudinary', async () => {
+        LenderRequest.findOne.mockResolvedValue(fakeRequest({ idDocument: storedFile('lender-documents/old-id') }));
+        deleteFromCloudinary.mockRejectedValue(new Error('Cloudinary unavailable'));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const response = await request(app)
+            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie())
+            .attach('file', Buffer.from('new image'), 'new-id.png');
+
+        expect(response.status).toBe(200);
     });
 
     it('returns 401 when not logged in', async () => {
@@ -157,7 +165,7 @@ describe('POST /api/lender-requests/documents/:slot', () => {
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(401);
-        expect(uploadedFiles()).toHaveLength(0);
+        expect(uploadToCloudinary).not.toHaveBeenCalled();
     });
 
     it('returns 400 when no file is sent', async () => {
@@ -170,7 +178,7 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         expect(LenderRequest.findOne).not.toHaveBeenCalled();
     });
 
-    it('returns 400 for an invalid slot and does not keep the file', async () => {
+    it('returns 400 for an invalid slot and does not upload the file', async () => {
         const response = await request(app)
             .post(`${BASE_URL}/documents/banana`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie())
@@ -179,7 +187,7 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         expect(response.status).toBe(400);
         expect(response.body.message).toBe('Invalid document slot');
         expect(LenderRequest.findOne).not.toHaveBeenCalled();
-        expect(uploadedFiles()).toHaveLength(0);
+        expect(uploadToCloudinary).not.toHaveBeenCalled();
     });
 
     it.each(invalidFiles)(
@@ -193,7 +201,7 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         expect(response.status).toBe(400);
         expect(response.body.message).toBe(file.message);
         expect(LenderRequest.findOne).not.toHaveBeenCalled();
-        expect(uploadedFiles()).toHaveLength(0);
+        expect(uploadToCloudinary).not.toHaveBeenCalled();
     });
 
     it('returns 409 when the request was already submitted', async () => {
@@ -207,10 +215,38 @@ describe('POST /api/lender-requests/documents/:slot', () => {
 
         expect(response.status).toBe(409);
         expect(submitted.save).not.toHaveBeenCalled();
-        expect(uploadedFiles()).toHaveLength(0);
+        expect(uploadToCloudinary).not.toHaveBeenCalled();
     });
 
-    it('returns 500 when saving fails and removes the new file', async () => {
+    it('returns 503 when Cloudinary is not configured', async () => {
+        isCloudinaryConfigured.mockReturnValue(false);
+
+        const response = await request(app)
+            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie())
+            .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
+
+        expect(response.status).toBe(503);
+        expect(response.body.message).toBe('File storage is not configured. Please try again later.');
+        expect(uploadToCloudinary).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 when the upload to Cloudinary fails and saves nothing', async () => {
+        const existing = fakeRequest();
+        LenderRequest.findOne.mockResolvedValue(existing);
+        uploadToCloudinary.mockRejectedValue(new Error('Cloudinary unavailable'));
+
+        const response = await request(app)
+            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie())
+            .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
+
+        expect(response.status).toBe(500);
+        expect(existing.save).not.toHaveBeenCalled();
+        expect(deleteFromCloudinary).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 when saving fails and removes the new file from Cloudinary', async () => {
         const existing = fakeRequest();
         existing.save.mockRejectedValue(new Error('Database unavailable'));
         LenderRequest.findOne.mockResolvedValue(existing);
@@ -221,13 +257,13 @@ describe('POST /api/lender-requests/documents/:slot', () => {
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(500);
-        expect(uploadedFiles()).toHaveLength(0);
+        expect(deleteFromCloudinary).toHaveBeenCalledWith(NEW_FILE_ID);
     });
 });
 
 describe('DELETE /api/lender-requests/documents/:slot', () => {
-    it('returns 200, empties the slot and deletes the file', async () => {
-        const existing = fakeRequest({ proofOfAddress: createStoredFile('old-addressproof.pdf') });
+    it('returns 200, empties the slot and deletes the file from Cloudinary', async () => {
+        const existing = fakeRequest({ proofOfAddress: storedFile('lender-documents/old-addressproof') });
         LenderRequest.findOne.mockResolvedValue(existing);
 
         const response = await request(app)
@@ -237,7 +273,7 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
         expect(response.status).toBe(200);
         expect(existing.proofOfAddress).toBeUndefined();
         expect(existing.save).toHaveBeenCalledOnce();
-        expect(uploadedFiles()).not.toContain('old-addressproof.pdf');
+        expect(deleteFromCloudinary).toHaveBeenCalledWith('lender-documents/old-addressproof');
     });
 
     it('returns 401 when not logged in', async () => {
@@ -255,6 +291,17 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
         expect(LenderRequest.findOne).not.toHaveBeenCalled();
     });
 
+    it('returns 503 when Cloudinary is not configured', async () => {
+        isCloudinaryConfigured.mockReturnValue(false);
+
+        const response = await request(app)
+            .delete(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
+
+        expect(response.status).toBe(503);
+        expect(LenderRequest.findOne).not.toHaveBeenCalled();
+    });
+
     it.each([null, fakeRequest()])(
         'returns 404 when there is no document to remove %#',
         async (existing) => {
@@ -268,7 +315,7 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
     });
 
     it('returns 409 when the request was already submitted', async () => {
-        const submitted = fakeRequest({ status: 'pending', idDocument: createStoredFile('locked-id.pdf') });
+        const submitted = fakeRequest({ status: 'pending', idDocument: storedFile('lender-documents/locked-id') });
         LenderRequest.findOne.mockResolvedValue(submitted);
 
         const response = await request(app)
@@ -277,7 +324,7 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
 
         expect(response.status).toBe(409);
         expect(submitted.save).not.toHaveBeenCalled();
-        expect(uploadedFiles()).toContain('locked-id.pdf');
+        expect(deleteFromCloudinary).not.toHaveBeenCalled();
     });
 
     it('returns 500 when the lookup fails', async () => {
@@ -397,7 +444,7 @@ describe('Only members can apply to become a lender', () => {
             expect(response.status).toBe(403);
             expect(response.body.message).toBe(message);
             expect(LenderRequest.findOne).not.toHaveBeenCalled();
-            expect(uploadedFiles()).toHaveLength(0);
+            expect(uploadToCloudinary).not.toHaveBeenCalled();
         });
     });
 

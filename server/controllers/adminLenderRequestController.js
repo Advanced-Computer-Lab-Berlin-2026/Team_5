@@ -1,12 +1,7 @@
 import mongoose from 'mongoose';
-import path from 'node:path';
 import joi from 'joi';
 import { LenderRequest, User } from '../models/index.js';
-import { UPLOAD_DIR } from '../middleware/uploadLenderDocument.js';
-
-
-// CLOUDINARY: uncomment when Cloudinary is set up.
-// import { getSignedDocumentUrl } from '../config/cloudinary.js';
+import { isCloudinaryConfigured, getSignedDocumentUrl } from '../config/cloudinary.js';
 
 const SLOTS = ['idDocument', 'proofOfAddress'];
 const STATUS = ['pending', 'approved', 'rejected'];
@@ -52,6 +47,7 @@ export async function getLenderRequestDocument(req, res, next) {
     try {
         if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid request id" });
         if (!SLOTS.includes(req.params.slot)) return res.status(400).json({ message: "Invalid document slot" });
+        if (!isCloudinaryConfigured()) return res.status(503).json({ message: "File storage is not configured. Please try again later." });
 
         const request = await LenderRequest.findById(req.params.id);
         if (!request) return res.status(404).json({ message: "Lender request not found" });
@@ -59,11 +55,13 @@ export async function getLenderRequestDocument(req, res, next) {
         const document = request[req.params.slot];
         if (!document) return res.status(404).json({ message: "Document not found" });
 
-        sendDocument(req, res, next, document);
+        
+        res.redirect(getSignedDocumentUrl(document, req.query.download === 'true'));
     } catch (error) {
         next(error);
     }
 }
+
 // PATCH /api/admin/lender-requests/:id/decision
 export async function decideLenderRequest(req, res, next) {
     try {
@@ -89,25 +87,8 @@ export async function decideLenderRequest(req, res, next) {
     }
 }
 
-// Accepting makes the user a verified lender; rejecting keeps their role and stores the reason for them to read.
+
 function userChangesFor({ decision, reason }) {
     if (decision === 'accept') return { role: 'lender', 'verification.status': 'accepted' };
     return { 'verification.status': 'rejected', 'verification.note': reason };
-
-}
-
-
-
-function sendDocument(req, res, next, document) {
-    // CLOUDINARY: replace everything in this function with:
-    // return res.redirect(getSignedDocumentUrl(document.storedName));
-    const filePath = path.join(UPLOAD_DIR, document.storedName);
-    const onError = (error) => {
-        if (!error) return;
-        if (error.code === 'ENOENT') return res.status(404).json({ message: "Document file is missing" });
-        next(error);
-    };
-
-    if (req.query.download === 'true') return res.download(filePath, document.originalName, onError);
-    res.sendFile(filePath, { headers: { 'Content-Type': document.docType } }, onError);
 }

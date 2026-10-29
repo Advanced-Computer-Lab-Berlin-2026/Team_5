@@ -1,12 +1,8 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { LenderRequest, User } from '../models/index.js';
-import { UPLOAD_DIR } from '../middleware/uploadLenderDocument.js';
-
-// CLOUDINARY: uncomment when Cloudinary is set up.
-// import { uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.js';
+import { isCloudinaryConfigured, uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.js';
 
 const SLOTS = ['idDocument', 'proofOfAddress'];
+const STORAGE_NOT_CONFIGURED = "File storage is not configured. Please try again later.";
 
 // GET /api/lender-requests
 export async function getMyRequest(req, res, next) {
@@ -20,26 +16,20 @@ export async function getMyRequest(req, res, next) {
 
 // POST /api/lender-requests/documents/:slot
 export async function uploadDocument(req, res, next) {
+    let uploaded;
     try {
         if (!req.file) return res.status(400).json({ message: "Please choose a file to upload" });
-        if (!SLOTS.includes(req.params.slot)) {
-            await deleteStoredFile(req.file.filename);
-            return res.status(400).json({ message: "Invalid document slot" });
-        }
+        if (!SLOTS.includes(req.params.slot)) return res.status(400).json({ message: "Invalid document slot" });
+        if (!isCloudinaryConfigured()) return res.status(503).json({ message: STORAGE_NOT_CONFIGURED });
 
         const request = await findOpenRequest(req.user.id) || new LenderRequest({ user: req.user.id });
-        if (request.status !== 'draft') {
-            await deleteStoredFile(req.file.filename);
-            return res.status(409).json({ message: "Your request was already submitted and can no longer be changed" });
-        }
+        if (request.status !== 'draft') return res.status(409).json({ message: "Your request was already submitted and can no longer be changed" });
 
-        // CLOUDINARY: uncomment, and use uploaded.public_id as storedName below.
-        // const uploaded = await uploadToCloudinary(req.file.buffer);
+        uploaded = await uploadToCloudinary(req.file.buffer);
         const oldFile = request[req.params.slot];
         request[req.params.slot] = {
             originalName: req.file.originalname,
-            storedName: req.file.filename,
-            // CLOUDINARY: storedName: uploaded.public_id,
+            storedName: uploaded.public_id,
             docType: req.file.mimetype,
             size: req.file.size
         };
@@ -48,7 +38,8 @@ export async function uploadDocument(req, res, next) {
 
         res.status(200).json(request);
     } catch (error) {
-        if (req.file) await deleteStoredFile(req.file.filename);
+        // the file reached Cloudinary but the request was not saved, so remove it again
+        if (uploaded) await deleteStoredFile(uploaded.public_id);
         next(error);
     }
 }
@@ -57,6 +48,7 @@ export async function uploadDocument(req, res, next) {
 export async function removeDocument(req, res, next) {
     try {
         if (!SLOTS.includes(req.params.slot)) return res.status(400).json({ message: "Invalid document slot" });
+        if (!isCloudinaryConfigured()) return res.status(503).json({ message: STORAGE_NOT_CONFIGURED });
 
         const request = await findOpenRequest(req.user.id);
         if (!request || !request[req.params.slot]) return res.status(404).json({ message: "No document uploaded in this slot" });
@@ -87,7 +79,6 @@ export async function submitRequest(req, res, next) {
         await request.save();
         await User.findByIdAndUpdate(req.user.id, { 'verification.status': 'pending' });
 
-
         res.status(200).json(request);
     } catch (error) {
         next(error);
@@ -98,12 +89,11 @@ function findOpenRequest(userId) {
     return LenderRequest.findOne({ user: userId, status: { $in: ['draft', 'pending'] } });
 }
 
+// Best effort: a file left behind in Cloudinary must not make the member's request fail.
 async function deleteStoredFile(storedName) {
     try {
-        await fs.unlink(path.join(UPLOAD_DIR, storedName));
-        // CLOUDINARY: replace the line above with:
-        // await deleteFromCloudinary(storedName);
+        await deleteFromCloudinary(storedName);
     } catch (error) {
-        if (error.code !== 'ENOENT') console.error("Could not delete file:", error.message);
+        console.error("Could not delete file:", error.message);
     }
 }
