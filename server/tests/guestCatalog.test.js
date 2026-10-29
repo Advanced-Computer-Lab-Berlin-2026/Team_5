@@ -54,20 +54,21 @@ describe('guest catalog browse (SCRUM-242)', () => {
     });
 
     // the "must register to reserve" half of SCRUM-242. there is no reserve endpoint yet
-    // (SCRUM-340 / SCRUM-412, sprint 2). until it exists, a POST to it has to 404, not 200.
-    // when that endpoint lands it should sit behind requireAuth so a guest gets 401.
-    it('has no reserve endpoint a guest could hit', async () => {
+    // (SCRUM-340 / SCRUM-412, sprint 2). a guest POST with no Origin hits CSRF first and gets 403.
+    // when that endpoint lands it should sit behind requireAuth so a guest with a trusted Origin gets 401.
+    it('blocks a guest reserve attempt before routing', async () => {
         const response = await asGuest('post', '/api/items/ITM-1/reservations');
 
-        expect(response.status).toBe(404);
-        expect(response.body).toEqual({ message: 'Endpoint not found' });
+        expect(response.status).toBe(403);
+        expect(response.body).toEqual({ message: 'Untrusted request origin' });
     });
 
-    // catalog writes don't exist on this branch either. a guest POST/PUT/DELETE
-    // has to 404, not silently create something. lender create is SCRUM-229 on another branch.
-    it.each(['post', 'put', 'delete'])('returns 404 for a guest %s on /api/items', async method => {
+    // guest catalog writes with no Origin also stop at CSRF (403), not at a missing route (404).
+    // lender create is SCRUM-229 on another branch and should sit behind requireAuth.
+    it.each(['post', 'put', 'delete'])('blocks a guest %s on /api/items at CSRF', async method => {
         const response = await asGuest(method, '/api/items');
 
-        expect(response.status).toBe(404);
+        expect(response.status).toBe(403);
+        expect(response.body).toEqual({ message: 'Untrusted request origin' });
     });
 });
