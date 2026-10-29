@@ -17,8 +17,9 @@ vi.mock('../models/LenderRequest.js', () => ({
 
 // Mock the User model: accepting or rejecting also updates the applicant.
 vi.mock('../models/User.js', () => ({
-    User: { findByIdAndUpdate: vi.fn() }
-}));
+        User: { findById: vi.fn(), findByIdAndUpdate: vi.fn() }
+ }
+));
 
 // Mock Cloudinary: tests never create real links and do not need the Cloudinary keys.
 vi.mock('../config/cloudinary.js', () => ({
@@ -42,10 +43,11 @@ const sampleRequest = {
     proofOfAddress: { originalName: 'proof.pdf', storedName: 'lender-documents/sara-proof', docType: 'application/pdf', size: 8 }
 };
 
-// Logs in the way the auth middleware expects: a signed accessToken cookie with the user's id and role.
 function loginCookie(role) {
+    User.findById.mockResolvedValue({ _id: ADMIN_ID, role, suspended: false });
     return `accessToken=${jwt.sign({ id: ADMIN_ID, role }, env.jwtSecret, { expiresIn: '15m' })}`;
 }
+
 
 // Sends the request as a logged-in admin from the trusted origin.
 function asAdmin(req) {

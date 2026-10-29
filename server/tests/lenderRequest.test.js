@@ -14,8 +14,9 @@ vi.mock('../models/LenderRequest.js', () => ({
 
 // Mock the User model: submitting also marks the user's verification status as pending.
 vi.mock('../models/User.js', () => ({
-    User: { findByIdAndUpdate: vi.fn() }
-}));
+       User: { findById: vi.fn(), findByIdAndUpdate: vi.fn() }
+}
+));
 
 // Mock Cloudinary: tests never upload real files and do not need the Cloudinary keys.
 vi.mock('../config/cloudinary.js', () => ({
@@ -30,9 +31,12 @@ const ORIGIN = 'http://localhost:3000';
 const NEW_FILE_ID = 'lender-documents/new-file';
 
 // Logs in the way the auth middleware expects: a signed accessToken cookie with the user's id and role.
+// Logs in the way the auth middleware expects: a signed accessToken cookie, and the user it then loads from the database.
 function loginCookie(role = 'member') {
+    User.findById.mockResolvedValue({ _id: USER_ID, role, suspended: false });
     return `accessToken=${jwt.sign({ id: USER_ID, role }, env.jwtSecret, { expiresIn: '15m' })}`;
 }
+
 
 // Builds a fake request document the way Mongoose would return it.
 function fakeRequest(fields = {}) {
