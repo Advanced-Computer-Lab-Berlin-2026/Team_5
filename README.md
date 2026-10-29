@@ -34,6 +34,16 @@ Keep secrets in `.env` and out of Git. Update `.env.sample` with placeholders wh
 All five values must be nonempty. Configuration is captured at module load;
 restart the server after changing it.
 
+### Optional environment values
+
+| Variable | Purpose |
+| --- | --- |
+| `CLOUDINARY_CLOUD_NAME` | Cloud name from the Cloudinary dashboard, used to store lender documents. |
+| `CLOUDINARY_API_KEY` | Cloudinary API key. |
+| `CLOUDINARY_API_SECRET` | Cloudinary API secret. Keep it private. |
+
+Without these three values the app still starts; only lender document uploads, removals and previews answer `503`. In the Cloudinary dashboard, enable **Settings → Security → Allow delivery of PDF and ZIP files** so PDF documents can be opened.
+
 On Windows PowerShell, use `npm.cmd` if the execution policy blocks `npm.ps1`.
 
 ## Project backbone
@@ -204,6 +214,30 @@ In Postman, send `Origin: http://localhost:3000` with unsafe requests and enable
 the cookie jar so login cookies carry over to later calls. A 403 origin error
 is distinct from a 401 authentication failure: valid cookies do not bypass
 CSRF checks.
+
+## Lender verification
+
+Members apply to become verified lenders by uploading an ID document and a proof of address. An admin reviews the documents and accepts or rejects the request; accepting sets the user's role to `lender`. Documents are stored privately in Cloudinary (see Optional environment values) and are only opened through signed links created by the server.
+
+Member endpoints require login. Lenders and admins cannot apply (`403`).
+
+| Method | URL | Description |
+| --- | --- | --- |
+| GET | `/api/lender-requests` | My latest request: status and both documents. |
+| POST | `/api/lender-requests/documents/:slot` | Upload a document. `:slot` is `idDocument` or `proofOfAddress`; form field `file`; PDF, JPEG, JPG or PNG, max 5 MB. |
+| DELETE | `/api/lender-requests/documents/:slot` | Remove a document while the request is still a draft. |
+| POST | `/api/lender-requests/submit` | Submit the request for review; both documents are required. |
+
+Admin endpoints require the `admin` role.
+
+| Method | URL | Description |
+| --- | --- | --- |
+| GET | `/api/admin/lender-requests?status=pending` | List requests: `pending` (default), `approved` or `rejected`. |
+| GET | `/api/admin/lender-requests/:id` | One request with its documents and the applicant's details. |
+| GET | `/api/admin/lender-requests/:id/documents/:slot` | Redirects to a signed link to view the document; add `?download=true` to download it. |
+| PATCH | `/api/admin/lender-requests/:id/decision` | `{ "decision": "accept" }` or `{ "decision": "reject", "reason": "..." }`. |
+
+A request goes from `draft` (uploading) to `pending` (submitted) to `approved` or `rejected`. A rejected member can start a new request.
 
 ## Project guidelines
 
