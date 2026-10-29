@@ -4,6 +4,8 @@ Documents are uploaded as "authenticated" (private): they can only be opened thr
 
 import { v2 as cloudinary } from 'cloudinary';
 import { env } from './env.js';
+import path from 'node:path';
+
 
 cloudinary.config({
     cloud_name: env.cloudinaryCloudName,
@@ -32,9 +34,16 @@ export function deleteFromCloudinary(publicId) {
     return cloudinary.uploader.destroy(publicId, { type: 'authenticated', resource_type: 'image' });
 }
 
+// Cloudinary only accepts simple characters in a download name and adds the extension itself.
+function downloadName(originalName) {
+    const name = path.parse(originalName ?? '').name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
+    return /[a-zA-Z0-9]/.test(name) ? name : 'document';
+}
+
+
 // A signed link the admin can open (S8). Only the server can create it, because it needs the API secret.
 export function getSignedDocumentUrl(document, download = false) {
     const options = { type: 'authenticated', resource_type: 'image', sign_url: true, secure: true, format: FORMATS[document.docType] };
-    if (download) options.flags = 'attachment';
+    if (download) options.flags = `attachment:${downloadName(document.originalName)}`;
     return cloudinary.url(document.storedName, options);
 }
