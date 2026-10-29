@@ -77,3 +77,47 @@ export async function sendHouseholdRequest(req, res, next) {
         next(error);
     }
 }
+
+// GET /api/household/requests/incoming
+export async function getIncomingRequests(req, res, next) {
+    try {
+        const userId = req.user?.id;
+
+        // only requests sent to me that nobody has answered yet
+        const requests = await FriendLink.find({ recipient: userId, status: 'pending' })
+            .populate('requester', 'username profile.name');
+
+        return res.status(200).json({ requests });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// what each decision word turns the status into
+const DECISIONS = { accept: 'accepted', decline: 'rejected' };
+
+// PATCH /api/household/requests/:requestId  body: { decision: 'accept' | 'decline' }
+export async function respondToRequest(req, res, next) {
+    try {
+        const userId = req.user?.id;
+        const { requestId } = req.params;
+
+        const decision = req.body?.decision;
+        if (!Object.hasOwn(DECISIONS, decision)) {
+            return res.status(400).json({ message: 'Decision must be accept or decline' });
+        }
+
+        // only the recipient can answer, and only while it is still pending
+        const request = await FriendLink.findOneAndUpdate(
+            { _id: requestId, recipient: userId, status: 'pending' },
+            { status: DECISIONS[decision] },
+            { new: true }
+        );
+        if (!request) return res.status(404).json({ message: 'No pending request found' });
+
+        const message = decision === 'accept' ? 'Household request accepted' : 'Household request declined';
+        return res.status(200).json({ message, request });
+    } catch (error) {
+        next(error);
+    }
+}

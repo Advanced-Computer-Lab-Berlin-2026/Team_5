@@ -10,7 +10,7 @@ vi.mock('../models/User.js', () => ({
 }));
 
 vi.mock('../models/FriendLink.js', () => ({
-    FriendLink: { exists: vi.fn(), create: vi.fn() }
+    FriendLink: { exists: vi.fn(), create: vi.fn(), find: vi.fn(), findOneAndUpdate: vi.fn() }
 }));
 
 // replace only requireAuth, keep the other exports of the file
@@ -46,7 +46,18 @@ beforeEach(() => {
     User.findById.mockResolvedValue(sender);
     FriendLink.exists.mockResolvedValue(null);
     FriendLink.create.mockImplementation(async (data) => ({ _id: 'LNK-1', status: 'pending', ...data }));
+    FriendLink.findOneAndUpdate.mockImplementation(async (filter, update) => ({ _id: filter._id, ...update }));
 });
+
+/**
+ * The controller does: await FriendLink.find(filter).populate(...)
+ * find -> { populate }, and populate resolves to the list.
+ */
+function mockIncomingQuery(result) {
+    const populate = vi.fn().mockResolvedValue(result);
+    FriendLink.find.mockReturnValue({ populate });
+    return { populate };
+}
 
 describe('GET /api/household/search', () => {
     const sendSearch = (query) => request(app).get('/api/household/search').query(query);
@@ -149,5 +160,68 @@ describe('POST /api/household/requests', () => {
 
         expect(response.status).toBe(401);
         expect(FriendLink.create).not.toHaveBeenCalled();
+    });
+});
+describe('GET /api/household/requests/incoming', () => {
+    it('returns 200 with the pending requests sent to me', async () => {
+        const incoming = [{ _id: 'LNK-1', requester: { username: 'member456', profile: { name: 'Omar' } }, status: 'pending' }];
+        const { populate } = mockIncomingQuery(incoming);
+
+        const response = await request(app).get('/api/household/requests/incoming');
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ requests: incoming });
+        expect(FriendLink.find).toHaveBeenCalledExactlyOnceWith({ recipient: 'member123', status: 'pending' });
+        expect(populate).toHaveBeenCalledExactlyOnceWith('requester', 'username profile.name');
+    });
+});
+
+describe('PATCH /api/household/requests/:requestId', () => {
+    const sendDecision = (body, requestId = 'LNK-1') =>
+        request(app).patch(`/api/household/requests/${requestId}`).set('Origin', TRUSTED_ORIGIN).send(body);
+
+    it('returns 200 and marks the request accepted', async () => {
+        const response = await sendDecision({ decision: 'accept' });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ message: 'Household request accepted', request: { _id: 'LNK-1', status: 'accepted' } });
+        expect(FriendLink.findOneAndUpdate).toHaveBeenCalledExactlyOnceWith(
+            { _id: 'LNK-1', recipient: 'member123', status: 'pending' },
+            { status: 'accepted' },
+            { new: true }
+        );
+    });
+
+    it('returns 200 and marks the request rejected', async () => {
+        const response = await sendDecision({ decision: 'decline' });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ message: 'Household request declined', request: { _id: 'LNK-1', status: 'rejected' } });
+    });
+
+    it('returns 400 for an unknown decision', async () => {
+        for (const body of [{ decision: 'maybe' }, { decision: 'toString' }, {}]) {
+            const response = await sendDecision(body);
+            expect(response.status).toBe(400);
+        }
+        expect(FriendLink.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 when the request is not mine, not found or already answered', async () => {
+        FriendLink.findOneAndUpdate.mockResolvedValue(null);
+
+        const response = await sendDecision({ decision: 'accept' });
+
+        expect(response.status).toBe(404);
+        expect(response.body).toEqual({ message: 'No pending request found' });
+    });
+
+    it('returns 401 when not logged in', async () => {
+        requireAuth.mockImplementation((req, res) => res.status(401).json({ message: 'Authentication required' }));
+
+        const response = await sendDecision({ decision: 'accept' });
+
+        expect(response.status).toBe(401);
+        expect(FriendLink.findOneAndUpdate).not.toHaveBeenCalled();
     });
 });
