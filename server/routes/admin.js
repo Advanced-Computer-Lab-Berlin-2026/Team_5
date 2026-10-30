@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { updateCategoryDepositMultiplier, updateSuspension, viewUserDetails } from '../controllers/adminController.js';
 import { createNotice } from '../controllers/noticeController.js';
-import { updateSuspension, viewUserDetails, listUsers, listItems, removeUser } from '../controllers/adminController.js';
+import { updateCategoryDepositMultiplier, updateSuspension, viewUserDetails, listUsers, listItems, removeUser } from '../controllers/adminController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const authenticate = requireAuth;
