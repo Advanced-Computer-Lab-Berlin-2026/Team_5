@@ -6,6 +6,18 @@ import { env } from '../config/env.js'
 import { User, RefreshSession, PasswordReset } from '../models/index.js';
 import { sendResetEmail } from '../services/emailService.js';
 
+const PASSWORD_REGEX_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
+const changePasswordSchema = joi.object({
+    currentPassword: joi.string().required(),
+    newPassword: joi.string()
+        .min(6)
+        .max(40)
+        .pattern(PASSWORD_REGEX_PATTERN)
+        .required()
+        .messages({
+            'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
+        })
+});
 const PHONE_NUMBER_REGEX_PATTERN = /^\+[1-9]\d{1,14}$/;
 
 const forgotPasswordSchema = joi.object({
@@ -310,6 +322,38 @@ export async function resetPassword(req, res, next) {
         clearAuthCookies(res);
         res.set('Cache-Control', 'no-store');
         return res.status(200).json({ message: 'Password reset successfully. Please log in.' });
+    } catch (error) {
+        next(error);
+    }
+}
+
+
+export async function changePassword(req, res, next) {
+    const { value, error } = changePasswordSchema.validate(req.body ?? {});
+    if (error) return res.status(400).json({ message: error.message });
+
+    if (value.currentPassword === value.newPassword) {
+        return res.status(400).json({ message: 'New password must be different from current password' });
+    }
+
+    try {
+        const userId = req.user?.id;
+        const user = await User.findById(userId);
+        if (!user) return res.status(401).json({ message: 'User not found' });
+
+        const passwordMatches = await bcrypt.compare(value.currentPassword, user.password);
+        if (!passwordMatches) {
+            return res.status(401).json({ message: 'Current password is incorrect' });
+        }
+
+        const hashedPassword = await bcrypt.hash(value.newPassword, 10);
+        await User.updateOne(
+            { _id: user._id },
+            { $set: { password: hashedPassword } },
+            { runValidators: true }
+        );
+
+        return res.status(200).json({ message: 'Password changed successfully' });
     } catch (error) {
         next(error);
     }

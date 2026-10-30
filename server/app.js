@@ -9,6 +9,7 @@ import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { csrfProtection } from './middleware/authSecurity.js';
 import wishlistRoutes from './routes/wishlist.js';
 import walletRoutes from './routes/wallet.js';
+import profileRoutes from './routes/profile.js';
 import householdRoutes from './routes/household.js';
 // Define route imports
 
@@ -35,10 +36,12 @@ app.use('/api/items', itemRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/wallet', walletRoutes)
+app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
 
 // Keep These at the end for fallback errors
 app.use(notFound);
 app.use(errorHandler);
+
 
 export default app;
