@@ -3,11 +3,15 @@ import dns from 'dns';
 import cookieParser from "cookie-parser";
 import authRoutes from './routes/auth.js';
 import lenderItems from './routes/lenderItems.js'
+import itemRoutes from './routes/items.js';
+import categoryRoutes from './routes/categories.js';
 import adminRoutes from './routes/admin.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { csrfProtection } from './middleware/authSecurity.js';
 import wishlistRoutes from './routes/wishlist.js';
 import walletRoutes from './routes/wallet.js';
+import profileRoutes from './routes/profile.js';
+import householdRoutes from './routes/household.js';
 // Define route imports
 
 const app = express();
@@ -30,12 +34,17 @@ app.use('/api/admin', adminRoutes);
 
 app.use('/api/auth', authRoutes)
 app.use('/api/lender/items', lenderItems)
+app.use('/api/items', itemRoutes)
+app.use('/api/categories', categoryRoutes)
 app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/wallet', walletRoutes)
+app.use('/api/profile', profileRoutes)
+app.use('/api/household', householdRoutes)
 
 
 // Keep These at the end for fallback errors
 app.use(notFound);
 app.use(errorHandler);
+
 
 export default app;

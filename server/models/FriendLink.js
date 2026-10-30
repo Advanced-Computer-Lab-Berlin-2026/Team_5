@@ -7,7 +7,7 @@ const friendLinkSchema = new mongoose.Schema(
     requester: { type: String, ref: "User", required: true },
     recipient: { type: String, ref: "User", required: true },
     relation: { type: String, enum: ["spouse", "parent", "child", "siblings"], required: true },
-    status: { type: String, enum: ["pending", "accepted", "rejected"] },
+    status: { type: String, enum: ["pending", "accepted", "rejected"], default: "pending" },
   },
   { timestamps: true, collection: "friend_links" }
 );
