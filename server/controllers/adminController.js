@@ -1,6 +1,7 @@
 import { User } from '../models/User.js';
 import { RefreshSession } from '../models/RefreshSession.js';
 import { Item } from '../models/Item.js';
+import mongoose from 'mongoose';
 
 async function updateSuspension(req, res) {
     try {
@@ -69,4 +70,38 @@ async function listItems(req,res) {
     
 }
 
-export { updateSuspension, viewUserDetails, listUsers, listItems };
+async function removeUser(req, res) {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId);
+    if (!user) {
+    return res.status(404).json({ error: 'User not found.' });
+    }
+    const session = await mongoose.startSession();
+
+    try {
+    await session.withTransaction(async () => {
+        await Item.deleteMany({ owner: userId }, { session });
+        await RefreshSession.deleteMany({ userId }, { session });
+        await User.findByIdAndDelete(userId, { session });
+    });
+    } finally {
+        await session.endSession();
+    }
+    if (req.user.id === userId) {
+        res.clearCookie('accessToken', { path: '/' });
+        res.clearCookie('refreshToken', { path: '/api/auth' });
+    }
+    res.status(200).json({
+        message: 'User deleted successfully.'
+    });
+
+  } catch (error) {
+    console.error('Error removing user:', error);
+    res.status(500).json({
+      error: 'An error occurred while removing the user.'
+    });
+  }
+}
+
+export { updateSuspension, viewUserDetails, listUsers, listItems, removeUser };

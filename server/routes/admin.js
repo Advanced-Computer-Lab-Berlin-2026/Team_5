@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { updateSuspension, viewUserDetails, listUsers, listItems } from '../controllers/adminController.js';
+import { updateSuspension, viewUserDetails, listUsers, listItems, removeUser } from '../controllers/adminController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const authenticate = requireAuth;
@@ -9,5 +9,5 @@ router.patch('/users/:id/suspension', authenticate, requireAdmin, updateSuspensi
 router.get('/users/:id', authenticate, requireAdmin, viewUserDetails);
 router.get('/users', authenticate, requireAdmin, listUsers);
 router.get('/items',authenticate,requireAdmin,listItems);
-
+router.delete('/users/:id',authenticate,requireAdmin,removeUser);
 export default router;
