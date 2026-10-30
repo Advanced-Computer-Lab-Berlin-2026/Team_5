@@ -2,6 +2,8 @@ import express from "express";
 import dns from 'dns';
 import cookieParser from "cookie-parser";
 import authRoutes from './routes/auth.js';
+import itemRoutes from './routes/items.js';
+import categoryRoutes from './routes/categories.js';
 import adminRoutes from './routes/admin.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { csrfProtection } from './middleware/authSecurity.js';
@@ -28,6 +30,8 @@ app.use('/api/admin', adminRoutes);
 // Define your routes here
 
 app.use('/api/auth', authRoutes)
+app.use('/api/items', itemRoutes)
+app.use('/api/categories', categoryRoutes)
 app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/wallet', walletRoutes)
 
