@@ -95,4 +95,24 @@ describe('POST /api/lender/items', () => {
         expect(Item.create).not.toHaveBeenCalled()
     });
 
+    it('should store pickup instructions and borrowing rules when provided', async () => {
+        Category.findById.mockResolvedValue(mockCategory);
+        Item.create.mockResolvedValue({ ...validBody, _id: 'itemId '});
+        const body = { ...validBody, pickupInstructions: 'Ring the bell', borrowingRules: { maxDurationDays: 7, minTrustScore: 40 } };
+        const response = await request(app).post('/api/lender/items').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`).send(body);
+        expect(response.status).toBe(201);
+        expect(Item.create.mock.calls[0][0].pickup).toEqual({ location: 'Test Location', instructions: 'Ring the bell' });
+        expect(Item.create.mock.calls[0][0].borrowingRules).toEqual({ maxDurationDays: 7, minTrustScore: 40 });
+
+    });
+
+    it('should return 400 for an invalid borrowing rule', async () => {
+        const body = { ...validBody, borrowingRules: { minTrustScore: 150} };
+        const response = await request(app).post('/api/lender/items').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`).send(body);
+        expect(response.status).toBe(400);
+        expect(response.body.message).toContain('minTrustScore');
+        expect(Item.create).not.toHaveBeenCalled();
+
+    });
+
 });
