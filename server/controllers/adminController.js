@@ -81,7 +81,6 @@ async function updateCategoryDepositMultiplier(req, res) {
     }
 }
 
-export { updateSuspension, viewUserDetails, updateCategoryDepositMultiplier };
 async function listUsers(req, res) {
     try {
         const users = await User.find({ role: { $in: ['member', 'lender'] } }).select('username role profile.name profile.email profile.phone verification.status suspended')
