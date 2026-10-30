@@ -7,6 +7,7 @@ import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { csrfProtection } from './middleware/authSecurity.js';
 import wishlistRoutes from './routes/wishlist.js';
 import walletRoutes from './routes/wallet.js';
+import profileRoutes from './routes/profile.js';
 // Define route imports
 
 const app = express();
@@ -30,9 +31,11 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes)
 app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/wallet', walletRoutes)
+app.use('/api/profile', profileRoutes)
 
 // Keep These at the end for fallback errors
 app.use(notFound);
 app.use(errorHandler);
+
 
 export default app;
