@@ -45,7 +45,7 @@ describe('guest catalog browse (SCRUM-242)', () => {
         { from: 'the category filter', method: 'get', url: '/api/items?category=Tools' },
         { from: 'item details', method: 'get', url: '/api/items/ITM-1' },
         { from: 'the category list', method: 'get', url: '/api/categories' },
-        { from: 'a category page', method: 'get', url: '/api/categories/Tools/items' }
+        { from: 'a category page', method: 'get', url: '/api/categories/items?category=Tools' }
     ])('lets a guest open $from with no cookie', async ({ method, url }) => {
         const response = await asGuest(method, url);
 

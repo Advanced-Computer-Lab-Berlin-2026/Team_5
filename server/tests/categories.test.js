@@ -18,6 +18,8 @@ vi.mock('../models/User.js', () => ({
 
 const drill = { _id: 'ITM-1', name: 'Power Drill', category: 'Tools', photos: [], depositAmount: 40 };
 
+const categoryItems = query => request(app).get('/api/categories/items').query(query);
+
 beforeEach(() => {
     vi.resetAllMocks();
     Category.exists.mockResolvedValue({ _id: 'Tools' });
@@ -48,9 +50,9 @@ describe('GET /api/categories', () => {
     });
 });
 
-describe('GET /api/categories/:id/items', () => {
+describe('GET /api/categories/items', () => {
     it('returns the items of that category with pagination', async () => {
-        const response = await request(app).get('/api/categories/Tools/items');
+        const response = await categoryItems({ category: 'Tools' });
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual({
@@ -65,10 +67,10 @@ describe('GET /api/categories/:id/items', () => {
         );
     });
 
-    it('looks up the url value as the _id only, so a name that is not an _id is a 404', async () => {
+    it('looks up ?category= as the _id only, so a name that is not an _id is a 404', async () => {
         Category.exists.mockResolvedValue(null);
 
-        const response = await request(app).get('/api/categories/Power%20Tools/items');
+        const response = await categoryItems({ category: 'Power Tools' });
 
         expect(response.status).toBe(404);
         expect(Category.exists).toHaveBeenCalledExactlyOnceWith({ _id: 'Power Tools' });
@@ -76,14 +78,14 @@ describe('GET /api/categories/:id/items', () => {
     });
 
     it('leaves archived items out of the category page', async () => {
-        await request(app).get('/api/categories/Tools/items');
+        await categoryItems({ category: 'Tools' });
 
         expect(Item.find.mock.calls[0][0].archived).toBe(false);
         expect(Item.countDocuments.mock.calls[0][0].archived).toBe(false);
     });
 
     it('returns 400 for ?archived=true, same as /api/items', async () => {
-        const response = await request(app).get('/api/categories/Tools/items').query({ archived: true });
+        const response = await categoryItems({ category: 'Tools', archived: true });
 
         expect(response.status).toBe(400);
         expect(Item.find).not.toHaveBeenCalled();
@@ -92,24 +94,26 @@ describe('GET /api/categories/:id/items', () => {
     it('returns 404 for a category that does not exist', async () => {
         Category.exists.mockResolvedValue(null);
 
-        const response = await request(app).get('/api/categories/Nope/items');
+        const response = await categoryItems({ category: 'Nope' });
 
         expect(response.status).toBe(404);
         expect(response.body).toEqual({ message: 'Category not found' });
         expect(Item.find).not.toHaveBeenCalled();
     });
 
-    it('uses the category from the url over ?category=', async () => {
-        const response = await request(app).get('/api/categories/Tools/items').query({ category: 'Camping' });
+    it('returns 404 when ?category= is missing', async () => {
+        const response = await categoryItems({});
 
-        expect(response.status).toBe(200);
-        expect(Item.find.mock.calls[0][0].category).toBe('Tools');
+        expect(response.status).toBe(404);
+        expect(response.body).toEqual({ message: 'Category not found' });
+        expect(Category.exists).not.toHaveBeenCalled();
+        expect(Item.find).not.toHaveBeenCalled();
     });
 
     it('keeps the normal list filters, search, suspended owners and paging', async () => {
         User.distinct.mockResolvedValue(['banned']);
 
-        const response = await request(app).get('/api/categories/Tools/items').query({ search: 'dri', page: 2, limit: 5 });
+        const response = await categoryItems({ category: 'Tools', search: 'dri', page: 2, limit: 5 });
 
         expect(response.status).toBe(200);
         expect(Item.find).toHaveBeenCalledExactlyOnceWith(
@@ -126,7 +130,7 @@ describe('GET /api/categories/:id/items', () => {
     });
 
     it('returns 400 for a bad page', async () => {
-        const response = await request(app).get('/api/categories/Tools/items').query({ page: 0 });
+        const response = await categoryItems({ category: 'Tools', page: 0 });
 
         expect(response.status).toBe(400);
         expect(Item.find).not.toHaveBeenCalled();
@@ -136,7 +140,7 @@ describe('GET /api/categories/:id/items', () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
         Category.exists.mockRejectedValue(new Error('db down'));
 
-        const response = await request(app).get('/api/categories/Tools/items');
+        const response = await categoryItems({ category: 'Tools' });
 
         expect(response.status).toBe(500);
         expect(Item.find).not.toHaveBeenCalled();

@@ -54,7 +54,7 @@ describe('selecting an item from the results', () => {
     it.each([
         { from: 'search results', url: '/api/items', query: { search: 'dri' } },
         { from: 'category filter results', url: '/api/items', query: { category: 'Tools' } },
-        { from: 'category page results', url: '/api/categories/Tools/items', query: {} }
+        { from: 'category page results', url: '/api/categories/items', query: { category: 'Tools' } }
     ])('opens the details of an item picked from the $from', async ({ url, query }) => {
         const response = await selectFirst(url, query);
 
