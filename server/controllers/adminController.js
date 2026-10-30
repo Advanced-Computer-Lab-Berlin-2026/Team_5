@@ -194,4 +194,4 @@ async function removeUser(req, res) {
   }
 }
 
-export { updateSuspension, viewUserDetails, listUsers, listItems, removeUser };
+export { updateSuspension, viewUserDetails, listUsers, listItems, removeUser, updateCategoryDepositMultiplier };
