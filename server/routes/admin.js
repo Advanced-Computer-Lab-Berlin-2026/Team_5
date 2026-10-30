@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { updateCategoryDepositMultiplier, updateSuspension, viewUserDetails } from '../controllers/adminController.js';
 import { createNotice } from '../controllers/noticeController.js';
+import { updateSuspension, viewUserDetails, listUsers, listItems, removeUser } from '../controllers/adminController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const authenticate = requireAuth;
@@ -11,4 +12,7 @@ router.get('/users/:id', authenticate, requireAdmin, viewUserDetails);
 router.patch('/categories/:id/deposit-multiplier', authenticate, requireAdmin, updateCategoryDepositMultiplier);
 router.post('/notices', authenticate, requireAdmin, createNotice);
 
+router.get('/users', authenticate, requireAdmin, listUsers);
+router.get('/items',authenticate,requireAdmin,listItems);
+router.delete('/users/:id',authenticate,requireAdmin,removeUser);
 export default router;
