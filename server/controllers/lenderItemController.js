@@ -14,6 +14,23 @@ const itemSchema = joi.object(
     }
 )
 
+
+const updateSchema = joi.object(
+    {
+        name: joi.string().trim(),
+        description: joi.string().trim(),
+        category: joi.string(),
+        depositAmount: joi.number().min(0),
+        conditionNotes: joi.array().items(joi.string()),
+        pickupLocation: joi.string().trim(),
+        pickupInstructions: joi.string().trim().allow(''),
+        borrowingRules: joi.object({
+            maxDurationDays: joi.number().integer().min(1),
+            minTrustScore: joi.number().min(0).max(100),
+    }).min(1), 
+}).min(1) // require at least one field to be present
+
+
 export async function createItem(req, res, next){
     try {
             // validate item
@@ -69,3 +86,40 @@ export async function toggleArchiveItem(req, res, next){
         next(error)
     }
 }
+
+
+function applyPickup(item, pickupLocation, pickupInstructions) {
+    if (pickupLocation !== undefined) item.pickup.location = pickupLocation;
+    if (pickupInstructions !== undefined) item.pickup.instructions = pickupInstructions;
+}
+
+function applyBorrowingRules(item, borrowingRules) {
+    if(borrowingRules?.maxDurationDays !== undefined) item.borrowingRules.maxDurationDays = borrowingRules.maxDurationDays
+    if (borrowingRules?.minTrustScore !== undefined) item.borrowingRules.minTrustScore = borrowingRules.minTrustScore
+}
+
+export async function updateItem(req, res, next){
+    try {
+        const { value, error } = updateSchema.validate(req.body, { stripUnknown: true })
+        if (error) return res.status(400).json({ message: error.message })
+        const item = await Item.findById(req.params.id)
+        if (!item) return res.status(404).json({ message: 'Item not found' })
+        if (item.owner !== req.user.id) return res.status(403).json({ message: 'You do not have permission to update this item' })
+        const { pickupLocation, pickupInstructions, borrowingRules, ...rest } = value
+        
+        if (rest.category) {
+            const category = await Category.findById(rest.category)
+            if (!category) return res.status(400).json({ message: 'Category does not exist' })
+        }
+        
+        Object.assign(item, rest)
+        applyPickup(item, pickupLocation, pickupInstructions)
+        applyBorrowingRules(item, borrowingRules)
+        await item.save()
+        res.status(200).json({ item })
+    }
+    catch (error) {
+        next(error)
+    }
+}
+        
