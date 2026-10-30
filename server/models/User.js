@@ -82,4 +82,27 @@ userSchema.set("toJSON", {
   },
 });
 
+userSchema.searchIndex({
+    name: 'user_name_search',
+    definition: {
+        mappings: {
+            dynamic: false,
+            fields: {
+                profile: {
+                    type: 'document',
+                    fields: {
+                        name: {
+                            type: 'autocomplete',
+                            tokenization: 'nGram',
+                            minGrams: 2,
+                            maxGrams: 15,
+                            foldDiacritics: true
+                        }
+                    }
+                }
+            }
+        }
+    }
+});
+
 export const User = mongoose.model("User", userSchema);

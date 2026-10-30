@@ -5,7 +5,7 @@ import { User } from '../models/User.js';
 
 vi.mock('../models/User.js', () => ({
   User: {
-    find: vi.fn()
+    aggregate: vi.fn()
   }
 }));
 
@@ -24,7 +24,7 @@ const mockUsers = [
     username: 'ahmed123',
     role: 'member',
     profile: {
-      name: 'Ahmed Hazem',
+      name: 'Ahmed Hassan',
       email: 'ahmed@example.com'
     },
     verification: { status: 'accepted' }
@@ -34,78 +34,94 @@ const mockUsers = [
     username: 'ahmed456',
     role: 'lender',
     profile: {
-      name: 'Ahmed Hassan',
-      email: 'ahmed456@example.com'
+      name: 'Ahmed Ali',
+      email: 'ahmedali@example.com'
     },
     verification: { status: 'pending' }
   }
 ];
 
-const selectedFields =
-  'username role profile.name profile.email profile.phone verification.status suspended';
-
-function mockUserQuery(users) {
-  const mockSort = vi.fn().mockResolvedValue(users);
-  const mockSelect = vi.fn().mockReturnValue({
-    sort: mockSort
-  });
-
-  User.find.mockReturnValue({
-    select: mockSelect
-  });
-
-  return { mockSelect, mockSort };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
+
   req.query = { name: 'Ahmed' };
+  User.aggregate.mockResolvedValue(mockUsers);
 });
 
 describe('searchUsers', () => {
 
   it('should return matching users with status 200', async () => {
-    const { mockSelect, mockSort } = mockUserQuery(mockUsers);
-
     await searchUsers(req, res);
 
-    expect(User.find).toHaveBeenCalledWith({
-      role: { $in: ['member', 'lender'] },
-      'profile.name': { $regex: 'Ahmed', $options: 'i' }
-    });
-
-    expect(mockSelect).toHaveBeenCalledWith(selectedFields);
-    expect(mockSort).toHaveBeenCalledWith({ createdAt: -1 });
+    expect(User.aggregate).toHaveBeenCalledWith([
+      {
+          $search: {
+              index: 'user_name_search',
+              autocomplete: {
+                  query: 'Ahmed',
+                  path: 'profile.name',
+                  tokenOrder: 'sequential',
+                  fuzzy: {
+                      maxEdits: 1,
+                      prefixLength: 0
+                  }
+              }
+          }
+      },
+      {
+          $match: {
+              role: { $in: ['member', 'lender'] }
+          }
+      },
+      {
+          $project: {
+              username: 1,
+              role: 1,
+              'profile.name': 1,
+              'profile.email': 1,
+              'profile.phone': 1,
+              'verification.status': 1,
+              suspended: 1,
+              score: { $meta: 'searchScore' }
+          }
+      },
+      {
+          $sort: { score: -1 }
+      }
+  ]);
 
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ users: mockUsers });
+    expect(res.json).toHaveBeenCalledWith({
+      users: mockUsers
+    });
   });
 
-  it('should perform a case-insensitive search', async () => {
+  it('should pass a lowercase search term to Atlas Search', async () => {
     req.query = { name: 'ahmed' };
-
-    mockUserQuery(mockUsers);
 
     await searchUsers(req, res);
 
-    expect(User.find).toHaveBeenCalledWith({
-      role: { $in: ['member', 'lender'] },
-      'profile.name': { $regex: 'ahmed', $options: 'i' }
-    });
+    const pipeline = User.aggregate.mock.calls[0][0];
+
+    expect(pipeline[0].$search.autocomplete.query).toBe('ahmed');
+    expect(pipeline[0].$search.index).toBe('user_name_search');
 
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ users: mockUsers });
+    expect(res.json).toHaveBeenCalledWith({
+      users: mockUsers
+    });
   });
 
   it('should return an empty list if no users match', async () => {
     req.query = { name: 'Nonexistent' };
-
-    mockUserQuery([]);
+    User.aggregate.mockResolvedValue([]);
 
     await searchUsers(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ users: [] });
+    expect(res.json).toHaveBeenCalledWith({
+      users: []
+    });
   });
 
   it('should return 400 if the name is missing', async () => {
@@ -118,7 +134,7 @@ describe('searchUsers', () => {
       error: 'Name must be a non-empty string.'
     });
 
-    expect(User.find).not.toHaveBeenCalled();
+    expect(User.aggregate).not.toHaveBeenCalled();
   });
 
   it('should return 400 if the name is empty or whitespace', async () => {
@@ -131,7 +147,7 @@ describe('searchUsers', () => {
       error: 'Name must be a non-empty string.'
     });
 
-    expect(User.find).not.toHaveBeenCalled();
+    expect(User.aggregate).not.toHaveBeenCalled();
   });
 
   it('should return 400 if the name is not a string', async () => {
@@ -144,20 +160,18 @@ describe('searchUsers', () => {
       error: 'Name must be a non-empty string.'
     });
 
-    expect(User.find).not.toHaveBeenCalled();
+    expect(User.aggregate).not.toHaveBeenCalled();
   });
 
-  it('should escape special regex characters', async () => {
+  it('should pass special characters as text without regex escaping', async () => {
     req.query = { name: 'Ali.*' };
-
-    mockUserQuery([]);
+    User.aggregate.mockResolvedValue([]);
 
     await searchUsers(req, res);
 
-    expect(User.find).toHaveBeenCalledWith({
-      role: { $in: ['member', 'lender'] },
-      'profile.name': { $regex: 'Ali\\.\\*', $options: 'i' }
-    });
+    const pipeline = User.aggregate.mock.calls[0][0];
+
+    expect(pipeline[0].$search.autocomplete.query).toBe('Ali.*');
 
     expect(res.status).toHaveBeenCalledWith(200);
   });
@@ -166,17 +180,9 @@ describe('searchUsers', () => {
     const consoleSpy = vi.spyOn(console, 'error')
       .mockImplementation(() => {});
 
-    const mockSort = vi.fn().mockRejectedValue(
+    User.aggregate.mockRejectedValue(
       new Error('Database error')
     );
-
-    const mockSelect = vi.fn().mockReturnValue({
-      sort: mockSort
-    });
-
-    User.find.mockReturnValue({
-      select: mockSelect
-    });
 
     try {
       await searchUsers(req, res);

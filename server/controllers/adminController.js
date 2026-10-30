@@ -37,7 +37,7 @@ async function updateSuspension(req, res) {
 async function viewUserDetails(req, res) {
     try {
         const userId = req.params.id;
-        const profileFields = 'username role profile.name profile.email profile.phone profile.address';
+        const profileFields = 'username role profile.name profile.email profile.phone profile.address suspended';
         const user = await User.findById(userId).select(profileFields);
         if (!user) {
             return res.status(404).json({ error: 'User not found.' });
@@ -173,12 +173,42 @@ async function searchUsers(req,res){
                 error: 'Name must be a non-empty string.'
             });
         }
-        const escapedName = name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const users = await User.find({
-            role: { $in: ['member', 'lender'] },
-            'profile.name': { $regex: escapedName, $options: 'i' }
-        }).select('username role profile.name profile.email profile.phone verification.status suspended')
-        .sort({ createdAt: -1 });
+        const users = await User.aggregate([
+            {
+                $search: {
+                    index: 'user_name_search',
+                    autocomplete: {
+                        query: name.trim(),
+                        path: 'profile.name',
+                        tokenOrder: 'sequential',
+                        fuzzy: {
+                            maxEdits: 1,
+                            prefixLength: 0
+                        }
+                    }
+                }
+            },
+            {
+                $match: {
+                    role: { $in: ['member', 'lender'] }
+                }
+            },
+            {
+                $project: {
+                    username: 1,
+                    role: 1,
+                    'profile.name': 1,
+                    'profile.email': 1,
+                    'profile.phone': 1,
+                    'verification.status': 1,
+                    suspended: 1,
+                    score: { $meta: 'searchScore' }
+                }
+            },
+            {
+                $sort: { score: -1 }
+            }
+        ]);
         res.status(200).json({ users });
     } catch (error) {
         console.error('Error searching users:', error);
