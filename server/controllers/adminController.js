@@ -1,5 +1,6 @@
 import { User } from '../models/User.js';
 import { RefreshSession } from '../models/RefreshSession.js';
+import { Category } from '../models/Category.js';
 import { Item } from '../models/Item.js';
 import { Waitlist } from '../models/Waitlist.js';
 import { PasswordReset } from '../models/PasswordReset.js';
@@ -49,6 +50,36 @@ async function viewUserDetails(req, res) {
     } catch (error) {
         console.error('Error viewing user details:', error);
         res.status(500).json({ error: 'An error occurred while viewing user details.' });
+    }
+}
+
+async function updateCategoryDepositMultiplier(req, res) {
+    try {
+        const { depositMultiplier } = req.body ?? {};
+        if (
+            typeof depositMultiplier !== 'number' ||
+            !Number.isFinite(depositMultiplier) ||
+            depositMultiplier < 1
+        ) {
+            return res.status(400).json({
+                error: 'Deposit multiplier must be a finite number greater than or equal to 1.'
+            });
+        }
+
+        const category = await Category.findById(req.params.id);
+        if (!category) {
+            return res.status(404).json({ error: 'Category not found.' });
+        }
+
+        category.depositMultiplier = depositMultiplier;
+        await category.save();
+
+        return res.status(200).json({ category });
+    } catch (error) {
+        console.error('Error updating category deposit multiplier:', error);
+        return res.status(500).json({
+            error: 'An error occurred while updating the category deposit multiplier.'
+        });
     }
 }
 
@@ -272,4 +303,13 @@ async function createAdmin(req, res){
 
 }
 
-export { updateSuspension, viewUserDetails, listUsers, listItems, removeUser, searchUsers, createAdmin };
+export {
+    updateSuspension,
+    viewUserDetails,
+    updateCategoryDepositMultiplier,
+    listUsers,
+    listItems,
+    removeUser,
+    searchUsers,
+    createAdmin
+};

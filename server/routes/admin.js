@@ -6,8 +6,11 @@ import {
     listItems,
     removeUser,
     searchUsers,
-    createAdmin
+    createAdmin,
+    updateCategoryDepositMultiplier
 } from '../controllers/adminController.js';
+
+import { createNotice } from '../controllers/noticeController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 const authenticate = requireAuth;
 const requireAdmin = requireRole('admin');
@@ -19,5 +22,7 @@ router.get('/users', authenticate, requireAdmin, listUsers);
 router.get('/items', authenticate, requireAdmin, listItems);
 router.delete('/users/:id', authenticate, requireAdmin, removeUser);
 router.post('/users/admins', authenticate, requireAdmin, createAdmin);
+router.patch('/categories/:id/deposit-multiplier', authenticate, requireAdmin, updateCategoryDepositMultiplier);
+router.post('/notices', authenticate, requireAdmin, createNotice);
 
 export default router;
