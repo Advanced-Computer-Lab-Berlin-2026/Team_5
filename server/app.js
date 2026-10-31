@@ -2,6 +2,7 @@ import express from "express";
 import dns from 'dns';
 import cookieParser from "cookie-parser";
 import authRoutes from './routes/auth.js';
+import lenderItems from './routes/lenderItems.js'
 import itemRoutes from './routes/items.js';
 import categoryRoutes from './routes/categories.js';
 import adminRoutes from './routes/admin.js';
@@ -37,6 +38,7 @@ app.use('/api/lender-requests', lenderRequestRoutes);
 app.use('/api/admin/lender-requests', adminLenderRequestRoutes);
 
 app.use('/api/auth', authRoutes)
+app.use('/api/lender/items', lenderItems)
 app.use('/api/items', itemRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/wishlist', wishlistRoutes)
@@ -44,6 +46,7 @@ app.use('/api/wallet', walletRoutes)
 app.use('/api/notices', noticeRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
+
 
 // Keep These at the end for fallback errors
 app.use(notFound);
