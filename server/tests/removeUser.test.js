@@ -14,6 +14,10 @@ vi.mock('mongoose', () => ({
   }
 }));
 
+vi.mock('../models/Category.js', () => ({
+  Category: {}
+}));
+
 vi.mock('../models/User.js', () => ({
   User: {
     findById: vi.fn(),

@@ -83,7 +83,6 @@ async function updateCategoryDepositMultiplier(req, res) {
     }
 }
 
-export { updateSuspension, viewUserDetails, updateCategoryDepositMultiplier };
 async function listUsers(req, res) {
     try {
         const users = await User.find({ role: { $in: ['member', 'lender'] } }).select('username role profile.name profile.email profile.phone verification.status suspended')
@@ -304,4 +303,13 @@ async function createAdmin(req, res){
 
 }
 
-export { updateSuspension, viewUserDetails, listUsers, listItems, removeUser, searchUsers, createAdmin };
+export {
+    updateSuspension,
+    viewUserDetails,
+    updateCategoryDepositMultiplier,
+    listUsers,
+    listItems,
+    removeUser,
+    searchUsers,
+    createAdmin
+};

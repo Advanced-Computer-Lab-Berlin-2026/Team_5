@@ -7,9 +7,7 @@ import {
     removeUser,
     searchUsers,
     createAdmin,
-     updateCategoryDepositMultiplier, 
-     updateSuspension, 
-     viewUserDetails 
+    updateCategoryDepositMultiplier
 } from '../controllers/adminController.js';
 
 import { createNotice } from '../controllers/noticeController.js';
