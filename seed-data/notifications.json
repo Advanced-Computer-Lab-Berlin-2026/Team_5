@@ -1,0 +1,165 @@
+[
+  {
+    "_id": "NOT-f29bc91b",
+    "username": "loukies",
+    "reservation": "RES-2877b258",
+    "type": "delivery",
+    "read": false,
+    "message": "Your Stand Mixer is out for delivery.",
+    "createdAt": {
+      "$date": "2026-10-30T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-30T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-b9f85daa",
+    "username": "loukies",
+    "reservation": "RES-09ffce44",
+    "type": "upcoming-return-date",
+    "read": false,
+    "message": "Please return the Camping Tent 4P by 3 November.",
+    "createdAt": {
+      "$date": "2026-10-30T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-30T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-252bc067",
+    "username": "elDANI",
+    "reservation": "RES-92717979",
+    "type": "accepted",
+    "read": true,
+    "message": "Your PS5 Console reservation was accepted.",
+    "createdAt": {
+      "$date": "2026-10-26T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-26T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-21440dba",
+    "username": "anon",
+    "reservation": "RES-593b30db",
+    "type": "rejected",
+    "read": true,
+    "message": "Your Wheelchair request was rejected.",
+    "createdAt": {
+      "$date": "2026-10-03T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-03T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-0e8c4304",
+    "username": "shikselbeks",
+    "reservation": "RES-b3054037",
+    "type": "other",
+    "read": false,
+    "message": "Youries wants to borrow your Projector.",
+    "createdAt": {
+      "$date": "2026-10-29T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-29T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-b591abbb",
+    "username": "Youries",
+    "type": "favourite-available",
+    "read": false,
+    "message": "An item on your wishlist, DSLR Camera, has open dates.",
+    "createdAt": {
+      "$date": "2026-10-28T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-28T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-6f11328a",
+    "username": "theTATA",
+    "reservation": "RES-51d0c108",
+    "type": "renewal-reminder",
+    "read": false,
+    "message": "Your extension request for the Party Speaker is waiting for the lender.",
+    "createdAt": {
+      "$date": "2026-10-30T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-30T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-b6485633",
+    "username": "Habashieta",
+    "type": "waitlist-available",
+    "read": false,
+    "message": "The PS5 Console you waitlisted may become free soon.",
+    "createdAt": {
+      "$date": "2026-10-29T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-29T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-bb65d5af",
+    "username": "Youries",
+    "type": "community-notice",
+    "read": true,
+    "message": "New notice: Scheduled maintenance.",
+    "createdAt": {
+      "$date": "2026-10-20T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-20T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-b7a06bf6",
+    "username": "martinies",
+    "type": "community-notice",
+    "read": false,
+    "message": "New notice: Scheduled maintenance.",
+    "createdAt": {
+      "$date": "2026-10-20T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-20T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-8093d995",
+    "username": "elBary",
+    "reservation": "RES-c857f421",
+    "type": "other",
+    "read": true,
+    "message": "Your deposit refund was processed.",
+    "createdAt": {
+      "$date": "2026-09-14T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-14T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NOT-11d2bfc1",
+    "username": "DocAkhmed",
+    "type": "community-notice",
+    "read": false,
+    "message": "New notice: Medical Equipment category.",
+    "createdAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    }
+  }
+]

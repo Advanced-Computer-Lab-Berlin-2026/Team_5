@@ -52,12 +52,15 @@ async function readBody(response) {
     }
 }
 
+// FormData (file uploads) is sent as is, so the browser sets the multipart boundary itself.
 function send(path, { method, body, query }) {
+    const isForm = body instanceof FormData;
+    const hasBody = body !== undefined;
     return fetch(buildUrl(path, query), {
         method,
         credentials: 'include',
-        headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-        body: body === undefined ? undefined : JSON.stringify(body)
+        headers: hasBody && !isForm ? { 'Content-Type': 'application/json' } : undefined,
+        body: !hasBody || isForm ? body : JSON.stringify(body)
     });
 }
 

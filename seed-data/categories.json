@@ -1,0 +1,90 @@
+[
+  {
+    "_id": "Tools",
+    "name": "Tools",
+    "depositMultiplier": 1,
+    "createdAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "Electronics",
+    "name": "Electronics",
+    "depositMultiplier": 2,
+    "createdAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "Kitchen",
+    "name": "Kitchen",
+    "depositMultiplier": 1,
+    "createdAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "Sports",
+    "name": "Sports",
+    "depositMultiplier": 1.5,
+    "createdAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "Books",
+    "name": "Books",
+    "depositMultiplier": 1,
+    "createdAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "Outdoor",
+    "name": "Outdoor",
+    "depositMultiplier": 1.5,
+    "createdAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "Party",
+    "name": "Party",
+    "depositMultiplier": 1.2,
+    "createdAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "Medical Equipment",
+    "name": "Medical Equipment",
+    "depositMultiplier": 2.5,
+    "createdAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-01T10:00:00.000Z"
+    }
+  }
+]

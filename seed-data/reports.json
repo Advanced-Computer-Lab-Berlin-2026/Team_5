@@ -1,0 +1,61 @@
+[
+  {
+    "_id": "RPT-b78f5766",
+    "reporter": "Youries",
+    "targetType": "item",
+    "targetItem": "ITM-1a2b3c10",
+    "reason": "Listing looks like a scam.",
+    "status": "flagged",
+    "reviewedBy": "Admono",
+    "createdAt": {
+      "$date": "2026-10-15T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-15T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RPT-c5fd961c",
+    "reporter": "elBary",
+    "targetType": "user",
+    "targetUser": "z_brazil",
+    "reason": "Never returned my item.",
+    "status": "removed",
+    "reviewedBy": "Admono",
+    "createdAt": {
+      "$date": "2026-09-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RPT-e4fbe62d",
+    "reporter": "loukies",
+    "targetType": "item",
+    "targetItem": "ITM-1a2b3c0f",
+    "reason": "Photos do not match the item.",
+    "status": "dismissed",
+    "reviewedBy": "Admono",
+    "createdAt": {
+      "$date": "2026-08-20T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-08-20T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RPT-1b9645e7",
+    "reporter": "anon",
+    "targetType": "user",
+    "targetUser": "Habashieta",
+    "reason": "Rude in messages.",
+    "status": "open",
+    "createdAt": {
+      "$date": "2026-10-28T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-28T10:00:00.000Z"
+    }
+  }
+]

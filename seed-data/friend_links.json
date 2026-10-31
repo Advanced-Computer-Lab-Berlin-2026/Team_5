@@ -1,0 +1,54 @@
+[
+  {
+    "_id": "LNK-39a89dd1",
+    "requester": "martinies",
+    "recipient": "elBary",
+    "relation": "siblings",
+    "status": "accepted",
+    "createdAt": {
+      "$date": "2026-03-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-03-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "LNK-95438a38",
+    "requester": "loukies",
+    "recipient": "theTATA",
+    "relation": "siblings",
+    "status": "accepted",
+    "createdAt": {
+      "$date": "2026-04-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-04-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "LNK-c3b65c60",
+    "requester": "elDANI",
+    "recipient": "theTATA",
+    "relation": "child",
+    "status": "pending",
+    "createdAt": {
+      "$date": "2026-10-28T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-28T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "LNK-ab4755e3",
+    "requester": "elDANI",
+    "recipient": "loukies",
+    "relation": "siblings",
+    "status": "rejected",
+    "createdAt": {
+      "$date": "2026-09-15T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-15T10:00:00.000Z"
+    }
+  }
+]

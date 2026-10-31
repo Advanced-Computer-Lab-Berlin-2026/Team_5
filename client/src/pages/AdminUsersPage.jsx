@@ -1,10 +1,17 @@
-import { deleteUser, listUsers, setSuspension } from '../api/admin.js';
+import { useState } from 'react';
+import { deleteUser, listUsers, searchUsers, setSuspension } from '../api/admin.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Message, Row, Spinner, Table } from '../components';
+import { Button, Input, Message, Row, Spinner, Table } from '../components';
 
 export default function AdminUsersPage() {
-    const { data, error, loading, reload } = useAsync(listUsers);
+    const [searchText, setSearchText] = useState('');
+    // the name that was actually searched for; empty means "show everyone"
+    const [query, setQuery] = useState('');
+    const { data, error, loading, reload } = useAsync(
+        () => (query ? searchUsers(query) : listUsers()),
+        [query]
+    );
     const action = useAction();
 
     async function change(task) {
@@ -18,19 +25,31 @@ export default function AdminUsersPage() {
         }
     }
 
+    function handleSearch(event) {
+        event.preventDefault();
+        setQuery(searchText.trim());
+    }
+
     return (
         <>
             <h1>Admin: users</h1>
-            <Row>
-                <Button variant="secondary" to="/admin/items">View all items</Button>
-            </Row>
+            <form onSubmit={handleSearch}>
+                <Row>
+                    <Input name="search" placeholder="Search by name" value={searchText}
+                        onChange={(event) => setSearchText(event.target.value)} />
+                    <Button type="submit">Search</Button>
+                    {query && (
+                        <Button variant="secondary" onClick={() => { setSearchText(''); setQuery(''); }}>Show all</Button>
+                    )}
+                </Row>
+            </form>
             {loading && <Spinner />}
             <Message type="error">{error || action.error}</Message>
             {data && (
                 <Table
                     rows={data.users}
-                    getRowKey={(user) => user._id}
-                    empty="No users."
+                    getRowKey={(user) => user._id ?? user.username}
+                    empty="No users found."
                     columns={[
                         { key: 'username', header: 'Username' },
                         { key: 'role', header: 'Role' },
@@ -43,7 +62,7 @@ export default function AdminUsersPage() {
                             render: (user) => (
                                 <Row>
                                     <Button variant="secondary" disabled={action.pending}
-                                        onClick={() => change(() => setSuspension(user._id, !user.suspended))}>
+                                        onClick={() => change(() => setSuspension(user.username, !user.suspended))}>
                                         {user.suspended ? 'Unsuspend' : 'Suspend'}
                                     </Button>
                                     <Button variant="secondary" disabled={action.pending} onClick={() => handleDelete(user)}>

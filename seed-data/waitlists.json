@@ -1,0 +1,41 @@
+[
+  {
+    "_id": "WTL-2927b464",
+    "item": "ITM-1a2b3c05",
+    "startDate": {
+      "$date": "2026-11-15T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-11-20T10:00:00.000Z"
+    },
+    "usernames": [
+      "Youries",
+      "anon"
+    ],
+    "createdAt": {
+      "$date": "2026-10-27T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-27T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "WTL-78c37ed1",
+    "item": "ITM-1a2b3c07",
+    "startDate": {
+      "$date": "2026-11-05T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-11-08T10:00:00.000Z"
+    },
+    "usernames": [
+      "Habashieta"
+    ],
+    "createdAt": {
+      "$date": "2026-10-28T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-28T10:00:00.000Z"
+    }
+  }
+]

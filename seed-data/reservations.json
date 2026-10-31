@@ -1,0 +1,390 @@
+[
+  {
+    "_id": "RES-95ced8b1",
+    "item": "ITM-1a2b3c01",
+    "borrower": "Youries",
+    "lender": "martinies",
+    "startDate": {
+      "$date": "2026-08-03T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-08-10T10:00:00.000Z"
+    },
+    "status": "completed",
+    "payment": {
+      "depositAmount": 180,
+      "method": "wallet",
+      "lateFee": 0
+    },
+    "reviews": {
+      "lenderReview": "Great drill, worked perfectly.",
+      "lenderRating": 5,
+      "borrowerReview": "Returned clean and on time.",
+      "borrowerRating": 5
+    },
+    "messages": [
+      {
+        "date": {
+          "$date": "2026-08-02T10:00:00.000Z"
+        },
+        "seen": true,
+        "text": "Can I pick it up at 6pm?",
+        "sender": "Youries"
+      },
+      {
+        "date": {
+          "$date": "2026-08-02T10:00:00.000Z"
+        },
+        "seen": true,
+        "text": "Sure, see you then.",
+        "sender": "martinies"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-07-30T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-07-30T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RES-c857f421",
+    "item": "ITM-1a2b3c05",
+    "borrower": "elBary",
+    "lender": "shikselbeks",
+    "startDate": {
+      "$date": "2026-09-01T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-09-08T10:00:00.000Z"
+    },
+    "status": "completed",
+    "payment": {
+      "depositAmount": 1500,
+      "method": "card",
+      "stripePaymentIntentId": "pi_3SeedDummy002",
+      "lateFee": 50
+    },
+    "reviews": {
+      "lenderReview": "Camera was fine, a bit late to hand over.",
+      "lenderRating": 4,
+      "borrowerReview": "Returned late with a scratched lens.",
+      "borrowerRating": 2
+    },
+    "extension": {
+      "requestedEndDate": {
+        "$date": "2026-09-08T10:00:00.000Z"
+      },
+      "status": "accepted"
+    },
+    "messages": [
+      {
+        "date": {
+          "$date": "2026-09-05T10:00:00.000Z"
+        },
+        "seen": true,
+        "text": "Can I extend until the 8th?",
+        "sender": "elBary"
+      },
+      {
+        "date": {
+          "$date": "2026-09-05T10:00:00.000Z"
+        },
+        "seen": true,
+        "text": "Okay, extension accepted.",
+        "sender": "shikselbeks"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-08-28T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-08-28T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RES-09ffce44",
+    "item": "ITM-1a2b3c03",
+    "borrower": "loukies",
+    "lender": "Habashieta",
+    "startDate": {
+      "$date": "2026-10-27T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-11-03T10:00:00.000Z"
+    },
+    "status": "active",
+    "payment": {
+      "depositAmount": 450,
+      "method": "card",
+      "stripePaymentIntentId": "pi_3SeedDummy003",
+      "lateFee": 0
+    },
+    "messages": [
+      {
+        "date": {
+          "$date": "2026-10-27T10:00:00.000Z"
+        },
+        "seen": true,
+        "text": "Picked it up, thanks!",
+        "sender": "loukies"
+      },
+      {
+        "date": {
+          "$date": "2026-10-27T10:00:00.000Z"
+        },
+        "seen": false,
+        "text": "Enjoy the trip. Return it dry please.",
+        "sender": "Habashieta"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-10-24T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-24T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RES-92717979",
+    "item": "ITM-1a2b3c07",
+    "borrower": "elDANI",
+    "lender": "theTATA",
+    "startDate": {
+      "$date": "2026-11-05T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-11-08T10:00:00.000Z"
+    },
+    "status": "upcoming",
+    "payment": {
+      "depositAmount": 1500,
+      "method": "card",
+      "stripePaymentIntentId": "pi_3SeedDummy004",
+      "lateFee": 0
+    },
+    "messages": [
+      {
+        "date": {
+          "$date": "2026-10-25T10:00:00.000Z"
+        },
+        "seen": false,
+        "text": "Used the promo code, hope that is fine.",
+        "sender": "elDANI"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RES-b3054037",
+    "item": "ITM-1a2b3c06",
+    "borrower": "Youries",
+    "lender": "shikselbeks",
+    "startDate": {
+      "$date": "2026-11-10T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-11-12T10:00:00.000Z"
+    },
+    "status": "pending",
+    "delivery": {
+      "fee": 40,
+      "address": "Imbaba"
+    },
+    "payment": {
+      "depositAmount": 900,
+      "method": "card",
+      "lateFee": 0
+    },
+    "messages": [
+      {
+        "date": {
+          "$date": "2026-10-29T10:00:00.000Z"
+        },
+        "seen": false,
+        "text": "Can you deliver it to Imbaba?",
+        "sender": "Youries"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-10-29T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-29T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RES-69590b19",
+    "item": "ITM-1a2b3c02",
+    "borrower": "anon",
+    "lender": "martinies",
+    "startDate": {
+      "$date": "2026-10-01T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-10-03T10:00:00.000Z"
+    },
+    "status": "cancelled",
+    "payment": {
+      "depositAmount": 150,
+      "method": "wallet",
+      "lateFee": 0
+    },
+    "messages": [],
+    "createdAt": {
+      "$date": "2026-09-28T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-28T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RES-593b30db",
+    "item": "ITM-1a2b3c09",
+    "borrower": "anon",
+    "lender": "DocAkhmed",
+    "startDate": {
+      "$date": "2026-10-05T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-10-07T10:00:00.000Z"
+    },
+    "status": "rejected",
+    "payment": {
+      "depositAmount": 600,
+      "method": "wallet",
+      "lateFee": 0
+    },
+    "messages": [
+      {
+        "date": {
+          "$date": "2026-10-03T10:00:00.000Z"
+        },
+        "seen": true,
+        "text": "Sorry, it is already promised to someone else.",
+        "sender": "DocAkhmed"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-10-02T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-02T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RES-2877b258",
+    "item": "ITM-1a2b3c08",
+    "borrower": "loukies",
+    "lender": "theTATA",
+    "startDate": {
+      "$date": "2026-10-31T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-11-04T10:00:00.000Z"
+    },
+    "status": "upcoming",
+    "delivery": {
+      "status": "out-for-delivery",
+      "fee": 25,
+      "address": "Martin Home"
+    },
+    "payment": {
+      "depositAmount": 250,
+      "method": "wallet",
+      "lateFee": 0
+    },
+    "messages": [
+      {
+        "date": {
+          "$date": "2026-10-30T10:00:00.000Z"
+        },
+        "seen": false,
+        "text": "On my way with the mixer.",
+        "sender": "theTATA"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-10-27T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-27T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RES-a8c8c0f9",
+    "item": "ITM-1a2b3c0a",
+    "borrower": "Habashieta",
+    "lender": "DocAkhmed",
+    "startDate": {
+      "$date": "2026-09-15T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-09-20T10:00:00.000Z"
+    },
+    "status": "completed",
+    "payment": {
+      "depositAmount": 300,
+      "method": "wallet",
+      "lateFee": 0
+    },
+    "reviews": {
+      "lenderReview": "Accurate and clean.",
+      "lenderRating": 5,
+      "borrowerReview": "Perfect borrower.",
+      "borrowerRating": 5
+    },
+    "messages": [],
+    "createdAt": {
+      "$date": "2026-09-12T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-12T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "RES-51d0c108",
+    "item": "ITM-1a2b3c0c",
+    "borrower": "theTATA",
+    "lender": "shikselbeks",
+    "startDate": {
+      "$date": "2026-10-28T10:00:00.000Z"
+    },
+    "endDate": {
+      "$date": "2026-11-02T10:00:00.000Z"
+    },
+    "status": "active",
+    "payment": {
+      "depositAmount": 400,
+      "method": "wallet",
+      "lateFee": 0
+    },
+    "extension": {
+      "requestedEndDate": {
+        "$date": "2026-11-05T10:00:00.000Z"
+      },
+      "status": "requested"
+    },
+    "messages": [
+      {
+        "date": {
+          "$date": "2026-10-30T10:00:00.000Z"
+        },
+        "seen": false,
+        "text": "Can I keep it until the 5th?",
+        "sender": "theTATA"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    }
+  }
+]

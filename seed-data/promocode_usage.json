@@ -1,0 +1,34 @@
+[
+  {
+    "_id": "PCU-c5ea7155",
+    "transaction": "PAY-f29f301e",
+    "code": "WELCOME10",
+    "user": "Youries",
+    "reservation": "RES-95ced8b1",
+    "date": {
+      "$date": "2026-08-01T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-08-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-08-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PCU-b9c69e54",
+    "transaction": "PAY-32057079",
+    "code": "MARTINI25",
+    "user": "elDANI",
+    "reservation": "RES-92717979",
+    "date": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    }
+  }
+]

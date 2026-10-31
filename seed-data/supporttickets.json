@@ -1,0 +1,123 @@
+[
+  {
+    "_id": "TKT-e5353879",
+    "user": "Youries",
+    "subject": "Cannot change my phone number",
+    "status": "in-progress",
+    "respondedBy": "Admono",
+    "messages": [
+      {
+        "sender": "Youries",
+        "seen": true,
+        "text": "The phone field keeps rejecting my number.",
+        "date": {
+          "$date": "2026-10-26T10:00:00.000Z"
+        },
+        "userType": "member"
+      },
+      {
+        "sender": "Admono",
+        "seen": true,
+        "text": "Please use the international format, like +491701234567.",
+        "date": {
+          "$date": "2026-10-27T10:00:00.000Z"
+        },
+        "userType": "admin"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-10-26T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-26T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "TKT-2a5bd027",
+    "user": "loukies",
+    "subject": "Verification pending for a week",
+    "status": "in-progress",
+    "respondedBy": "Admono",
+    "messages": [
+      {
+        "sender": "loukies",
+        "seen": true,
+        "text": "My verification has been pending for a week.",
+        "date": {
+          "$date": "2026-10-29T10:00:00.000Z"
+        },
+        "userType": "member"
+      },
+      {
+        "sender": "Admono",
+        "seen": false,
+        "text": "We are checking your documents.",
+        "date": {
+          "$date": "2026-10-30T10:00:00.000Z"
+        },
+        "userType": "admin"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-10-29T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-29T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "TKT-4358694e",
+    "user": "elBary",
+    "subject": "Deposit refund missing",
+    "status": "resolved",
+    "respondedBy": "Admono",
+    "messages": [
+      {
+        "sender": "elBary",
+        "seen": true,
+        "text": "I did not get my full deposit back.",
+        "date": {
+          "$date": "2026-09-15T10:00:00.000Z"
+        },
+        "userType": "member"
+      },
+      {
+        "sender": "Admono",
+        "seen": true,
+        "text": "A part was kept after the damage report. Details are in the resolution.",
+        "date": {
+          "$date": "2026-09-16T10:00:00.000Z"
+        },
+        "userType": "admin"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-09-15T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-15T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "TKT-a9dfb15b",
+    "user": "anon",
+    "subject": "How do I top up my wallet?",
+    "messages": [
+      {
+        "sender": "anon",
+        "seen": false,
+        "text": "How do I add money to my wallet?",
+        "date": {
+          "$date": "2026-10-30T10:00:00.000Z"
+        },
+        "userType": "member"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-10-30T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-30T10:00:00.000Z"
+    }
+  }
+]

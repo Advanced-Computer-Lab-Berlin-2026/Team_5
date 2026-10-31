@@ -1,0 +1,47 @@
+[
+  {
+    "_id": "REF-5573e39b",
+    "referrer": "Habashieta",
+    "referred": "Youries",
+    "status": "converted",
+    "creditsIssued": 50,
+    "convertedAt": {
+      "$date": "2026-03-05T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-03-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-03-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "REF-a50126cc",
+    "referrer": "martinies",
+    "referred": "elDANI",
+    "status": "converted",
+    "creditsIssued": 50,
+    "convertedAt": {
+      "$date": "2026-05-12T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-05-10T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-05-10T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "REF-aa893358",
+    "referrer": "DocAkhmed",
+    "referred": "z_brazil",
+    "status": "sent",
+    "creditsIssued": 0,
+    "createdAt": {
+      "$date": "2026-06-20T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-20T10:00:00.000Z"
+    }
+  }
+]

@@ -1,6 +1,6 @@
 import { listAllItems } from '../api/admin.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Message, Row, Spinner, Table } from '../components';
+import { Message, Spinner, Table } from '../components';
 
 const yesNo = (value) => (value ? 'yes' : 'no');
 
@@ -10,9 +10,6 @@ export default function AdminItemsPage() {
     return (
         <>
             <h1>Admin: items</h1>
-            <Row>
-                <Button variant="secondary" to="/admin">View users</Button>
-            </Row>
             {loading && <Spinner />}
             <Message type="error">{error}</Message>
             {data && (

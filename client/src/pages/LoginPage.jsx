@@ -30,7 +30,7 @@ export default function LoginPage() {
                 <Button type="submit" disabled={pending}>{pending ? 'Logging in...' : 'Log in'}</Button>
             </form>
             <p><Link to="/forgot-password">Forgot password?</Link></p>
-            <p>No account? <Link to="/register">Register</Link></p>
+            <p>No account? <Link to="/register" state={{ from: location.state?.from }}>Register</Link></p>
         </Card>
     );
 }
