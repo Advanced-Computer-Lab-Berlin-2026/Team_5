@@ -3,3 +3,5 @@
 node_modules
 coverage
 server/uploads/
+
+.DS_Store
