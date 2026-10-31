@@ -29,11 +29,19 @@ const userSchema = new mongoose.Schema(
         enum: ["none", "pending", "accepted", "rejected", "retry"],
         default: "none",
       },
-      note: { type: String },
+      note: { type: String }, // rejection reason from the admin
+      submittedAt: { type: Date },
+      reviewedBy: { type: String, ref: "User" }, // admin username
+      reviewedAt: { type: Date },
       documents: [
         {
           type: { type: String, enum: ["id", "addressProof", "both"], required: true },
           file: { type: fileSchema, required: true },
+          originalName: { type: String, required: true },
+          storedName: { type: String, required: true }, // Cloudinary public id, needed to create signed links
+          docType: { type: String, enum: ["application/pdf", "image/jpeg", "image/jpg", "image/png"], required: true },
+          size: { type: Number, required: true },
+          uploadedAt: { type: Date, default: Date.now },
           _id: false,
         },
       ],
@@ -61,6 +69,9 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// the admin lists users by verification status
+userSchema.index({ "verification.status": 1 });
+
 // use the username as the _id
 userSchema.pre("validate", function () {
   if (!this._id) this._id = this.username;
@@ -80,6 +91,29 @@ userSchema.set("toJSON", {
     delete ret.password;
     return ret;
   },
+});
+
+userSchema.searchIndex({
+    name: 'user_name_search',
+    definition: {
+        mappings: {
+            dynamic: false,
+            fields: {
+                profile: {
+                    type: 'document',
+                    fields: {
+                        name: {
+                            type: 'autocomplete',
+                            tokenization: 'nGram',
+                            minGrams: 2,
+                            maxGrams: 15,
+                            foldDiacritics: true
+                        }
+                    }
+                }
+            }
+        }
+    }
 });
 
 export const User = mongoose.model("User", userSchema);

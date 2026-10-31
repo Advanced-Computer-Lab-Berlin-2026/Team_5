@@ -79,7 +79,8 @@ describe('viewUserDetails', () => {
                 email: 'ahmed@example.com',
                 phone: '123456789',
                 address: 'Berlin'
-            }
+            },
+            suspended: false
         };
 
         const mockSelect = vi.fn().mockResolvedValue(mockUser);
@@ -97,7 +98,7 @@ describe('viewUserDetails', () => {
         expect(User.findById).toHaveBeenCalledWith('ahmed123');
 
         expect(mockSelect).toHaveBeenCalledWith(
-            'username role profile.name profile.email profile.phone profile.address'
+            'username role profile.name profile.email profile.phone profile.address suspended'
         );
 
         expect(res.json.mock.calls[0][0].user).not.toHaveProperty('password');
