@@ -30,19 +30,15 @@ Keep secrets in `.env` and out of Git. Update `.env.sample` with placeholders wh
 | `MONGODB_URI` | MongoDB connection URI. |
 | `SMTP_PASS` | Credentials for the sender configured in `server/services/emailService.js`. |
 | `NODE_ENV` | Use `local` locally and `production` for deployment over HTTPS. Only the exact value `production` enables Secure auth cookies. |
-
-All five values must be nonempty. Configuration is captured at module load;
-restart the server after changing it.
-
-### Optional environment values
-
-| Variable | Purpose |
-| --- | --- |
 | `CLOUDINARY_CLOUD_NAME` | Cloud name from the Cloudinary dashboard, used to store lender documents. |
 | `CLOUDINARY_API_KEY` | Cloudinary API key. |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret. Keep it private. |
 
-Without these three values the app still starts; only lender document uploads, removals and previews answer `503`. In the Cloudinary dashboard, enable **Settings → Security → Allow delivery of PDF and ZIP files** so PDF documents can be opened.
+All eight values must be nonempty. Configuration is captured at module load;
+restart the server after changing it.
+
+In the Cloudinary dashboard, enable **Settings → Security → Allow delivery of
+PDF and ZIP files** so PDF documents can be opened.
 
 On Windows PowerShell, use `npm.cmd` if the execution policy blocks `npm.ps1`.
 
@@ -126,7 +122,9 @@ Empty folders contain `.gitkeep` files so Git includes them. Remove these placeh
 ## Authentication and API usage
 
 All request bodies below are JSON. Responses use JSON, including errors with
-`{ message }`. Auth endpoints are mounted under `/api/auth`.
+`{ message }`. Auth endpoints are mounted under `/api/auth`. Lender verification
+endpoints are mounted under `/api/lender-requests` (members) and
+`/api/admin/lender-requests` (admins).
 
 | Method and path | Request body | Successful behavior |
 | --- | --- | --- |
@@ -138,11 +136,25 @@ All request bodies below are JSON. Responses use JSON, including errors with
 | `POST /api/auth/forget-password` | `email` | Sends a six-digit code if the account exists; returns the same success message for unknown accounts. |
 | `POST /api/auth/verify-reset-otp` | `email`, `otp` as a six-digit string | Exchanges the code for a reset token returned in JSON. |
 | `POST /api/auth/reset-password` | `resetToken`, `newPassword` | Changes the password, revokes all of the user's refresh sessions, and clears this browser's auth cookies. |
+| `GET /api/lender-requests` | None; login required | Returns the member's `verification`: status and uploaded documents. |
+| `POST /api/lender-requests/documents/:slot` | Form data with a `file` field (PDF, JPEG, JPG or PNG, max 5 MB); `:slot` is `id` or `addressProof` | Uploads or replaces the document while the request is not submitted (or after a rejection). Lenders and admins get `403`. |
+| `DELETE /api/lender-requests/documents/:slot` | None | Removes the document while the request is not submitted. |
+| `POST /api/lender-requests/submit` | None | Submits the request for review (status `pending`); both documents are required. |
+| `GET /api/admin/lender-requests` | None; admin only; optional `?status=` `pending` (default), `accepted` or `rejected` | Lists users with that verification status. |
+| `GET /api/admin/lender-requests/:username` | None; admin only | Returns the applicant's username, profile and verification with documents. |
+| `GET /api/admin/lender-requests/:username/documents/:slot` | None; admin only; optional `?download=true` | Redirects to a signed Cloudinary link to view or download the document. |
+| `PATCH /api/admin/lender-requests/:username/decision` | `decision` (`accept` or `reject`); `reason` required when rejecting | Accept sets the role to `lender` and status `accepted`; reject sets status `rejected` and saves the reason in `verification.note`. |
 
 The password recovery URL is spelled `forget-password`, matching the current
 router. Reset codes expire after 10 minutes and allow at most five verification
 attempts per issued code. Successful verification exchanges the code once for
 a reset token valid for five minutes. Reset tokens can be used only once.
+
+Lender verification is stored in the user's `verification` field. Its status
+goes from `none` (uploading) to `pending` (submitted) to `accepted` or
+`rejected`; a rejected member can upload again and resubmit. Documents are
+stored privately in Cloudinary and are only opened through signed links
+created by the server.
 
 ### Cookie lifecycle
 
@@ -214,30 +226,6 @@ In Postman, send `Origin: http://localhost:3000` with unsafe requests and enable
 the cookie jar so login cookies carry over to later calls. A 403 origin error
 is distinct from a 401 authentication failure: valid cookies do not bypass
 CSRF checks.
-
-## Lender verification
-
-Members apply to become verified lenders by uploading an ID document and a proof of address. An admin reviews the documents and accepts or rejects the request; accepting sets the user's role to `lender`. Documents are stored privately in Cloudinary (see Optional environment values) and are only opened through signed links created by the server.
-
-Member endpoints require login. Lenders and admins cannot apply (`403`).
-
-| Method | URL | Description |
-| --- | --- | --- |
-| GET | `/api/lender-requests` | My latest request: status and both documents. |
-| POST | `/api/lender-requests/documents/:slot` | Upload a document. `:slot` is `idDocument` or `proofOfAddress`; form field `file`; PDF, JPEG, JPG or PNG, max 5 MB. |
-| DELETE | `/api/lender-requests/documents/:slot` | Remove a document while the request is still a draft. |
-| POST | `/api/lender-requests/submit` | Submit the request for review; both documents are required. |
-
-Admin endpoints require the `admin` role.
-
-| Method | URL | Description |
-| --- | --- | --- |
-| GET | `/api/admin/lender-requests?status=pending` | List requests: `pending` (default), `approved` or `rejected`. |
-| GET | `/api/admin/lender-requests/:id` | One request with its documents and the applicant's details. |
-| GET | `/api/admin/lender-requests/:id/documents/:slot` | Redirects to a signed link to view the document; add `?download=true` to download it. |
-| PATCH | `/api/admin/lender-requests/:id/decision` | `{ "decision": "accept" }` or `{ "decision": "reject", "reason": "..." }`. |
-
-A request goes from `draft` (uploading) to `pending` (submitted) to `approved` or `rejected`. A rejected member can start a new request.
 
 ## Project guidelines
 

@@ -3,18 +3,12 @@ import request from "supertest";
 import jwt from "jsonwebtoken";
 import app from "../app.js";
 import { env } from "../config/env.js";
-import { LenderRequest } from "../models/LenderRequest.js";
 import { User } from "../models/User.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
 
-// Mock the LenderRequest model. 
-vi.mock('../models/LenderRequest.js', () => ({
-    LenderRequest: Object.assign(vi.fn(), { findOne: vi.fn() })
-}));
-
-// Mock the User model: submitting also marks the user's verification status as pending.
+// Mock the User model: the lender request is stored in the user's verification field.
 vi.mock('../models/User.js', () => ({
-    User: { findById: vi.fn(), findByIdAndUpdate: vi.fn() }
+    User: { findById: vi.fn() }
 }));
 
 // Mock Cloudinary: tests never upload real files and do not need the Cloudinary keys.
@@ -27,32 +21,47 @@ const USER_ID = 'sara123';
 const BASE_URL = '/api/lender-requests';
 const ORIGIN = 'http://localhost:3000';
 const NEW_FILE_ID = 'lender-documents/new-file';
+const NEW_FILE_URL = 'https://res.cloudinary.com/demo/image/authenticated/v1/lender-documents/new-file.pdf';
 
-// Logs in the way the auth middleware expects: a signed accessToken cookie, and the user it then loads from the database.
-function loginCookie(role = 'member') {
-    User.findById.mockResolvedValue({ _id: USER_ID, role, suspended: false });
-    return `accessToken=${jwt.sign({ id: USER_ID, role }, env.jwtSecret, { expiresIn: '15m' })}`;
-}
+// The logged-in user. The auth middleware and the controller both load it with findById.
+let user;
 
-// Builds a fake request document the way Mongoose would return it.
-function fakeRequest(fields = {}) {
-    return { user: USER_ID, status: 'draft', save: vi.fn().mockResolvedValue(), ...fields };
+// Builds a fake user the way Mongoose would return it.
+function fakeUser(role = 'member', verification = {}) {
+    return {
+        _id: USER_ID,
+        role,
+        suspended: false,
+        verification: { status: 'none', documents: [], ...verification },
+        save: vi.fn().mockResolvedValue()
+    };
 }
 
 // A document that is already stored in Cloudinary under the given id.
-function storedFile(storedName) {
-    return { originalName: 'old.pdf', storedName, docType: 'application/pdf', size: 8 };
+function storedFile(type, storedName) {
+    return { type, file: { url: `https://res.cloudinary.com/demo/${storedName}` }, originalName: 'old.pdf', storedName, docType: 'application/pdf', size: 8 };
+}
+
+// Logs in the way the auth middleware expects: a signed accessToken cookie, and the user it then loads from the database.
+function loginCookie() {
+    User.findById.mockResolvedValue(user);
+    return `accessToken=${jwt.sign({ id: USER_ID, role: user.role }, env.jwtSecret, { expiresIn: '15m' })}`;
+}
+
+// The auth middleware still finds the user, but the controller's own lookup fails.
+function failControllerLookup() {
+    User.findById.mockResolvedValueOnce(user).mockRejectedValueOnce(new Error('Database unavailable'));
+}
+
+function findDocument(slot) {
+    return user.verification.documents.find((document) => document.type === slot);
 }
 
 beforeEach(() => {
     vi.resetAllMocks();
 
-    LenderRequest.findOne.mockResolvedValue(null);
-    User.findByIdAndUpdate.mockResolvedValue({});
-    LenderRequest.mockImplementation(function (data) {
-        return fakeRequest(data);
-    });
-    uploadToCloudinary.mockResolvedValue({ public_id: NEW_FILE_ID });
+    user = fakeUser();
+    uploadToCloudinary.mockResolvedValue({ public_id: NEW_FILE_ID, secure_url: NEW_FILE_URL });
     deleteFromCloudinary.mockResolvedValue({ result: 'ok' });
 });
 
@@ -61,40 +70,39 @@ describe('GET /api/lender-requests', () => {
         const response = await request(app).get(BASE_URL);
 
         expect(response.status).toBe(401);
-        expect(LenderRequest.findOne).not.toHaveBeenCalled();
+        expect(User.findById).not.toHaveBeenCalled();
     });
 
-    it('returns 200 with the newest request of the user', async () => {
-        const sort = vi.fn().mockResolvedValue({ user: USER_ID, status: 'draft' });
-        LenderRequest.findOne.mockReturnValue({ sort });
+    it('returns 200 with the verification of the user', async () => {
+        user = fakeUser('member', { status: 'pending', documents: [storedFile('id', 'lender-documents/sara-id')] });
 
         const response = await request(app)
             .get(BASE_URL)
             .set('Cookie', loginCookie());
 
         expect(response.status).toBe(200);
-        expect(response.body.status).toBe('draft');
-        expect(LenderRequest.findOne).toHaveBeenCalledWith({ user: USER_ID });
-        expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
+        expect(response.body.status).toBe('pending');
+        expect(response.body.documents).toHaveLength(1);
+        expect(User.findById).toHaveBeenCalledWith(USER_ID);
     });
 
-    it('returns 200 with null when the user has no request', async () => {
-        LenderRequest.findOne.mockReturnValue({ sort: vi.fn().mockResolvedValue(null) });
-
+    it('returns 200 with status none when the user has not applied', async () => {
         const response = await request(app)
             .get(BASE_URL)
             .set('Cookie', loginCookie());
 
         expect(response.status).toBe(200);
-        expect(response.body).toBeNull();
+        expect(response.body.status).toBe('none');
+        expect(response.body.documents).toEqual([]);
     });
 
     it('returns 500 when the lookup fails', async () => {
-        LenderRequest.findOne.mockReturnValue({ sort: vi.fn().mockRejectedValue(new Error('Database unavailable')) });
+        const cookie = loginCookie();
+        failControllerLookup();
 
         const response = await request(app)
             .get(BASE_URL)
-            .set('Cookie', loginCookie());
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(500);
     });
@@ -107,8 +115,8 @@ const invalidFiles = [
 ];
 
 describe('POST /api/lender-requests/documents/:slot', () => {
-    it.each(['idDocument', 'proofOfAddress'])(
-        'returns 200 and creates a draft request when uploading %s for the first time',
+    it.each(['id', 'addressProof'])(
+        'returns 200 and adds the %s document on the first upload',
         async (slot) => {
         const response = await request(app)
             .post(`${BASE_URL}/documents/${slot}`).set('Origin', ORIGIN)
@@ -116,42 +124,56 @@ describe('POST /api/lender-requests/documents/:slot', () => {
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(200);
-        expect(LenderRequest).toHaveBeenCalledWith({ user: USER_ID });
+        expect(response.body.documents).toHaveLength(1);
         expect(uploadToCloudinary).toHaveBeenCalledWith(Buffer.from('fake pdf'));
-
-        const savedRequest = LenderRequest.mock.results[0].value;
-        expect(savedRequest.save).toHaveBeenCalledOnce();
-        expect(savedRequest[slot].originalName).toBe('passport.pdf');
-        expect(savedRequest[slot].storedName).toBe(NEW_FILE_ID);
-        expect(savedRequest[slot].docType).toBe('application/pdf');
+        expect(user.save).toHaveBeenCalledOnce();
+        expect(findDocument(slot)).toEqual({
+            type: slot,
+            file: { url: NEW_FILE_URL },
+            originalName: 'passport.pdf',
+            storedName: NEW_FILE_ID,
+            docType: 'application/pdf',
+            size: 8
+        });
         expect(deleteFromCloudinary).not.toHaveBeenCalled();
     });
 
-    it('returns 200 and replaces the old file in an existing draft', async () => {
-        const existing = fakeRequest({ idDocument: storedFile('lender-documents/old-id') });
-        LenderRequest.findOne.mockResolvedValue(existing);
+    it('returns 200, replaces the old file and keeps the other document', async () => {
+        user = fakeUser('member', { documents: [storedFile('id', 'lender-documents/old-id'), storedFile('addressProof', 'lender-documents/old-proof')] });
 
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .post(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie())
             .attach('file', Buffer.from('new image'), 'new-id.png');
 
         expect(response.status).toBe(200);
-        expect(LenderRequest).not.toHaveBeenCalled();
-        expect(existing.save).toHaveBeenCalledOnce();
-        expect(existing.idDocument.originalName).toBe('new-id.png');
-        expect(existing.idDocument.storedName).toBe(NEW_FILE_ID);
-        expect(existing.idDocument.docType).toBe('image/png');
+        expect(user.verification.documents).toHaveLength(2);
+        expect(findDocument('id').originalName).toBe('new-id.png');
+        expect(findDocument('id').storedName).toBe(NEW_FILE_ID);
+        expect(findDocument('id').docType).toBe('image/png');
+        expect(findDocument('addressProof').storedName).toBe('lender-documents/old-proof');
         expect(deleteFromCloudinary).toHaveBeenCalledWith('lender-documents/old-id');
     });
 
+    it.each(['rejected', 'retry'])('returns 200 when the status is %s, so the member can apply again', async (status) => {
+        user = fakeUser('member', { status });
+
+        const response = await request(app)
+            .post(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie())
+            .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
+
+        expect(response.status).toBe(200);
+        expect(user.save).toHaveBeenCalledOnce();
+    });
+
     it('still returns 200 when the old file cannot be deleted from Cloudinary', async () => {
-        LenderRequest.findOne.mockResolvedValue(fakeRequest({ idDocument: storedFile('lender-documents/old-id') }));
+        user = fakeUser('member', { documents: [storedFile('id', 'lender-documents/old-id')] });
         deleteFromCloudinary.mockRejectedValue(new Error('Cloudinary unavailable'));
         vi.spyOn(console, 'error').mockImplementation(() => {});
 
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .post(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie())
             .attach('file', Buffer.from('new image'), 'new-id.png');
 
@@ -160,7 +182,7 @@ describe('POST /api/lender-requests/documents/:slot', () => {
 
     it('returns 401 when not logged in', async () => {
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .post(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(401);
@@ -169,12 +191,12 @@ describe('POST /api/lender-requests/documents/:slot', () => {
 
     it('returns 400 when no file is sent', async () => {
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .post(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie());
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe('Please choose a file to upload');
-        expect(LenderRequest.findOne).not.toHaveBeenCalled();
+        expect(user.save).not.toHaveBeenCalled();
     });
 
     it('returns 400 for an invalid slot and does not upload the file', async () => {
@@ -185,7 +207,6 @@ describe('POST /api/lender-requests/documents/:slot', () => {
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe('Invalid document slot');
-        expect(LenderRequest.findOne).not.toHaveBeenCalled();
         expect(uploadToCloudinary).not.toHaveBeenCalled();
     });
 
@@ -193,52 +214,46 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         'returns 400 for an invalid file ($name)',
         async (file) => {
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .post(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie())
             .attach('file', file.content, file.name);
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe(file.message);
-        expect(LenderRequest.findOne).not.toHaveBeenCalled();
         expect(uploadToCloudinary).not.toHaveBeenCalled();
     });
 
-    it('returns 409 when the request was already submitted', async () => {
-        const submitted = fakeRequest({ status: 'pending' });
-        LenderRequest.findOne.mockResolvedValue(submitted);
+    it.each(['pending', 'accepted'])('returns 409 when the status is %s', async (status) => {
+        user = fakeUser('member', { status });
 
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .post(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie())
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(409);
-        expect(submitted.save).not.toHaveBeenCalled();
+        expect(user.save).not.toHaveBeenCalled();
         expect(uploadToCloudinary).not.toHaveBeenCalled();
     });
 
     it('returns 500 when the upload to Cloudinary fails and saves nothing', async () => {
-        const existing = fakeRequest();
-        LenderRequest.findOne.mockResolvedValue(existing);
         uploadToCloudinary.mockRejectedValue(new Error('Cloudinary unavailable'));
 
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .post(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie())
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
         expect(response.status).toBe(500);
-        expect(existing.save).not.toHaveBeenCalled();
+        expect(user.save).not.toHaveBeenCalled();
         expect(deleteFromCloudinary).not.toHaveBeenCalled();
     });
 
     it('returns 500 when saving fails and removes the new file from Cloudinary', async () => {
-        const existing = fakeRequest();
-        existing.save.mockRejectedValue(new Error('Database unavailable'));
-        LenderRequest.findOne.mockResolvedValue(existing);
+        user.save.mockRejectedValue(new Error('Database unavailable'));
 
         const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .post(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie())
             .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
@@ -248,22 +263,22 @@ describe('POST /api/lender-requests/documents/:slot', () => {
 });
 
 describe('DELETE /api/lender-requests/documents/:slot', () => {
-    it('returns 200, empties the slot and deletes the file from Cloudinary', async () => {
-        const existing = fakeRequest({ proofOfAddress: storedFile('lender-documents/old-addressproof') });
-        LenderRequest.findOne.mockResolvedValue(existing);
+    it('returns 200, removes the document and deletes the file from Cloudinary', async () => {
+        user = fakeUser('member', { documents: [storedFile('id', 'lender-documents/old-id'), storedFile('addressProof', 'lender-documents/old-proof')] });
 
         const response = await request(app)
-            .delete(`${BASE_URL}/documents/proofOfAddress`).set('Origin', ORIGIN)
+            .delete(`${BASE_URL}/documents/addressProof`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie());
 
         expect(response.status).toBe(200);
-        expect(existing.proofOfAddress).toBeUndefined();
-        expect(existing.save).toHaveBeenCalledOnce();
-        expect(deleteFromCloudinary).toHaveBeenCalledWith('lender-documents/old-addressproof');
+        expect(findDocument('addressProof')).toBeUndefined();
+        expect(findDocument('id').storedName).toBe('lender-documents/old-id');
+        expect(user.save).toHaveBeenCalledOnce();
+        expect(deleteFromCloudinary).toHaveBeenCalledWith('lender-documents/old-proof');
     });
 
     it('returns 401 when not logged in', async () => {
-        const response = await request(app).delete(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN);
+        const response = await request(app).delete(`${BASE_URL}/documents/id`).set('Origin', ORIGIN);
 
         expect(response.status).toBe(401);
     });
@@ -274,55 +289,55 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
             .set('Cookie', loginCookie());
 
         expect(response.status).toBe(400);
-        expect(LenderRequest.findOne).not.toHaveBeenCalled();
+        expect(user.save).not.toHaveBeenCalled();
     });
 
-    it.each([null, fakeRequest()])(
-        'returns 404 when there is no document to remove %#',
-        async (existing) => {
-        LenderRequest.findOne.mockResolvedValue(existing);
+    it('returns 404 when there is no document to remove', async () => {
+        user = fakeUser('member', { documents: [storedFile('addressProof', 'lender-documents/old-proof')] });
 
         const response = await request(app)
-            .delete(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .delete(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie());
 
         expect(response.status).toBe(404);
+        expect(user.save).not.toHaveBeenCalled();
     });
 
     it('returns 409 when the request was already submitted', async () => {
-        const submitted = fakeRequest({ status: 'pending', idDocument: storedFile('lender-documents/locked-id') });
-        LenderRequest.findOne.mockResolvedValue(submitted);
+        user = fakeUser('member', { status: 'pending', documents: [storedFile('id', 'lender-documents/locked-id')] });
 
         const response = await request(app)
-            .delete(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
+            .delete(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie());
 
         expect(response.status).toBe(409);
-        expect(submitted.save).not.toHaveBeenCalled();
+        expect(user.save).not.toHaveBeenCalled();
         expect(deleteFromCloudinary).not.toHaveBeenCalled();
     });
 
     it('returns 500 when the lookup fails', async () => {
-        LenderRequest.findOne.mockRejectedValue(new Error('Database unavailable'));
+        const cookie = loginCookie();
+        failControllerLookup();
 
         const response = await request(app)
-            .delete(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
-            .set('Cookie', loginCookie());
+            .delete(`${BASE_URL}/documents/id`).set('Origin', ORIGIN)
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(500);
     });
 });
 
+const bothDocuments = [storedFile('id', 'lender-documents/sara-id'), storedFile('addressProof', 'lender-documents/sara-proof')];
+
 const incompleteRequests = [
-    { documents: { idDocument: { originalName: 'id.pdf' } }, message: 'Please upload your proof of address' },
-    { documents: { proofOfAddress: { originalName: 'addressproof.pdf' } }, message: 'Please upload your ID document' },
-    { documents: {}, message: 'Please upload your ID document and proof of address' }
+    { documents: [storedFile('id', 'lender-documents/sara-id')], message: 'Please upload your proof of address' },
+    { documents: [storedFile('addressProof', 'lender-documents/sara-proof')], message: 'Please upload your ID document' },
+    { documents: [], message: 'Please upload your ID document and proof of address' }
 ];
 
 describe('POST /api/lender-requests/submit', () => {
     it('returns 200 and changes the status to pending when both documents are uploaded', async () => {
-        const draft = fakeRequest({ idDocument: { originalName: 'id.pdf' }, proofOfAddress: { originalName: 'addressproof.pdf' } });
-        LenderRequest.findOne.mockResolvedValue(draft);
+        user = fakeUser('member', { documents: bothDocuments });
 
         const response = await request(app)
             .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
@@ -330,32 +345,42 @@ describe('POST /api/lender-requests/submit', () => {
 
         expect(response.status).toBe(200);
         expect(response.body.status).toBe('pending');
-        expect(draft.status).toBe('pending');
-        expect(draft.save).toHaveBeenCalledOnce();
-        expect(LenderRequest.findOne).toHaveBeenCalledWith({ user: USER_ID, status: { $in: ['draft', 'pending'] } });
-        expect(User.findByIdAndUpdate).toHaveBeenCalledWith(USER_ID, { 'verification.status': 'pending' });
+        expect(user.verification.status).toBe('pending');
+        expect(user.verification.submittedAt).toBeInstanceOf(Date);
+        expect(user.save).toHaveBeenCalledOnce();
+    });
+
+    it('returns 200 and clears the earlier review when a rejected member submits again', async () => {
+        user = fakeUser('member', {
+            status: 'rejected',
+            note: 'The ID document is blurry',
+            reviewedBy: 'admin1',
+            reviewedAt: new Date(),
+            documents: bothDocuments
+        });
+
+        const response = await request(app)
+            .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
+            .set('Cookie', loginCookie());
+
+        expect(response.status).toBe(200);
+        expect(user.verification.status).toBe('pending');
+        expect(user.verification.note).toBeUndefined();
+        expect(user.verification.reviewedBy).toBeUndefined();
+        expect(user.verification.reviewedAt).toBeUndefined();
     });
 
     it('returns 401 when not logged in', async () => {
         const response = await request(app).post(`${BASE_URL}/submit`).set('Origin', ORIGIN);
 
         expect(response.status).toBe(401);
-        expect(LenderRequest.findOne).not.toHaveBeenCalled();
-    });
-
-    it('returns 404 when the member has no request', async () => {
-        const response = await request(app)
-            .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
-            .set('Cookie', loginCookie());
-
-        expect(response.status).toBe(404);
+        expect(User.findById).not.toHaveBeenCalled();
     });
 
     it.each(incompleteRequests)(
         'returns 400 with "$message"',
         async ({ documents, message }) => {
-        const draft = fakeRequest(documents);
-        LenderRequest.findOne.mockResolvedValue(draft);
+        user = fakeUser('member', { documents });
 
         const response = await request(app)
             .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
@@ -363,44 +388,40 @@ describe('POST /api/lender-requests/submit', () => {
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe(message);
-        expect(draft.status).toBe('draft');
-        expect(draft.save).not.toHaveBeenCalled();
-        expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
+        expect(user.verification.status).toBe('none');
+        expect(user.save).not.toHaveBeenCalled();
     });
 
-    it('returns 409 when the request was already submitted', async () => {
-        const submitted = fakeRequest({ status: 'pending', idDocument: { originalName: 'id.pdf' }, proofOfAddress: { originalName: 'addressproof.pdf' } });
-        LenderRequest.findOne.mockResolvedValue(submitted);
+    it.each(['pending', 'accepted'])('returns 409 when the status is %s', async (status) => {
+        user = fakeUser('member', { status, documents: bothDocuments });
 
         const response = await request(app)
             .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
             .set('Cookie', loginCookie());
 
         expect(response.status).toBe(409);
-        expect(submitted.save).not.toHaveBeenCalled();
-        expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
+        expect(user.save).not.toHaveBeenCalled();
     });
 
-    it.each(['findOne', 'save', 'findByIdAndUpdate'])(
+    it.each(['findById', 'save'])(
         'returns 500 when %s fails',
         async (operation) => {
-        const draft = fakeRequest({ idDocument: { originalName: 'id.pdf' }, proofOfAddress: { originalName: 'addressproof.pdf' } });
-        LenderRequest.findOne.mockResolvedValue(draft);
-        if (operation === 'findOne') LenderRequest.findOne.mockRejectedValue(new Error('Database unavailable'));
-        if (operation === 'save') draft.save.mockRejectedValue(new Error('Database unavailable'));
-        if (operation === 'findByIdAndUpdate') User.findByIdAndUpdate.mockRejectedValue(new Error('Database unavailable'));
+        user = fakeUser('member', { documents: bothDocuments });
+        const cookie = loginCookie();
+        if (operation === 'findById') failControllerLookup();
+        if (operation === 'save') user.save.mockRejectedValue(new Error('Database unavailable'));
 
         const response = await request(app)
             .post(`${BASE_URL}/submit`).set('Origin', ORIGIN)
-            .set('Cookie', loginCookie());
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(500);
     });
 });
 
 const applyRequests = [
-    { method: 'post', url: '/documents/idDocument', withFile: true },
-    { method: 'delete', url: '/documents/idDocument', withFile: false },
+    { method: 'post', url: '/documents/id', withFile: true },
+    { method: 'delete', url: '/documents/id', withFile: false },
     { method: 'post', url: '/submit', withFile: false }
 ];
 
@@ -410,27 +431,28 @@ describe('Only members can apply to become a lender', () => {
         { role: 'admin', message: 'Admins cannot apply to become a lender' }
     ])('as $role', ({ role, message }) => {
         it.each(applyRequests)('returns 403 for $method $url', async ({ method, url, withFile }) => {
+            user = fakeUser(role);
             let req = request(app)[method](`${BASE_URL}${url}`).set('Origin', ORIGIN)
-                .set('Cookie', loginCookie(role));
+                .set('Cookie', loginCookie());
             if (withFile) req = req.attach('file', Buffer.from('fake pdf'), 'passport.pdf');
 
             const response = await req;
 
             expect(response.status).toBe(403);
             expect(response.body.message).toBe(message);
-            expect(LenderRequest.findOne).not.toHaveBeenCalled();
+            expect(user.save).not.toHaveBeenCalled();
             expect(uploadToCloudinary).not.toHaveBeenCalled();
         });
     });
 
     it('still lets a lender view their own request', async () => {
-        LenderRequest.findOne.mockReturnValue({ sort: vi.fn().mockResolvedValue({ user: USER_ID, status: 'approved' }) });
+        user = fakeUser('lender', { status: 'accepted' });
 
         const response = await request(app)
             .get(BASE_URL)
-            .set('Cookie', loginCookie('lender'));
+            .set('Cookie', loginCookie());
 
         expect(response.status).toBe(200);
-        expect(response.body.status).toBe('approved');
+        expect(response.body.status).toBe('accepted');
     });
 });

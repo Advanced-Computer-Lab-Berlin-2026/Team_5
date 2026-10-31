@@ -8,7 +8,6 @@ const ALLOWED_TYPES = {
     'image/png': ['.png']
 };
 
-
 const storage = multer.memoryStorage();
 
 function fileFilter(req, file, cb) {
@@ -22,7 +21,6 @@ function fileFilter(req, file, cb) {
     }
     cb(null, true);
 }
-
 
 export const uploadLenderDocument = multer({
     storage,
@@ -39,4 +37,3 @@ export function handleUploadErrors(err, req, res, next) {
     }
     next(err);
 }
-

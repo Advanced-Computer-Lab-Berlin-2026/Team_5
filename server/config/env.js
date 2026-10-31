@@ -73,4 +73,3 @@ export const env = {
   cloudinaryApiKey: CLOUDINARY_API_KEY,
   cloudinaryApiSecret: CLOUDINARY_API_SECRET
 };
-

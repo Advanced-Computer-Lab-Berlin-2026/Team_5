@@ -12,8 +12,8 @@ import walletRoutes from './routes/wallet.js';
 import profileRoutes from './routes/profile.js';
 import householdRoutes from './routes/household.js';
 // Define route imports
-import lenderRequestRoutes from "./routes/lenderRequestRoutes.js";
-import adminLenderRequestRoutes from "./routes/adminLenderRequestRoutes.js";
+import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
+import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
 
 const app = express();
 
@@ -32,8 +32,8 @@ app.get('/api/health', (req, res) =>
 
 app.use('/api/admin', adminRoutes);
 // Define your routes here
-app.use("/api/lender-requests", lenderRequestRoutes);
-app.use("/api/admin/lender-requests", adminLenderRequestRoutes);
+app.use('/api/lender-requests', lenderRequestRoutes);
+app.use('/api/admin/lender-requests', adminLenderRequestRoutes);
 
 app.use('/api/auth', authRoutes)
 app.use('/api/items', itemRoutes)

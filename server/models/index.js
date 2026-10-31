@@ -16,4 +16,3 @@ export { Report } from "./Report.js";
 export { SupportTicket } from "./SupportTicket.js";
 export { PasswordReset } from "./PasswordReset.js";
 export { RefreshSession } from "./RefreshSession.js";
-export { LenderRequest } from "./LenderRequest.js";

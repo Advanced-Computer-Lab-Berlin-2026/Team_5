@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth.js'; 
+import { requireAuth } from '../middleware/auth.js';
 import { blockLendersAndAdmins } from '../middleware/blockLendersAndAdmins.js';
 import { uploadLenderDocument, handleUploadErrors } from '../middleware/uploadLenderDocument.js';
 import { getMyRequest, uploadDocument, removeDocument, submitRequest } from '../controllers/lenderRequestController.js';

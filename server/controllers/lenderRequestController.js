@@ -1,13 +1,16 @@
-import { LenderRequest, User } from '../models/index.js';
+import { User } from '../models/index.js';
 import { uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.js';
 
-const SLOTS = ['idDocument', 'proofOfAddress'];
+const SLOTS = ['id', 'addressProof'];
+// A member can change the documents until the request is submitted, and again after a rejection.
+const EDITABLE = ['none', 'rejected', 'retry'];
+const ALREADY_SUBMITTED = "Your request was already submitted and can no longer be changed";
 
 // GET /api/lender-requests
 export async function getMyRequest(req, res, next) {
     try {
-        const request = await LenderRequest.findOne({ user: req.user.id }).sort({ createdAt: -1 });
-        res.status(200).json(request);
+        const user = await User.findById(req.user.id);
+        res.status(200).json(user.verification);
     } catch (error) {
         next(error);
     }
@@ -20,23 +23,28 @@ export async function uploadDocument(req, res, next) {
         if (!req.file) return res.status(400).json({ message: "Please choose a file to upload" });
         if (!SLOTS.includes(req.params.slot)) return res.status(400).json({ message: "Invalid document slot" });
 
-        const request = await findOpenRequest(req.user.id) || new LenderRequest({ user: req.user.id });
-        if (request.status !== 'draft') return res.status(409).json({ message: "Your request was already submitted and can no longer be changed" });
+        const user = await User.findById(req.user.id);
+        if (!EDITABLE.includes(user.verification.status)) return res.status(409).json({ message: ALREADY_SUBMITTED });
 
         uploaded = await uploadToCloudinary(req.file.buffer);
-        const oldFile = request[req.params.slot];
-        request[req.params.slot] = {
-            originalName: req.file.originalname,
-            storedName: uploaded.public_id,
-            docType: req.file.mimetype,
-            size: req.file.size
-        };
-        await request.save();
-        if (oldFile) await deleteStoredFile(oldFile.storedName);
+        const oldFile = findDocument(user, req.params.slot)?.storedName;
+        user.verification.documents = [
+            ...otherDocuments(user, req.params.slot),
+            {
+                type: req.params.slot,
+                file: { url: uploaded.secure_url },
+                originalName: req.file.originalname,
+                storedName: uploaded.public_id,
+                docType: req.file.mimetype,
+                size: req.file.size
+            }
+        ];
+        await user.save();
+        if (oldFile) await deleteStoredFile(oldFile);
 
-        res.status(200).json(request);
+        res.status(200).json(user.verification);
     } catch (error) {
-        // the file reached Cloudinary but the request was not saved, so remove it again
+        // the file reached Cloudinary but the user was not saved, so remove it again
         if (uploaded) await deleteStoredFile(uploaded.public_id);
         next(error);
     }
@@ -47,16 +55,17 @@ export async function removeDocument(req, res, next) {
     try {
         if (!SLOTS.includes(req.params.slot)) return res.status(400).json({ message: "Invalid document slot" });
 
-        const request = await findOpenRequest(req.user.id);
-        if (!request || !request[req.params.slot]) return res.status(404).json({ message: "No document uploaded in this slot" });
-        if (request.status !== 'draft') return res.status(409).json({ message: "Your request was already submitted and can no longer be changed" });
+        const user = await User.findById(req.user.id);
+        const document = findDocument(user, req.params.slot);
+        if (!document) return res.status(404).json({ message: "No document uploaded in this slot" });
+        if (!EDITABLE.includes(user.verification.status)) return res.status(409).json({ message: ALREADY_SUBMITTED });
 
-        const { storedName } = request[req.params.slot];
-        request[req.params.slot] = undefined;
-        await request.save();
+        const { storedName } = document;
+        user.verification.documents = otherDocuments(user, req.params.slot);
+        await user.save();
         await deleteStoredFile(storedName);
 
-        res.status(200).json(request);
+        res.status(200).json(user.verification);
     } catch (error) {
         next(error);
     }
@@ -65,28 +74,37 @@ export async function removeDocument(req, res, next) {
 // POST /api/lender-requests/submit
 export async function submitRequest(req, res, next) {
     try {
-        const request = await findOpenRequest(req.user.id);
-        if (!request) return res.status(404).json({ message: "You have no request to submit" });
-        if (request.status !== 'draft') return res.status(409).json({ message: "Your request was already submitted" });
-        if (!request.idDocument && !request.proofOfAddress) return res.status(400).json({ message: "Please upload your ID document and proof of address" });
-        if (!request.idDocument) return res.status(400).json({ message: "Please upload your ID document" });
-        if (!request.proofOfAddress) return res.status(400).json({ message: "Please upload your proof of address" });
+        const user = await User.findById(req.user.id);
+        if (!EDITABLE.includes(user.verification.status)) return res.status(409).json({ message: "Your request was already submitted" });
 
-        request.status = 'pending';
-        await request.save();
-        await User.findByIdAndUpdate(req.user.id, { 'verification.status': 'pending' });
+        const hasId = findDocument(user, 'id');
+        const hasAddressProof = findDocument(user, 'addressProof');
+        if (!hasId && !hasAddressProof) return res.status(400).json({ message: "Please upload your ID document and proof of address" });
+        if (!hasId) return res.status(400).json({ message: "Please upload your ID document" });
+        if (!hasAddressProof) return res.status(400).json({ message: "Please upload your proof of address" });
 
-        res.status(200).json(request);
+        // a new submission clears the result of an earlier review
+        user.verification.status = 'pending';
+        user.verification.submittedAt = new Date();
+        user.verification.note = undefined;
+        user.verification.reviewedBy = undefined;
+        user.verification.reviewedAt = undefined;
+        await user.save();
+
+        res.status(200).json(user.verification);
     } catch (error) {
         next(error);
     }
 }
 
-function findOpenRequest(userId) {
-    return LenderRequest.findOne({ user: userId, status: { $in: ['draft', 'pending'] } });
+function findDocument(user, slot) {
+    return user.verification.documents.find((document) => document.type === slot);
 }
 
-// Best effort: a file left behind in Cloudinary must not make the member's request fail.
+function otherDocuments(user, slot) {
+    return user.verification.documents.filter((document) => document.type !== slot);
+}
+
 async function deleteStoredFile(storedName) {
     try {
         await deleteFromCloudinary(storedName);

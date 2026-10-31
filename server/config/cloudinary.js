@@ -2,10 +2,9 @@
 Documents are uploaded as "authenticated" (private): they can only be opened through a signed link created by the server, not by a public URL.
 */
 
+import path from 'node:path';
 import { v2 as cloudinary } from 'cloudinary';
 import { env } from './env.js';
-import path from 'node:path';
-
 
 cloudinary.config({
     cloud_name: env.cloudinaryCloudName,
@@ -35,7 +34,6 @@ function downloadName(originalName) {
     const name = path.parse(originalName ?? '').name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
     return /[a-zA-Z0-9]/.test(name) ? name : 'document';
 }
-
 
 // A signed link the admin can open (S8). Only the server can create it, because it needs the API secret.
 export function getSignedDocumentUrl(document, download = false) {

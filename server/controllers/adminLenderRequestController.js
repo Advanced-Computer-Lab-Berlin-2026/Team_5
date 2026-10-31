@@ -1,11 +1,11 @@
-import mongoose from 'mongoose';
 import joi from 'joi';
-import { LenderRequest, User } from '../models/index.js';
+import { User } from '../models/index.js';
 import { getSignedDocumentUrl } from '../config/cloudinary.js';
 
-const SLOTS = ['idDocument', 'proofOfAddress'];
-const STATUS = ['pending', 'approved', 'rejected'];
-const USER_FIELDS = 'username profile';
+const SLOTS = ['id', 'addressProof'];
+const STATUS = ['pending', 'accepted', 'rejected'];
+const USER_FIELDS = 'username profile verification';
+const NOT_FOUND = "Lender request not found";
 
 const decisionSchema = joi.object(
     {
@@ -14,80 +14,76 @@ const decisionSchema = joi.object(
     }
 );
 
-
 // GET /api/admin/lender-requests
 export async function listLenderRequests(req, res, next) {
     try {
         const status = req.query.status || 'pending';
         if (!STATUS.includes(status)) return res.status(400).json({ message: "Invalid status" });
 
-        const requests = await LenderRequest.find({ status }).populate('user', USER_FIELDS).sort({ createdAt: -1 });
-        res.status(200).json(requests);
+        const users = await User.find({ 'verification.status': status }).select(USER_FIELDS).sort({ 'verification.submittedAt': -1 });
+        res.status(200).json(users);
     } catch (error) {
         next(error);
     }
 }
 
-// GET /api/admin/lender-requests/:id
+// GET /api/admin/lender-requests/:username
 export async function getLenderRequest(req, res, next) {
     try {
-        if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid request id" });
+        const user = await findApplicant(req.params.username);
+        if (!user) return res.status(404).json({ message: NOT_FOUND });
 
-        const request = await LenderRequest.findById(req.params.id).populate('user', USER_FIELDS);
-        if (!request) return res.status(404).json({ message: "Lender request not found" });
-
-        res.status(200).json(request);
+        res.status(200).json(requestView(user));
     } catch (error) {
         next(error);
     }
 }
 
-// GET /api/admin/lender-requests/:id/documents/:slot
+// GET /api/admin/lender-requests/:username/documents/:slot
 export async function getLenderRequestDocument(req, res, next) {
     try {
-        if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid request id" });
         if (!SLOTS.includes(req.params.slot)) return res.status(400).json({ message: "Invalid document slot" });
 
-        const request = await LenderRequest.findById(req.params.id);
-        if (!request) return res.status(404).json({ message: "Lender request not found" });
+        const user = await findApplicant(req.params.username);
+        if (!user) return res.status(404).json({ message: NOT_FOUND });
 
-        const document = request[req.params.slot];
+        const document = user.verification.documents.find((doc) => doc.type === req.params.slot);
         if (!document) return res.status(404).json({ message: "Document not found" });
 
-        
         res.redirect(getSignedDocumentUrl(document, req.query.download === 'true'));
     } catch (error) {
         next(error);
     }
 }
 
-// PATCH /api/admin/lender-requests/:id/decision
+// PATCH /api/admin/lender-requests/:username/decision
 export async function decideLenderRequest(req, res, next) {
     try {
-        if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid request id" });
-
         const { value, error } = decisionSchema.validate(req.body ?? {});
         if (error) return res.status(400).json({ message: error.message });
 
-        const request = await LenderRequest.findById(req.params.id);
-        if (!request) return res.status(404).json({ message: "Lender request not found" });
-        if (request.status !== 'pending') return res.status(409).json({ message: "Only pending requests can be accepted or rejected" });
+        const user = await findApplicant(req.params.username);
+        if (!user) return res.status(404).json({ message: NOT_FOUND });
+        if (user.verification.status !== 'pending') return res.status(409).json({ message: "Only pending requests can be accepted or rejected" });
 
-        request.status = value.decision === 'accept' ? 'approved' : 'rejected';
-        request.rejectionReason = value.reason;
-        request.reviewedBy = req.user.id;
-        request.reviewedAt = new Date();
-        await request.save();
-        await User.findByIdAndUpdate(request.user, userChangesFor(value));
+        if (value.decision === 'accept') user.role = 'lender';
+        user.verification.status = value.decision === 'accept' ? 'accepted' : 'rejected';
+        user.verification.note = value.reason;
+        user.verification.reviewedBy = req.user.id;
+        user.verification.reviewedAt = new Date();
+        await user.save();
 
-        res.status(200).json(request);
+        res.status(200).json(requestView(user));
     } catch (error) {
         next(error);
     }
 }
 
+async function findApplicant(username) {
+    const user = await User.findById(username);
+    return user && user.verification.status !== 'none' ? user : null;
+}
 
-function userChangesFor({ decision, reason }) {
-    if (decision === 'accept') return { role: 'lender', 'verification.status': 'accepted' };
-    return { 'verification.status': 'rejected', 'verification.note': reason };
+function requestView(user) {
+    return { username: user.username, profile: user.profile, verification: user.verification };
 }
