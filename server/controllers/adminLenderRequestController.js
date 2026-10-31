@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import joi from 'joi';
 import { LenderRequest, User } from '../models/index.js';
-import { isCloudinaryConfigured, getSignedDocumentUrl } from '../config/cloudinary.js';
+import { getSignedDocumentUrl } from '../config/cloudinary.js';
 
 const SLOTS = ['idDocument', 'proofOfAddress'];
 const STATUS = ['pending', 'approved', 'rejected'];
@@ -47,7 +47,6 @@ export async function getLenderRequestDocument(req, res, next) {
     try {
         if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid request id" });
         if (!SLOTS.includes(req.params.slot)) return res.status(400).json({ message: "Invalid document slot" });
-        if (!isCloudinaryConfigured()) return res.status(503).json({ message: "File storage is not configured. Please try again later." });
 
         const request = await LenderRequest.findById(req.params.id);
         if (!request) return res.status(404).json({ message: "Lender request not found" });

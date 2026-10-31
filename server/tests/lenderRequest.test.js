@@ -5,7 +5,7 @@ import app from "../app.js";
 import { env } from "../config/env.js";
 import { LenderRequest } from "../models/LenderRequest.js";
 import { User } from "../models/User.js";
-import { isCloudinaryConfigured, uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
+import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
 
 // Mock the LenderRequest model. 
 vi.mock('../models/LenderRequest.js', () => ({
@@ -14,13 +14,11 @@ vi.mock('../models/LenderRequest.js', () => ({
 
 // Mock the User model: submitting also marks the user's verification status as pending.
 vi.mock('../models/User.js', () => ({
-       User: { findById: vi.fn(), findByIdAndUpdate: vi.fn() }
-}
-));
+    User: { findById: vi.fn(), findByIdAndUpdate: vi.fn() }
+}));
 
 // Mock Cloudinary: tests never upload real files and do not need the Cloudinary keys.
 vi.mock('../config/cloudinary.js', () => ({
-    isCloudinaryConfigured: vi.fn(),
     uploadToCloudinary: vi.fn(),
     deleteFromCloudinary: vi.fn()
 }));
@@ -30,13 +28,11 @@ const BASE_URL = '/api/lender-requests';
 const ORIGIN = 'http://localhost:3000';
 const NEW_FILE_ID = 'lender-documents/new-file';
 
-// Logs in the way the auth middleware expects: a signed accessToken cookie with the user's id and role.
 // Logs in the way the auth middleware expects: a signed accessToken cookie, and the user it then loads from the database.
 function loginCookie(role = 'member') {
     User.findById.mockResolvedValue({ _id: USER_ID, role, suspended: false });
     return `accessToken=${jwt.sign({ id: USER_ID, role }, env.jwtSecret, { expiresIn: '15m' })}`;
 }
-
 
 // Builds a fake request document the way Mongoose would return it.
 function fakeRequest(fields = {}) {
@@ -56,7 +52,6 @@ beforeEach(() => {
     LenderRequest.mockImplementation(function (data) {
         return fakeRequest(data);
     });
-    isCloudinaryConfigured.mockReturnValue(true);
     uploadToCloudinary.mockResolvedValue({ public_id: NEW_FILE_ID });
     deleteFromCloudinary.mockResolvedValue({ result: 'ok' });
 });
@@ -222,19 +217,6 @@ describe('POST /api/lender-requests/documents/:slot', () => {
         expect(uploadToCloudinary).not.toHaveBeenCalled();
     });
 
-    it('returns 503 when Cloudinary is not configured', async () => {
-        isCloudinaryConfigured.mockReturnValue(false);
-
-        const response = await request(app)
-            .post(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
-            .set('Cookie', loginCookie())
-            .attach('file', Buffer.from('fake pdf'), 'passport.pdf');
-
-        expect(response.status).toBe(503);
-        expect(response.body.message).toBe('File storage is not configured. Please try again later.');
-        expect(uploadToCloudinary).not.toHaveBeenCalled();
-    });
-
     it('returns 500 when the upload to Cloudinary fails and saves nothing', async () => {
         const existing = fakeRequest();
         LenderRequest.findOne.mockResolvedValue(existing);
@@ -292,17 +274,6 @@ describe('DELETE /api/lender-requests/documents/:slot', () => {
             .set('Cookie', loginCookie());
 
         expect(response.status).toBe(400);
-        expect(LenderRequest.findOne).not.toHaveBeenCalled();
-    });
-
-    it('returns 503 when Cloudinary is not configured', async () => {
-        isCloudinaryConfigured.mockReturnValue(false);
-
-        const response = await request(app)
-            .delete(`${BASE_URL}/documents/idDocument`).set('Origin', ORIGIN)
-            .set('Cookie', loginCookie());
-
-        expect(response.status).toBe(503);
         expect(LenderRequest.findOne).not.toHaveBeenCalled();
     });
 

@@ -36,6 +36,9 @@ jobs:
           JWT_SECRET: 'test-only-secret-not-for-production'
           MONGODB_URI: 'mongodb://localhost:27017/acl_test'
           SMTP_PASS: 'test-only-smtp-password'
+          CLOUDINARY_CLOUD_NAME: 'test-only-cloud'
+          CLOUDINARY_API_KEY: 'test-only-key'
+          CLOUDINARY_API_SECRET: 'test-only-secret'
         run: |
           npm run test:coverage
     

@@ -5,7 +5,7 @@ import app from "../app.js";
 import { env } from "../config/env.js";
 import { LenderRequest } from "../models/LenderRequest.js";
 import { User } from "../models/User.js";
-import { isCloudinaryConfigured, getSignedDocumentUrl } from "../config/cloudinary.js";
+import { getSignedDocumentUrl } from "../config/cloudinary.js";
 
 // Mock the LenderRequest model with the two functions the admin controller uses: find and findById.
 vi.mock('../models/LenderRequest.js', () => ({
@@ -17,13 +17,11 @@ vi.mock('../models/LenderRequest.js', () => ({
 
 // Mock the User model: accepting or rejecting also updates the applicant.
 vi.mock('../models/User.js', () => ({
-        User: { findById: vi.fn(), findByIdAndUpdate: vi.fn() }
- }
-));
+    User: { findById: vi.fn(), findByIdAndUpdate: vi.fn() }
+}));
 
 // Mock Cloudinary: tests never create real links and do not need the Cloudinary keys.
 vi.mock('../config/cloudinary.js', () => ({
-    isCloudinaryConfigured: vi.fn(),
     getSignedDocumentUrl: vi.fn()
 }));
 
@@ -48,7 +46,6 @@ function loginCookie(role) {
     return `accessToken=${jwt.sign({ id: ADMIN_ID, role }, env.jwtSecret, { expiresIn: '15m' })}`;
 }
 
-
 // Sends the request as a logged-in admin from the trusted origin.
 function asAdmin(req) {
     return req.set('Cookie', loginCookie('admin')).set('Origin', ORIGIN);
@@ -60,7 +57,6 @@ beforeEach(() => {
     LenderRequest.find.mockReturnValue({ populate: vi.fn().mockReturnValue({ sort: vi.fn().mockResolvedValue([sampleRequest]) }) });
     LenderRequest.findById.mockReturnValue({ populate: vi.fn().mockResolvedValue(sampleRequest) });
     User.findByIdAndUpdate.mockResolvedValue({});
-    isCloudinaryConfigured.mockReturnValue(true);
     getSignedDocumentUrl.mockReturnValue(SIGNED_URL);
 });
 
@@ -192,16 +188,6 @@ describe('GET /api/admin/lender-requests/:id/documents/:slot', () => {
         const response = await asAdmin(request(app).get(`${BASE_URL}/not-an-id/documents/idDocument`));
 
         expect(response.status).toBe(400);
-    });
-
-    it('returns 503 when Cloudinary is not configured', async () => {
-        isCloudinaryConfigured.mockReturnValue(false);
-
-        const response = await asAdmin(request(app).get(`${BASE_URL}/${REQUEST_ID}/documents/idDocument`));
-
-        expect(response.status).toBe(503);
-        expect(LenderRequest.findById).not.toHaveBeenCalled();
-        expect(getSignedDocumentUrl).not.toHaveBeenCalled();
     });
 
     it('returns 404 when the request does not exist', async () => {

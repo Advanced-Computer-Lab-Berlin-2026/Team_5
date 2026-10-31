@@ -16,10 +16,6 @@ cloudinary.config({
 const DOCUMENT_OPTIONS = { folder: 'lender-documents', type: 'authenticated', resource_type: 'image' };
 const FORMATS = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' };
 
-export function isCloudinaryConfigured() {
-    return Boolean(env.cloudinaryCloudName && env.cloudinaryApiKey && env.cloudinaryApiSecret);
-}
-
 export function uploadToCloudinary(buffer) {
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(DOCUMENT_OPTIONS, (error, result) => {

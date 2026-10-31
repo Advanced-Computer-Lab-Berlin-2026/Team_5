@@ -1,8 +1,7 @@
 import { LenderRequest, User } from '../models/index.js';
-import { isCloudinaryConfigured, uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.js';
+import { uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.js';
 
 const SLOTS = ['idDocument', 'proofOfAddress'];
-const STORAGE_NOT_CONFIGURED = "File storage is not configured. Please try again later.";
 
 // GET /api/lender-requests
 export async function getMyRequest(req, res, next) {
@@ -20,7 +19,6 @@ export async function uploadDocument(req, res, next) {
     try {
         if (!req.file) return res.status(400).json({ message: "Please choose a file to upload" });
         if (!SLOTS.includes(req.params.slot)) return res.status(400).json({ message: "Invalid document slot" });
-        if (!isCloudinaryConfigured()) return res.status(503).json({ message: STORAGE_NOT_CONFIGURED });
 
         const request = await findOpenRequest(req.user.id) || new LenderRequest({ user: req.user.id });
         if (request.status !== 'draft') return res.status(409).json({ message: "Your request was already submitted and can no longer be changed" });
@@ -48,7 +46,6 @@ export async function uploadDocument(req, res, next) {
 export async function removeDocument(req, res, next) {
     try {
         if (!SLOTS.includes(req.params.slot)) return res.status(400).json({ message: "Invalid document slot" });
-        if (!isCloudinaryConfigured()) return res.status(503).json({ message: STORAGE_NOT_CONFIGURED });
 
         const request = await findOpenRequest(req.user.id);
         if (!request || !request[req.params.slot]) return res.status(404).json({ message: "No document uploaded in this slot" });
