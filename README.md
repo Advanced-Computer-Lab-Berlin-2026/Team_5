@@ -30,9 +30,15 @@ Keep secrets in `.env` and out of Git. Update `.env.sample` with placeholders wh
 | `MONGODB_URI` | MongoDB connection URI. |
 | `SMTP_PASS` | Credentials for the sender configured in `server/services/emailService.js`. |
 | `NODE_ENV` | Use `local` locally and `production` for deployment over HTTPS. Only the exact value `production` enables Secure auth cookies. |
+| `CLOUDINARY_CLOUD_NAME` | Cloud name from the Cloudinary dashboard, used to store lender documents. |
+| `CLOUDINARY_API_KEY` | Cloudinary API key. |
+| `CLOUDINARY_API_SECRET` | Cloudinary API secret. Keep it private. |
 
-All five values must be nonempty. Configuration is captured at module load;
+All eight values must be nonempty. Configuration is captured at module load;
 restart the server after changing it.
+
+In the Cloudinary dashboard, enable **Settings → Security → Allow delivery of
+PDF and ZIP files** so PDF documents can be opened.
 
 On Windows PowerShell, use `npm.cmd` if the execution policy blocks `npm.ps1`.
 
@@ -116,7 +122,9 @@ Empty folders contain `.gitkeep` files so Git includes them. Remove these placeh
 ## Authentication and API usage
 
 All request bodies below are JSON. Responses use JSON, including errors with
-`{ message }`. Auth endpoints are mounted under `/api/auth`.
+`{ message }`. Auth endpoints are mounted under `/api/auth`. Lender verification
+endpoints are mounted under `/api/lender-requests` (members) and
+`/api/admin/lender-requests` (admins).
 
 | Method and path | Request body | Successful behavior |
 | --- | --- | --- |
@@ -128,11 +136,25 @@ All request bodies below are JSON. Responses use JSON, including errors with
 | `POST /api/auth/forget-password` | `email` | Sends a six-digit code if the account exists; returns the same success message for unknown accounts. |
 | `POST /api/auth/verify-reset-otp` | `email`, `otp` as a six-digit string | Exchanges the code for a reset token returned in JSON. |
 | `POST /api/auth/reset-password` | `resetToken`, `newPassword` | Changes the password, revokes all of the user's refresh sessions, and clears this browser's auth cookies. |
+| `GET /api/lender-requests` | None; login required | Returns the member's `verification`: status and uploaded documents. |
+| `POST /api/lender-requests/documents/:slot` | Form data with a `file` field (PDF, JPEG, JPG or PNG, max 5 MB); `:slot` is `id` or `addressProof` | Uploads or replaces the document while the request is not submitted (or after a rejection). Lenders and admins get `403`. |
+| `DELETE /api/lender-requests/documents/:slot` | None | Removes the document while the request is not submitted. |
+| `POST /api/lender-requests/submit` | None | Submits the request for review (status `pending`); both documents are required. |
+| `GET /api/admin/lender-requests` | None; admin only; optional `?status=` `pending` (default), `accepted` or `rejected` | Lists users with that verification status. |
+| `GET /api/admin/lender-requests/:username` | None; admin only | Returns the applicant's username, profile and verification with documents. |
+| `GET /api/admin/lender-requests/:username/documents/:slot` | None; admin only; optional `?download=true` | Redirects to a signed Cloudinary link to view or download the document. |
+| `PATCH /api/admin/lender-requests/:username/decision` | `decision` (`accept` or `reject`); `reason` required when rejecting | Accept sets the role to `lender` and status `accepted`; reject sets status `rejected` and saves the reason in `verification.note`. |
 
 The password recovery URL is spelled `forget-password`, matching the current
 router. Reset codes expire after 10 minutes and allow at most five verification
 attempts per issued code. Successful verification exchanges the code once for
 a reset token valid for five minutes. Reset tokens can be used only once.
+
+Lender verification is stored in the user's `verification` field. Its status
+goes from `none` (uploading) to `pending` (submitted) to `accepted` or
+`rejected`; a rejected member can upload again and resubmit. Documents are
+stored privately in Cloudinary and are only opened through signed links
+created by the server.
 
 ### Cookie lifecycle
 

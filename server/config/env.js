@@ -45,10 +45,31 @@ if(!NODE_ENV){
   process.exit(1);
 }
 
+const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+if(!CLOUDINARY_CLOUD_NAME){
+  console.error("Error: CLOUDINARY_CLOUD_NAME is not defined in the .env file.");
+  process.exit(1);
+}
+
+const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
+if(!CLOUDINARY_API_KEY){
+  console.error("Error: CLOUDINARY_API_KEY is not defined in the .env file.");
+  process.exit(1);
+}
+
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+if(!CLOUDINARY_API_SECRET){
+  console.error("Error: CLOUDINARY_API_SECRET is not defined in the .env file.");
+  process.exit(1);
+}
+
 export const env = {
   backendPort: PORT,
   jwtSecret: JWT_SECRET,
   mongoDB: MONGODB_URI,
   smtpPass: SMTP_PASS,
-  nodeEnv: NODE_ENV
+  nodeEnv: NODE_ENV,
+  cloudinaryCloudName: CLOUDINARY_CLOUD_NAME,
+  cloudinaryApiKey: CLOUDINARY_API_KEY,
+  cloudinaryApiSecret: CLOUDINARY_API_SECRET
 };
