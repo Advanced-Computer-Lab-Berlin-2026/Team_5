@@ -32,7 +32,10 @@ export function handleItemPhotoUploadErrors(err, req, res, next) {
         if (err.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({ message: 'Each photo must be 5 MB or smaller' });
         }
-        if (err.code === 'LIMIT_UNEXPECTED_FILE' || err.code === 'LIMIT_FILE_COUNT') {
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+            return res.status(400).json({ message: `Unexpected file field, expected "photos"` });
+        }
+        if (err.code === 'LIMIT_FILE_COUNT') {
             return res.status(400).json({ message: `You can upload at most ${MAX_PHOTOS} photos at once, in the field "photos"` });
         }
         return res.status(400).json({ message: err.message });
