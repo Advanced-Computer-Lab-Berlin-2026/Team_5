@@ -27,5 +27,7 @@ router.post('/notices', authenticate, requireAdmin, createNotice);
 
 router.get('/users', authenticate, requireAdmin, listUsers);
 router.get('/items',authenticate,requireAdmin,listItems);
+router.get('/users', authenticate, requireAdmin, listUsers);
+router.get('/items',authenticate,requireAdmin,listItems);
 router.delete('/users/:id',authenticate,requireAdmin,removeUser);
 export default router;
