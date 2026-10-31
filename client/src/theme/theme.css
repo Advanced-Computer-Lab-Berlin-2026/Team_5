@@ -1,0 +1,98 @@
+/*
+  The single source of truth for how the app looks.
+  Colors, fonts, sizes and spacing are defined here and nowhere else.
+  Every other stylesheet must use var(--...) instead of raw values.
+*/
+
+:root {
+    /* colors: black, white and gray only */
+    --color-black: #000000;
+    --color-white: #ffffff;
+    --color-gray-100: #f2f2f2;
+    --color-gray-300: #cccccc;
+    --color-gray-500: #808080;
+    --color-gray-700: #404040;
+    --color-gray-900: #1a1a1a;
+
+    /* meaning of each color, so components say what they mean */
+    --color-background: var(--color-white);
+    --color-text: var(--color-black);
+    --color-text-muted: var(--color-gray-500);
+    --color-border: var(--color-black);
+    --color-border-muted: var(--color-gray-300);
+    --color-surface: var(--color-gray-100);
+    --color-inverse-background: var(--color-black);
+    --color-inverse-text: var(--color-white);
+    --color-disabled: var(--color-gray-300);
+
+    /* font */
+    --font-family: 'Courier New', Courier, monospace;
+    --font-size-small: 0.8rem;
+    --font-size-base: 1rem;
+    --font-size-large: 1.25rem;
+    --font-size-title: 1.75rem;
+    --font-weight-normal: 400;
+    --font-weight-bold: 700;
+    --line-height: 1.5;
+
+    /* spacing */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 1rem;
+    --space-4: 1.5rem;
+    --space-5: 2rem;
+
+    /* shape */
+    --border-width: 1px;
+    --border: var(--border-width) solid var(--color-border);
+    --border-muted: var(--border-width) solid var(--color-border-muted);
+    --content-width: 60rem;
+}
+
+/* base styles that apply to the whole page */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--color-background);
+    color: var(--color-text);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height);
+}
+
+/* form controls ignore the page font unless told to inherit it */
+button,
+input,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+
+h1,
+h2,
+h3 {
+    margin: 0 0 var(--space-3);
+    font-weight: var(--font-weight-bold);
+}
+
+h1 {
+    font-size: var(--font-size-title);
+}
+
+h2 {
+    font-size: var(--font-size-large);
+}
+
+p {
+    margin: 0 0 var(--space-3);
+}
+
+a {
+    color: var(--color-text);
+}

@@ -1,0 +1,412 @@
+[
+  {
+    "_id": "PAY-7ea0fb9c",
+    "user": "Habashieta",
+    "type": "membership-fee",
+    "amount": 300,
+    "description": "Plus membership, 1 year",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-854e25a7",
+    "user": "shikselbeks",
+    "type": "membership-fee",
+    "amount": 800,
+    "description": "Premium membership, 1 year",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-0fd94702",
+    "user": "martinies",
+    "type": "membership-fee",
+    "amount": 800,
+    "description": "Premium membership, 1 year",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-324cacb6",
+    "user": "elBary",
+    "type": "membership-fee",
+    "amount": 300,
+    "description": "Plus membership, 1 year",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-1e11c9f7",
+    "user": "theTATA",
+    "type": "membership-fee",
+    "amount": 300,
+    "description": "Plus membership, 1 year",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-bcb9042f",
+    "user": "DocAkhmed",
+    "type": "membership-fee",
+    "amount": 300,
+    "description": "Plus membership, 1 year",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-f29f301e",
+    "user": "Youries",
+    "reservation": "RES-95ced8b1",
+    "type": "deposit-paid",
+    "amount": 180,
+    "description": "Deposit for Cordless Drill (WELCOME10 applied)",
+    "direction": "deduct",
+    "method": "wallet",
+    "date": {
+      "$date": "2026-08-01T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-08-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-08-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-5bd6671c",
+    "user": "Youries",
+    "reservation": "RES-95ced8b1",
+    "type": "deposit-refund",
+    "amount": 180,
+    "description": "Deposit refund for Cordless Drill",
+    "direction": "receive",
+    "method": "wallet",
+    "date": {
+      "$date": "2026-08-11T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-08-11T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-08-11T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-f9ba06f3",
+    "user": "elBary",
+    "reservation": "RES-c857f421",
+    "type": "deposit-paid",
+    "amount": 1500,
+    "description": "Deposit for DSLR Camera",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-08-30T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-08-30T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-08-30T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-76f010e9",
+    "user": "elBary",
+    "reservation": "RES-c857f421",
+    "type": "late-fee",
+    "amount": 50,
+    "description": "Late return fee",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-09-10T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-09-10T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-10T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-dafe67a6",
+    "user": "elBary",
+    "reservation": "RES-c857f421",
+    "type": "deposit-forfeit",
+    "amount": 300,
+    "description": "Part of the deposit kept for a scratched lens",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-09-14T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-09-14T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-14T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-f1bde3c8",
+    "user": "elBary",
+    "reservation": "RES-c857f421",
+    "type": "deposit-refund",
+    "amount": 1200,
+    "description": "Remaining deposit returned",
+    "direction": "receive",
+    "method": "card",
+    "date": {
+      "$date": "2026-09-14T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-09-14T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-14T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-1e8c5b41",
+    "user": "loukies",
+    "reservation": "RES-09ffce44",
+    "type": "deposit-paid",
+    "amount": 450,
+    "description": "Deposit for Camping Tent 4P",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-32057079",
+    "user": "elDANI",
+    "reservation": "RES-92717979",
+    "type": "deposit-paid",
+    "amount": 1500,
+    "description": "Deposit for PS5 Console (MARTINI25 applied)",
+    "direction": "deduct",
+    "method": "card",
+    "date": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-010e8dea",
+    "user": "anon",
+    "reservation": "RES-69590b19",
+    "type": "deposit-paid",
+    "amount": 150,
+    "description": "Deposit for Ladder 3m",
+    "direction": "deduct",
+    "method": "wallet",
+    "date": {
+      "$date": "2026-09-28T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-09-28T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-28T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-912e84d4",
+    "user": "anon",
+    "reservation": "RES-69590b19",
+    "type": "deposit-refund",
+    "amount": 150,
+    "description": "Free cancellation refund",
+    "direction": "receive",
+    "method": "wallet",
+    "date": {
+      "$date": "2026-09-30T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-09-30T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-30T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-3ab86ff4",
+    "user": "loukies",
+    "reservation": "RES-2877b258",
+    "type": "deposit-paid",
+    "amount": 250,
+    "description": "Deposit for Stand Mixer",
+    "direction": "deduct",
+    "method": "wallet",
+    "date": {
+      "$date": "2026-10-27T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-10-27T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-27T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-8b04bb88",
+    "user": "Habashieta",
+    "reservation": "RES-a8c8c0f9",
+    "type": "deposit-paid",
+    "amount": 300,
+    "description": "Deposit for Blood Pressure Monitor",
+    "direction": "deduct",
+    "method": "wallet",
+    "date": {
+      "$date": "2026-09-12T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-09-12T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-12T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-7f610a4c",
+    "user": "Habashieta",
+    "reservation": "RES-a8c8c0f9",
+    "type": "deposit-refund",
+    "amount": 300,
+    "description": "Deposit refund",
+    "direction": "receive",
+    "method": "wallet",
+    "date": {
+      "$date": "2026-09-21T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-09-21T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-21T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-2f4d857b",
+    "user": "theTATA",
+    "reservation": "RES-51d0c108",
+    "type": "deposit-paid",
+    "amount": 400,
+    "description": "Deposit for Party Speaker",
+    "direction": "deduct",
+    "method": "wallet",
+    "date": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-8b39cc43",
+    "user": "Habashieta",
+    "type": "referral-credit",
+    "amount": 50,
+    "description": "Referral credit: Youries joined",
+    "direction": "receive",
+    "method": "wallet",
+    "date": {
+      "$date": "2026-03-05T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-03-05T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-03-05T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "PAY-3d558acb",
+    "user": "martinies",
+    "type": "referral-credit",
+    "amount": 50,
+    "description": "Referral credit: elDANI joined",
+    "direction": "receive",
+    "method": "wallet",
+    "date": {
+      "$date": "2026-05-12T10:00:00.000Z"
+    },
+    "createdAt": {
+      "$date": "2026-05-12T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-05-12T10:00:00.000Z"
+    }
+  }
+]

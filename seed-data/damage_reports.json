@@ -1,0 +1,72 @@
+[
+  {
+    "_id": "DMG-ee17560c",
+    "reservation": "RES-c857f421",
+    "type": "report",
+    "returnCondition": "Lens has a visible scratch",
+    "report": {
+      "photos": [
+        {
+          "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-4.jpg"
+        },
+        {
+          "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-3.jpg"
+        }
+      ],
+      "message": "The lens was scratched when it came back.",
+      "date": {
+        "$date": "2026-09-10T10:00:00.000Z"
+      }
+    },
+    "createdAt": {
+      "$date": "2026-09-10T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-10T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "DMG-ce9ed66d",
+    "reservation": "RES-c857f421",
+    "type": "dispute",
+    "returnCondition": "Scratch was already there",
+    "report": {
+      "photos": [
+        {
+          "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-2.jpg"
+        }
+      ],
+      "message": "I think that scratch was there before I borrowed it.",
+      "date": {
+        "$date": "2026-09-11T10:00:00.000Z"
+      }
+    },
+    "createdAt": {
+      "$date": "2026-09-11T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-11T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "DMG-7cfd024b",
+    "reservation": "RES-c857f421",
+    "type": "resolution",
+    "returnCondition": "Minor scratch, camera still works",
+    "depositForfeit": 300,
+    "report": {
+      "photos": [],
+      "message": "Part of the deposit is kept to cover the lens.",
+      "date": {
+        "$date": "2026-09-14T10:00:00.000Z"
+      }
+    },
+    "pdfLink": "https://res.cloudinary.com/demo/image/upload/sample.pdf",
+    "createdAt": {
+      "$date": "2026-09-14T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-14T10:00:00.000Z"
+    }
+  }
+]

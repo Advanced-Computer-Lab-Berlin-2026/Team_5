@@ -1,0 +1,38 @@
+[
+  {
+    "_id": "NTC-40b3eab6",
+    "title": "Welcome to the community",
+    "body": "Be kind, return things on time and keep your deposits safe.",
+    "postedBy": "Admono",
+    "createdAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NTC-40243476",
+    "title": "Scheduled maintenance",
+    "body": "The wallet will be unavailable on Friday between 2am and 3am.",
+    "postedBy": "Admono",
+    "createdAt": {
+      "$date": "2026-10-20T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-20T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "NTC-26c2ce28",
+    "title": "New: Medical Equipment category",
+    "body": "Borrow wheelchairs and monitors from verified pharmacies.",
+    "postedBy": "Admono",
+    "createdAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-25T10:00:00.000Z"
+    }
+  }
+]

@@ -1,0 +1,712 @@
+[
+  {
+    "_id": "Admono",
+    "username": "Admono",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "admin",
+    "trustScore": 100,
+    "wallet": 0,
+    "suspended": false,
+    "profile": {
+      "name": "Admono",
+      "email": "admono@example.com",
+      "phone": "+201000000001",
+      "address": "Residency Office"
+    },
+    "verification": {
+      "status": "none",
+      "documents": []
+    },
+    "membership": {
+      "tier": "Basic",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [],
+    "borrow_list": [],
+    "referral_code": "ADMONO-68BC",
+    "createdAt": {
+      "$date": "2026-02-10T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-10T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "Habashieta",
+    "username": "Habashieta",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "lender",
+    "trustScore": 82,
+    "wallet": 350,
+    "suspended": false,
+    "profile": {
+      "name": "Habashy",
+      "email": "habashieta@example.com",
+      "phone": "+201000000002",
+      "address": "Baris"
+    },
+    "verification": {
+      "status": "accepted",
+      "submittedAt": {
+        "$date": "2026-01-20T10:00:00.000Z"
+      },
+      "reviewedBy": "Admono",
+      "reviewedAt": {
+        "$date": "2026-01-22T10:00:00.000Z"
+      },
+      "documents": [
+        {
+          "type": "id",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "habashieta-id.pdf",
+          "storedName": "seed/habashieta-id",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-01-20T10:00:00.000Z"
+          }
+        },
+        {
+          "type": "addressProof",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "habashieta-addressProof.pdf",
+          "storedName": "seed/habashieta-addressProof",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-01-20T10:00:00.000Z"
+          }
+        }
+      ]
+    },
+    "membership": {
+      "tier": "Plus",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [
+      "ITM-1a2b3c0a"
+    ],
+    "borrow_list": [],
+    "referral_code": "HABASHIE-3676",
+    "createdAt": {
+      "$date": "2026-03-11T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-03-11T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "Youries",
+    "username": "Youries",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "member",
+    "trustScore": 55,
+    "wallet": 120,
+    "suspended": false,
+    "profile": {
+      "name": "Youries",
+      "email": "youries@example.com",
+      "phone": "+201000000003",
+      "address": "Imbaba"
+    },
+    "verification": {
+      "status": "none",
+      "documents": []
+    },
+    "membership": {
+      "tier": "Basic",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [
+      "ITM-1a2b3c05",
+      "ITM-1a2b3c06",
+      "ITM-1a2b3c07"
+    ],
+    "borrow_list": [],
+    "referral_code": "YOURIES-6A8F",
+    "referredBy": "Habashieta",
+    "createdAt": {
+      "$date": "2026-04-12T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-04-12T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "anon",
+    "username": "anon",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "member",
+    "trustScore": 30,
+    "wallet": 5,
+    "suspended": false,
+    "profile": {
+      "name": "Anonymous",
+      "email": "anon@example.com",
+      "phone": "+201000000004",
+      "address": "Homeless"
+    },
+    "verification": {
+      "status": "none",
+      "documents": []
+    },
+    "membership": {
+      "tier": "Basic",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [
+      "ITM-1a2b3c09",
+      "ITM-1a2b3c01"
+    ],
+    "borrow_list": [],
+    "referral_code": "ANON-6151",
+    "createdAt": {
+      "$date": "2026-02-13T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-13T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "shikselbeks",
+    "username": "shikselbeks",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "lender",
+    "trustScore": 95,
+    "wallet": 900,
+    "suspended": false,
+    "profile": {
+      "name": "Shiko",
+      "email": "shikselbeks@example.com",
+      "phone": "+201000000005",
+      "address": "Madba5 Shiko"
+    },
+    "verification": {
+      "status": "accepted",
+      "submittedAt": {
+        "$date": "2026-01-20T10:00:00.000Z"
+      },
+      "reviewedBy": "Admono",
+      "reviewedAt": {
+        "$date": "2026-01-22T10:00:00.000Z"
+      },
+      "documents": [
+        {
+          "type": "id",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "shikselbeks-id.pdf",
+          "storedName": "seed/shikselbeks-id",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-01-20T10:00:00.000Z"
+          }
+        },
+        {
+          "type": "addressProof",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "shikselbeks-addressProof.pdf",
+          "storedName": "seed/shikselbeks-addressProof",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-01-20T10:00:00.000Z"
+          }
+        }
+      ]
+    },
+    "membership": {
+      "tier": "Premium",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [],
+    "borrow_list": [],
+    "referral_code": "SHIKSELB-7E39",
+    "createdAt": {
+      "$date": "2026-03-14T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-03-14T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "martinies",
+    "username": "martinies",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "lender",
+    "trustScore": 90,
+    "wallet": 5000,
+    "suspended": false,
+    "profile": {
+      "name": "Martin",
+      "email": "martinies@example.com",
+      "phone": "+201000000006",
+      "address": "Beyt Martin"
+    },
+    "verification": {
+      "status": "accepted",
+      "submittedAt": {
+        "$date": "2026-01-20T10:00:00.000Z"
+      },
+      "reviewedBy": "Admono",
+      "reviewedAt": {
+        "$date": "2026-01-22T10:00:00.000Z"
+      },
+      "documents": [
+        {
+          "type": "id",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "martinies-id.pdf",
+          "storedName": "seed/martinies-id",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-01-20T10:00:00.000Z"
+          }
+        },
+        {
+          "type": "addressProof",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "martinies-addressProof.pdf",
+          "storedName": "seed/martinies-addressProof",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-01-20T10:00:00.000Z"
+          }
+        }
+      ]
+    },
+    "membership": {
+      "tier": "Premium",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [],
+    "borrow_list": [],
+    "referral_code": "MARTINIE-8CBE",
+    "createdAt": {
+      "$date": "2026-04-15T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-04-15T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "elBary",
+    "username": "elBary",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "member",
+    "trustScore": 60,
+    "wallet": 200,
+    "suspended": false,
+    "profile": {
+      "name": "El Bary",
+      "email": "elbary@example.com",
+      "phone": "+201000000007",
+      "address": "Beyt Martin"
+    },
+    "verification": {
+      "status": "none",
+      "documents": []
+    },
+    "membership": {
+      "tier": "Plus",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [
+      "ITM-1a2b3c03"
+    ],
+    "borrow_list": [],
+    "referral_code": "ELBARY-3B59",
+    "createdAt": {
+      "$date": "2026-02-16T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-16T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "loukies",
+    "username": "loukies",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "member",
+    "trustScore": 48,
+    "wallet": 80,
+    "suspended": false,
+    "profile": {
+      "name": "Loukies",
+      "email": "loukies@example.com",
+      "phone": "+201000000008",
+      "address": "Martin Home"
+    },
+    "verification": {
+      "status": "pending",
+      "submittedAt": {
+        "$date": "2026-10-28T10:00:00.000Z"
+      },
+      "documents": [
+        {
+          "type": "id",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "loukies-id.pdf",
+          "storedName": "seed/loukies-id",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-10-28T10:00:00.000Z"
+          }
+        },
+        {
+          "type": "addressProof",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "loukies-addressProof.pdf",
+          "storedName": "seed/loukies-addressProof",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-10-28T10:00:00.000Z"
+          }
+        }
+      ]
+    },
+    "membership": {
+      "tier": "Basic",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [
+      "ITM-1a2b3c08",
+      "ITM-1a2b3c0d"
+    ],
+    "borrow_list": [
+      {
+        "item": "ITM-1a2b3c03",
+        "startDate": {
+          "$date": "2026-10-27T10:00:00.000Z"
+        },
+        "endDate": {
+          "$date": "2026-11-03T10:00:00.000Z"
+        }
+      },
+      {
+        "item": "ITM-1a2b3c08",
+        "startDate": {
+          "$date": "2026-10-31T10:00:00.000Z"
+        },
+        "endDate": {
+          "$date": "2026-11-04T10:00:00.000Z"
+        }
+      }
+    ],
+    "referral_code": "LOUKIES-BE92",
+    "createdAt": {
+      "$date": "2026-03-17T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-03-17T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "theTATA",
+    "username": "theTATA",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "lender",
+    "trustScore": 77,
+    "wallet": 410,
+    "suspended": false,
+    "profile": {
+      "name": "The Tata",
+      "email": "thetata@example.com",
+      "phone": "+201000000009",
+      "address": "Martin Home"
+    },
+    "verification": {
+      "status": "accepted",
+      "submittedAt": {
+        "$date": "2026-01-20T10:00:00.000Z"
+      },
+      "reviewedBy": "Admono",
+      "reviewedAt": {
+        "$date": "2026-01-22T10:00:00.000Z"
+      },
+      "documents": [
+        {
+          "type": "id",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "thetata-id.pdf",
+          "storedName": "seed/thetata-id",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-01-20T10:00:00.000Z"
+          }
+        },
+        {
+          "type": "addressProof",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "thetata-addressProof.pdf",
+          "storedName": "seed/thetata-addressProof",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-01-20T10:00:00.000Z"
+          }
+        }
+      ]
+    },
+    "membership": {
+      "tier": "Plus",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [],
+    "borrow_list": [
+      {
+        "item": "ITM-1a2b3c0c",
+        "startDate": {
+          "$date": "2026-10-28T10:00:00.000Z"
+        },
+        "endDate": {
+          "$date": "2026-11-02T10:00:00.000Z"
+        }
+      }
+    ],
+    "referral_code": "THETATA-3BA3",
+    "createdAt": {
+      "$date": "2026-04-18T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-04-18T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "DocAkhmed",
+    "username": "DocAkhmed",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "lender",
+    "trustScore": 88,
+    "wallet": 600,
+    "suspended": false,
+    "profile": {
+      "name": "Doc Akhmed",
+      "email": "docakhmed@example.com",
+      "phone": "+201000000010",
+      "address": "Hekma Pharmacy"
+    },
+    "verification": {
+      "status": "accepted",
+      "submittedAt": {
+        "$date": "2026-01-20T10:00:00.000Z"
+      },
+      "reviewedBy": "Admono",
+      "reviewedAt": {
+        "$date": "2026-01-22T10:00:00.000Z"
+      },
+      "documents": [
+        {
+          "type": "id",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "docakhmed-id.pdf",
+          "storedName": "seed/docakhmed-id",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-01-20T10:00:00.000Z"
+          }
+        },
+        {
+          "type": "addressProof",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "docakhmed-addressProof.pdf",
+          "storedName": "seed/docakhmed-addressProof",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-01-20T10:00:00.000Z"
+          }
+        }
+      ]
+    },
+    "membership": {
+      "tier": "Plus",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [],
+    "borrow_list": [],
+    "referral_code": "DOCAKHME-8213",
+    "createdAt": {
+      "$date": "2026-02-10T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-10T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "z_brazil",
+    "username": "z_brazil",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "member",
+    "trustScore": 20,
+    "wallet": 0,
+    "suspended": true,
+    "profile": {
+      "name": "Z Brazil",
+      "email": "zbrazil@example.com",
+      "phone": "+201000000011",
+      "address": "Rio de Jeaneiro"
+    },
+    "verification": {
+      "status": "rejected",
+      "note": "ID photo is blurry, please upload a clear one.",
+      "submittedAt": {
+        "$date": "2026-09-10T10:00:00.000Z"
+      },
+      "reviewedBy": "Admono",
+      "reviewedAt": {
+        "$date": "2026-09-12T10:00:00.000Z"
+      },
+      "documents": [
+        {
+          "type": "id",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "z-brazil-id.pdf",
+          "storedName": "seed/z-brazil-id",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-09-10T10:00:00.000Z"
+          }
+        }
+      ]
+    },
+    "membership": {
+      "tier": "Basic",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [],
+    "borrow_list": [],
+    "referral_code": "ZBRAZIL-44B9",
+    "createdAt": {
+      "$date": "2026-03-11T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-03-11T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "elDANI",
+    "username": "elDANI",
+    "password": "$2b$10$UF1AEoTm2wO9coWQ7kubkeisLEMTUTOTAKsuR7Q.d/L3GPqcCa4Yq",
+    "role": "member",
+    "trustScore": 52,
+    "wallet": 60,
+    "suspended": false,
+    "profile": {
+      "name": "El Dani",
+      "email": "eldani@example.com",
+      "phone": "+201000000012",
+      "address": "Martin Home"
+    },
+    "verification": {
+      "status": "retry",
+      "note": "Address proof is older than 3 months, please upload a newer one.",
+      "submittedAt": {
+        "$date": "2026-10-01T10:00:00.000Z"
+      },
+      "reviewedBy": "Admono",
+      "reviewedAt": {
+        "$date": "2026-10-03T10:00:00.000Z"
+      },
+      "documents": [
+        {
+          "type": "addressProof",
+          "file": {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+          },
+          "originalName": "eldani-addressProof.pdf",
+          "storedName": "seed/eldani-addressProof",
+          "docType": "application/pdf",
+          "size": 120000,
+          "uploadedAt": {
+            "$date": "2026-10-01T10:00:00.000Z"
+          }
+        }
+      ]
+    },
+    "membership": {
+      "tier": "Basic",
+      "startDate": {
+        "$date": "2026-02-01T10:00:00.000Z"
+      }
+    },
+    "wishlist": [
+      "ITM-1a2b3c07",
+      "ITM-1a2b3c0c"
+    ],
+    "borrow_list": [
+      {
+        "item": "ITM-1a2b3c07",
+        "startDate": {
+          "$date": "2026-11-05T10:00:00.000Z"
+        },
+        "endDate": {
+          "$date": "2026-11-08T10:00:00.000Z"
+        }
+      }
+    ],
+    "referral_code": "ELDANI-81B3",
+    "referredBy": "martinies",
+    "createdAt": {
+      "$date": "2026-04-12T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-04-12T10:00:00.000Z"
+    }
+  }
+]

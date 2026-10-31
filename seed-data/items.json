@@ -1,0 +1,902 @@
+[
+  {
+    "_id": "ITM-1a2b3c01",
+    "name": "Cordless Drill",
+    "category": "Tools",
+    "description": "18V cordless drill with two batteries and a set of bits.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-2.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-3.jpg"
+      }
+    ],
+    "conditionNotes": [
+      "Small scratch on the handle"
+    ],
+    "depositAmount": 200,
+    "archived": false,
+    "owner": "martinies",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Beyt Martin",
+      "instructions": "Ring the bell, ask for Martin."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "brand",
+        "value": "Bosch"
+      },
+      {
+        "key": "voltage",
+        "value": "18V"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-01T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-01T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c02",
+    "name": "Ladder 3m",
+    "category": "Tools",
+    "description": "Aluminium folding ladder, 3 metres.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-2.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-3.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-4.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 150,
+    "archived": false,
+    "owner": "martinies",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Beyt Martin 2",
+      "instructions": "Leave a message before arriving."
+    },
+    "delivery": {
+      "offered": true,
+      "fee": 30,
+      "details": "Delivered within the city, same day."
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "height",
+        "value": "3m"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-02T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-02T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c03",
+    "name": "Camping Tent 4P",
+    "category": "Outdoor",
+    "description": "Waterproof four person tent with a carry bag.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-2.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-3.jpg"
+      }
+    ],
+    "conditionNotes": [
+      "One patched seam"
+    ],
+    "depositAmount": 450,
+    "archived": false,
+    "owner": "Habashieta",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 10,
+      "minTrustScore": 0,
+      "custom": [
+        "Must be returned dry"
+      ]
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Baris",
+      "instructions": "Pickup after 5pm."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "capacity",
+        "value": "4 people"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-03T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-03T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c04",
+    "name": "Sleeping Bag",
+    "category": "Outdoor",
+    "description": "Warm sleeping bag rated to 0 degrees.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-3.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-4.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-5.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 150,
+    "archived": false,
+    "owner": "Habashieta",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Baris",
+      "instructions": "Pickup after 5pm."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "rating",
+        "value": "0C"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-04T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-04T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c05",
+    "name": "DSLR Camera",
+    "category": "Electronics",
+    "description": "Full frame DSLR with a 50mm lens and spare battery.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-3.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-4.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-5.jpg"
+      }
+    ],
+    "conditionNotes": [
+      "Lens in perfect condition"
+    ],
+    "depositAmount": 1500,
+    "archived": false,
+    "owner": "shikselbeks",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 60,
+      "custom": [
+        "No water sports",
+        "Lens cap must stay on when idle"
+      ]
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Madba5 Shiko",
+      "instructions": "Come by Madba5 Shiko, ask at the counter."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 3,
+      "forfeitPercent": 30
+    },
+    "attributes": [
+      {
+        "key": "brand",
+        "value": "Canon"
+      },
+      {
+        "key": "lens",
+        "value": "50mm"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-05T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-05T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c06",
+    "name": "Projector",
+    "category": "Electronics",
+    "description": "HD projector with HDMI cable and a travel case.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-4.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-5.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 900,
+    "archived": false,
+    "owner": "shikselbeks",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Madba5 Shiko",
+      "instructions": "Come by Madba5 Shiko."
+    },
+    "delivery": {
+      "offered": true,
+      "fee": 40,
+      "details": "We set it up for you on delivery."
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "resolution",
+        "value": "1080p"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-06T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-06T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c07",
+    "name": "PS5 Console",
+    "category": "Electronics",
+    "description": "PlayStation 5 with two controllers and three games.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-2.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-3.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-4.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 2000,
+    "archived": false,
+    "owner": "theTATA",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 5,
+      "minTrustScore": 50,
+      "custom": [
+        "No account sharing"
+      ]
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Martin Home",
+      "instructions": "Pickup from Martin Home, knock twice."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 3,
+      "forfeitPercent": 40
+    },
+    "attributes": [
+      {
+        "key": "controllers",
+        "value": "2"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-07T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-07T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c08",
+    "name": "Stand Mixer",
+    "category": "Kitchen",
+    "description": "Heavy duty stand mixer with three attachments.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-5.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 250,
+    "archived": false,
+    "owner": "theTATA",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Martin Home",
+      "instructions": "Pickup from Martin Home."
+    },
+    "delivery": {
+      "offered": true,
+      "fee": 25,
+      "details": "Delivered to your door."
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "power",
+        "value": "800W"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-08T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-08T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c09",
+    "name": "Wheelchair",
+    "category": "Medical Equipment",
+    "description": "Foldable manual wheelchair, clean and serviced.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-5.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 600,
+    "archived": false,
+    "owner": "DocAkhmed",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 30,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Hekma Pharmacy",
+      "instructions": "Ask at the pharmacy counter."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 5,
+      "forfeitPercent": 10
+    },
+    "attributes": [
+      {
+        "key": "type",
+        "value": "manual"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-09T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-09T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c0a",
+    "name": "Blood Pressure Monitor",
+    "category": "Medical Equipment",
+    "description": "Upper arm digital blood pressure monitor.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-2.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 300,
+    "archived": false,
+    "owner": "DocAkhmed",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 14,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Hekma Pharmacy",
+      "instructions": "Ask at the pharmacy counter."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "type",
+        "value": "upper arm"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-10T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-10T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c0b",
+    "name": "Football Goal Net",
+    "category": "Sports",
+    "description": "Portable goal net with pegs.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-2.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 120,
+    "archived": false,
+    "owner": "Habashieta",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Imbaba",
+      "instructions": "Pickup from Imbaba."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "size",
+        "value": "3m x 2m"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-11T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-11T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c0c",
+    "name": "Party Speaker",
+    "category": "Party",
+    "description": "Loud bluetooth speaker with party lights.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-4.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-5.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 400,
+    "archived": false,
+    "owner": "shikselbeks",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 0,
+      "custom": [
+        "No outdoor use in rain"
+      ]
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Residency Office",
+      "instructions": "Pickup from the Residency Office reception."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "battery",
+        "value": "12 hours"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-12T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-12T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c0d",
+    "name": "Board Games Bundle",
+    "category": "Party",
+    "description": "Five board games including a chess set.",
+    "photos": [],
+    "conditionNotes": [],
+    "depositAmount": 80,
+    "archived": false,
+    "owner": "martinies",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [],
+    "pickup": {
+      "location": "Beyt Martin 2",
+      "instructions": "Pickup from Beyt Martin 2."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "games",
+        "value": "5"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-13T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-13T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c0e",
+    "name": "Anatomy Textbook Set",
+    "category": "Books",
+    "description": "Two volume anatomy textbook set, lightly highlighted.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-5.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample.jpg"
+      }
+    ],
+    "conditionNotes": [
+      "Highlighting in volume 1"
+    ],
+    "depositAmount": 100,
+    "archived": false,
+    "owner": "DocAkhmed",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 21,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Hekma Pharmacy",
+      "instructions": "Ask at the pharmacy counter."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [
+      {
+        "key": "volumes",
+        "value": "2"
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-06-14T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-14T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c0f",
+    "name": "Old Bicycle",
+    "category": "Sports",
+    "description": "Old city bicycle, no longer available.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-5.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 180,
+    "archived": true,
+    "owner": "theTATA",
+    "flagged": false,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Martin Home 2",
+      "instructions": "Pickup from Martin Home 2."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [],
+    "createdAt": {
+      "$date": "2026-06-15T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-15T10:00:00.000Z"
+    }
+  },
+  {
+    "_id": "ITM-1a2b3c10",
+    "name": "Mystery Box",
+    "category": "Party",
+    "description": "A box. Do not ask what is inside.",
+    "photos": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample-5.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+      },
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/cld-sample.jpg"
+      }
+    ],
+    "conditionNotes": [],
+    "depositAmount": 50,
+    "archived": false,
+    "owner": "Habashieta",
+    "flagged": true,
+    "borrowingRules": {
+      "maxDurationDays": 7,
+      "minTrustScore": 0,
+      "custom": []
+    },
+    "documents": [
+      {
+        "url": "https://res.cloudinary.com/demo/image/upload/sample.pdf"
+      }
+    ],
+    "pickup": {
+      "location": "Rio de Jeaneiro",
+      "instructions": "Meet at Rio de Jeaneiro."
+    },
+    "delivery": {
+      "offered": false,
+      "fee": 0
+    },
+    "cancellation": {
+      "freeDays": 2,
+      "forfeitPercent": 20
+    },
+    "attributes": [],
+    "createdAt": {
+      "$date": "2026-06-16T10:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-16T10:00:00.000Z"
+    }
+  }
+]

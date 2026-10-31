@@ -47,10 +47,9 @@ function mockWishlistQuery(result) {
     return { select, populate };
 }
 
-// has to be a real looking id because mongoose.isValidObjectId is not mocked
-const validItemId = '64b7f0c2e4b0a1a2b3c4d5e6';
-// check each of these in a node REPL with mongoose.isValidObjectId before trusting them
-const invalidItemIds = ['abc', 'not-an-object-id', '123', '64b7f0c2e4b0a1a2b3c4d5eZ'];
+// item ids are ITM- followed by 8 lowercase hex characters
+const validItemId = 'ITM-1a2b3c4d';
+const invalidItemIds = ['abc', 'not-an-item-id', '123', 'ITM-1a2b3c4Z', 'ITM-1a2b3c4', '64b7f0c2e4b0a1a2b3c4d5e6'];
 
 beforeEach(() => {
     vi.resetAllMocks();

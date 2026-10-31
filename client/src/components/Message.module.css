@@ -1,0 +1,20 @@
+.message {
+    padding: var(--space-2) var(--space-3);
+    border: var(--border);
+}
+
+.error {
+    background: var(--color-inverse-background);
+    color: var(--color-inverse-text);
+}
+
+.success {
+    background: var(--color-surface);
+    border-style: dashed;
+}
+
+.info {
+    background: var(--color-background);
+    color: var(--color-text-muted);
+    border: var(--border-muted);
+}

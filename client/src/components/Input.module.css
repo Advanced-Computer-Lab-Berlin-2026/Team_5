@@ -1,0 +1,23 @@
+/* Input and Select share this look */
+.input {
+    width: 100%;
+    padding: var(--space-2);
+    border: var(--border);
+    background: var(--color-background);
+    color: var(--color-text);
+    border-radius: 0;
+}
+
+.input:focus {
+    outline: var(--border-width) solid var(--color-border);
+    outline-offset: 2px;
+}
+
+.textarea {
+    resize: vertical;
+}
+
+.input:disabled {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
