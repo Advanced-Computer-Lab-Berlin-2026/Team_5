@@ -9,10 +9,10 @@ const itemSchema = joi.object(
     {
         name: joi.string().trim().required(),
         description: joi.string().trim().required(),
-        category: joi.string().required(),
+        category: joi.string().trim().required(),
         depositAmount: joi.number().min(0).required(),
-        conditionNotes: joi.array().items(joi.string()),
-        pickupLocation: joi.string().required(),
+        conditionNotes: joi.array().items(joi.string().trim().min(1)),
+        pickupLocation: joi.string().trim().required(),
         pickupInstructions: joi.string().trim().allow(''),
         borrowingRules: joi.object({
             maxDurationDays: joi.number().integer().min(1),
@@ -25,9 +25,9 @@ const updateSchema = joi.object(
     {
         name: joi.string().trim(),
         description: joi.string().trim(),
-        category: joi.string(),
+        category: joi.string().trim(),
         depositAmount: joi.number().min(0),
-        conditionNotes: joi.array().items(joi.string()),
+        conditionNotes: joi.array().items(joi.string().trim().min(1)),
         pickupLocation: joi.string().trim(),
         pickupInstructions: joi.string().trim().allow(''),
         borrowingRules: joi.object({

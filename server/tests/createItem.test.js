@@ -115,4 +115,40 @@ describe('POST /api/lender/items', () => {
 
     });
 
+        it('should return 400 for a pickup location that is only spaces', async () => {
+        Category.findById.mockResolvedValue(mockCategory);
+        Item.create.mockResolvedValue({ ...validBody, _id: 'itemId' });
+        const body = { ...validBody, pickupLocation: '   ' };
+        const response = await request(app).post('/api/lender/items').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`).send(body);
+        expect(response.status).toBe(400);
+        expect(response.body.message).toContain('pickupLocation');
+        expect(Item.create).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for an empty condition note', async () => {
+        Category.findById.mockResolvedValue(mockCategory);
+        Item.create.mockResolvedValue({ ...validBody, _id: 'itemId' });
+        const body = { ...validBody, conditionNotes: ['Good', '  '] };
+        const response = await request(app).post('/api/lender/items').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`).send(body);
+        expect(response.status).toBe(400);
+        expect(response.body.message).toContain('conditionNotes');
+        expect(Item.create).not.toHaveBeenCalled();
+    });
+
+    it('should store pickup instructions when no borrowing rules are given', async () => {
+        Category.findById.mockResolvedValue(mockCategory);
+        Item.create.mockResolvedValue({ ...validBody, _id: 'itemId' });
+        const body = { ...validBody, pickupInstructions: 'Ring the bell' };
+        const response = await request(app).post('/api/lender/items').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`).send(body);
+        expect(response.status).toBe(201);
+        expect(Item.create.mock.calls[0][0].pickup).toEqual({ location: 'Test Location', instructions: 'Ring the bell' });
+    });
+
+    it('should return 400 for an empty borrowing rules object', async () => {
+        const body = { ...validBody, borrowingRules: {} };
+        const response = await request(app).post('/api/lender/items').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`).send(body);
+        expect(response.status).toBe(400);
+        expect(Item.create).not.toHaveBeenCalled();
+    });
+
 });
