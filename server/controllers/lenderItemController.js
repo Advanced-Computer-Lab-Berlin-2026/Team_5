@@ -3,6 +3,7 @@ import { Category } from '../models/Category.js'
 import { Item } from '../models/Item.js'
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js'
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js'
+import { uploadItemManual, deleteItemManual } from '../services/itemManualStorage.js'
 
 
 const itemSchema = joi.object(
@@ -153,8 +154,32 @@ export async function addItemPhotos(req, res, next){
         res.status(200).json({ item })
     }
     catch (error) {
-        // the files reached Cloudinary but the item was not saved, so remove them again
         await Promise.allSettled(uploaded.map((file) => deleteItemPhoto(file.public_id)))
+        next(error)
+    }
+}
+
+
+export async function setItemManual(req, res, next){
+    let uploaded = false
+    let hadManual = false
+    try {
+        if (!req.file) return res.status(400).json({ message: 'Please choose a PDF manual to upload' })
+
+        const item = await Item.findById(req.params.id)
+        if (!item) return res.status(404).json({ message: 'Item not found' })
+        if (item.owner !== req.user.id) return res.status(403).json({ message: 'You do not have permission to add a manual to this item' })
+
+        hadManual = item.documents.length > 0
+        const result = await uploadItemManual(req.file.buffer, item._id)
+        uploaded = true
+
+        item.documents = [{ url: result.secure_url }]
+        await item.save()
+        res.status(200).json({ item })
+    }
+    catch (error) {
+        if (uploaded && !hadManual) await Promise.allSettled([deleteItemManual(req.params.id)])
         next(error)
     }
 }
