@@ -9,9 +9,9 @@ import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { csrfProtection } from './middleware/authSecurity.js';
 import wishlistRoutes from './routes/wishlist.js';
 import walletRoutes from './routes/wallet.js';
+import noticeRoutes from './routes/notices.js';
 import profileRoutes from './routes/profile.js';
 import householdRoutes from './routes/household.js';
-import noticeRoutes from './routes/notices.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
@@ -41,9 +41,9 @@ app.use('/api/items', itemRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/wallet', walletRoutes)
+app.use('/api/notices', noticeRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
-app.use('/api/notices', noticeRoutes)
 
 // Keep These at the end for fallback errors
 app.use(notFound);
