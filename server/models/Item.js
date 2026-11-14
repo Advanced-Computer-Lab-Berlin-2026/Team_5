@@ -14,7 +14,7 @@ const itemSchema = new mongoose.Schema(
     archived: { type: Boolean, default: false },
     owner: { type: String, ref: "User", required: true }, // username
     flagged: { type: Boolean, default: false },
-
+    checkoutVersion: { type: Number, default: 0 }, // incremented on each checkout to prevent race conditions
     borrowingRules: {
       maxDurationDays: { type: Number, min: 1 },
       minTrustScore: { type: Number, default: 0, min: 0, max: 100 },
