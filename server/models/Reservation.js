@@ -26,6 +26,13 @@ const reservationSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    // ---- group: handover
+    handover: {
+      pickedUpAt: { type: Date },
+      returnedAt: { type: Date },
+      returnCondition: { type: String, enum: ["good", "damaged"] },
+    },
+
     // ---- group: delivery ----
     delivery: {
       status: { type: String, enum: ["preparing", "out-for-delivery", "delivered"] },
