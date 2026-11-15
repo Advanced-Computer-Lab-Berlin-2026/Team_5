@@ -145,10 +145,9 @@ async function removeUser(req, res) {
             );
         }
 
-        // 4. Remove the deleted user from other item waitlists
-        await Waitlist.updateMany(
-            { usernames: userId },
-            { $pull: { usernames: userId } },
+        // 4. Remove the deleted user's waitlist entries
+        await Waitlist.deleteMany(
+            { username: userId },
             { session }
         );
 
