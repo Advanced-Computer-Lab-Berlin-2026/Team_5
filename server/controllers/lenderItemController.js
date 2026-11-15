@@ -15,6 +15,11 @@ const itemSchema = joi.object(
         conditionNotes: joi.array().items(joi.string().trim().min(1)),
         pickupLocation: joi.string().trim().required(),
         pickupInstructions: joi.string().trim().allow(''),
+        delivery: joi.object({
+            offered: joi.boolean().default(true),
+            fee: joi.number().min(0),
+            details: joi.string().trim().allow('')
+        }).min(1),
         borrowingRules: joi.object({
             maxDurationDays: joi.number().integer().min(1),
             minTrustScore: joi.number().min(0).max(100),
@@ -56,6 +61,7 @@ export async function createItem(req, res, next){
                 depositAmount: value.depositAmount, 
                 conditionNotes: value.conditionNotes, 
                 pickup: { location: value.pickupLocation, instructions: value.pickupInstructions },
+                delivery: value.delivery ?? { offered: false},
                 borrowingRules: value.borrowingRules,
                 owner: req.user.id
             })
