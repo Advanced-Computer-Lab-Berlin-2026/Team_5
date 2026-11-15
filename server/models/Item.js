@@ -18,6 +18,7 @@ const itemSchema = new mongoose.Schema(
     borrowingRules: {
       maxDurationDays: { type: Number, min: 1 },
       minTrustScore: { type: Number, default: 0, min: 0, max: 100 },
+      lateFeePerDay: { type: Number, default: 0, min: 0 },
       custom: [{ type: String }],
     },
 
