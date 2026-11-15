@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import crypto from "crypto";
+import fileSchema from "./fileSchema.js";
 
 const reservationSchema = new mongoose.Schema(
   {
@@ -31,6 +32,8 @@ const reservationSchema = new mongoose.Schema(
       pickedUpAt: { type: Date },
       returnedAt: { type: Date },
       returnCondition: { type: String, enum: ["good", "damaged"] },
+      pickupPhotos: [fileSchema],
+      returnPhotos: [fileSchema],
     },
 
     // ---- group: delivery ----
