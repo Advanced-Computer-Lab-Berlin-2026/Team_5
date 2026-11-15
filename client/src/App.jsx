@@ -1,7 +1,6 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { AdminLayout, Layout, ProtectedRoute } from './components';
-import LoginPage from './pages/LoginPage.jsx';
-import RegisterPage from './pages/RegisterPage.jsx';
+import EntryPage from './pages/EntryPage.jsx';
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
 import ChangePasswordPage from './pages/ChangePasswordPage.jsx';
 import CatalogPage from './pages/CatalogPage.jsx';
@@ -27,9 +26,9 @@ export default function App() {
         <Routes>
             <Route element={<Layout />}>
                 {/* anyone can browse; a login is only asked for when saving to the wishlist */}
-                <Route path="/" element={<Navigate to="/items" replace />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/" element={<EntryPage />} />
+                <Route path="/login" element={<EntryPage />} />
+                <Route path="/register" element={<EntryPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/items" element={<CatalogPage />} />
                 <Route path="/items/:id" element={<ItemDetailPage />} />

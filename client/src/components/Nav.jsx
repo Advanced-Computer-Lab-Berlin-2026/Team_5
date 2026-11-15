@@ -1,6 +1,8 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { Button } from './Button.jsx';
+import { Icon } from './Icon.jsx';
 import styles from './Nav.module.css';
 
 // Which links each role sees, after the always-visible ones.
@@ -21,33 +23,44 @@ function NavItem({ to, children }) {
 export function Nav() {
     const { isLoggedIn, role, user, logout } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+    const [openPath, setOpenPath] = useState(null);
+    const [logoutError, setLogoutError] = useState('');
+    const open = openPath === location.pathname;
 
     async function handleLogout() {
-        await logout();
+        try { await logout(); } catch { setLogoutError('The server could not confirm logout. Your local session was cleared.'); }
         navigate('/login');
     }
 
     return (
-        <header className={styles.nav}>
-            <NavItem to="/">ACL</NavItem>
-            <NavItem to="/items">Catalog</NavItem>
+        <header className={styles.header}>
+          <div className={styles.nav}>
+            <Link to="/" className={styles.brand} aria-label="ACL home">ACL<span className={styles.brandDot}>.</span></Link>
+            <button className={styles.toggle} type="button" aria-label={open ? 'Close navigation' : 'Open navigation'} aria-expanded={open} aria-controls="primary-navigation" onClick={() => setOpenPath(open ? null : location.pathname)}><Icon name={open ? 'close' : 'menu'} /></button>
+            <nav id="primary-navigation" aria-label="Main navigation" className={`${styles.links} ${open ? styles.open : ''}`} onClick={event => { if (event.target.closest('a')) setOpenPath(null); }} onKeyDown={event => { if (event.key === 'Escape') setOpenPath(null); }}>
+            <NavItem to="/items">Discover</NavItem>
             {isLoggedIn && (LINKS_BY_ROLE[role] ?? []).map(([to, label]) => (
                 <NavItem key={to} to={to}>{label}</NavItem>
             ))}
-            <span className={styles.spacer} />
+            </nav>
+            <div className={styles.account}>
             {isLoggedIn ? (
                 <>
-                    <span>{user.username} ({role})</span>
-                    <Button variant="secondary" onClick={handleLogout}>
+                    <span className={styles.identity}>{user.username}<small>{role}</small></span>
+                    <Button variant="secondary" size="small" onClick={handleLogout}>
                         Log out
                     </Button>
                 </>
             ) : (
                 <>
-                    <NavItem to="/login">Log in</NavItem>
-                    <NavItem to="/register">Register</NavItem>
+                    <Button variant="ghost" size="small" to="/login">Log in</Button>
+                    <Button size="small" to="/register">Join ACL</Button>
                 </>
             )}
+            </div>
+          </div>
+          {logoutError && <p role="status">{logoutError}</p>}
         </header>
     );
 }

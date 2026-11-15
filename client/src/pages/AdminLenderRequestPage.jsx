@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { decideLenderRequest, getLenderRequest, lenderDocumentUrl } from '../api/admin.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, DetailList, FormField, Message, Row, Spinner } from '../components';
+import { Button, Card, DetailList, FormField, Message, PageHeader, Row, Spinner } from '../components';
 import { formatDateTime } from '../utils/format.js';
 
 const SLOT_TITLES = { id: 'ID document', addressProof: 'Proof of address' };
@@ -30,7 +30,7 @@ export default function AdminLenderRequestPage() {
     return (
         <>
             <p><Link to="/admin/lender-requests">Back to requests</Link></p>
-            <h1>Request from {username}</h1>
+            <PageHeader eyebrow="Lender verification" title={`Request from ${username}`} />
 
             <Card title="Applicant">
                 <DetailList rows={[

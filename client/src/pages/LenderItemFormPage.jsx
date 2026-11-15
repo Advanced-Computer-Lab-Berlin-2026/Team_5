@@ -3,7 +3,7 @@ import { listCategories } from '../api/categories.js';
 import { createItem, listMyItems, updateItem, uploadManual, uploadPhotos } from '../api/lenderItems.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Card, FileUploadCard, ItemForm, Message, PhotoGallery, Spinner } from '../components';
+import { Card, FileUploadCard, ItemForm, Message, PageHeader, PhotoGallery, Spinner } from '../components';
 
 // One page for both "add an item" (no id in the address) and "edit an item".
 export default function LenderItemFormPage() {
@@ -38,7 +38,7 @@ export default function LenderItemFormPage() {
     return (
         <>
             <p><Link to="/lender/items">Back to my items</Link></p>
-            <h1>{id ? `Edit ${item.name}` : 'Add an item'}</h1>
+            <PageHeader eyebrow="Your shared collection" title={id ? `Edit ${item.name}` : 'Add an item'} description="A few details help someone find exactly what they need." />
             <Message type="success">{location.state?.notice}</Message>
             <Card title="Details">
                 <ItemForm key={id ?? 'new'} item={item} categories={categories.data.categories}

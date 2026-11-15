@@ -5,7 +5,8 @@ import { addToWishlist } from '../api/wishlist.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, DetailList, Message, PhotoGallery, Spinner } from '../components';
+import { Button, Card, DetailList, Message, PageHeader, PageSection, PhotoGallery, Spinner } from '../components';
+import styles from './ItemDetailPage.module.css';
 
 export default function ItemDetailPage() {
     const { id } = useParams();
@@ -41,10 +42,15 @@ export default function ItemDetailPage() {
 
     return (
         <>
-            <p><Link to="/items">Back to catalog</Link></p>
-            <h1>{item.name}</h1>
-            <PhotoGallery photos={item.photos} alt={item.name} />
+            <PageSection theme="light" contentClassName={styles.gallerySection} aria-label="Item photos">
+                <div className={styles.intro}>
+                    <p><Link to="/items">Back to catalog</Link></p>
+                    <PageHeader eyebrow={item.category} title={item.name} description="Take a closer look. Find your next possibility." />
+                </div>
+                <PhotoGallery key={item._id} photos={item.photos} alt={item.name} edgeToEdge />
+            </PageSection>
 
+            <PageSection theme="dark" contentClassName={styles.details} aria-label="Item details">
             <Card title="Details">
                 <p>{item.description}</p>
                 <DetailList rows={[
@@ -67,15 +73,15 @@ export default function ItemDetailPage() {
             </Card>
 
             {!isAdmin && (
-                <Card title="Wishlist">
+                <div className={styles.wishlist}>
                     <Message type="success">{wishlist.success}</Message>
                     <Message type="error">{wishlist.error}</Message>
-                    {!isLoggedIn && <p>You can browse freely. You will be asked to log in or register to save this item.</p>}
                     <div>
                         <Button disabled={wishlist.pending} onClick={handleWishlist}>Add to wishlist</Button>
                     </div>
-                </Card>
+                </div>
             )}
+            </PageSection>
         </>
     );
 }

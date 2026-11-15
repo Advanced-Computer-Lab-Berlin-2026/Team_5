@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { updateProfile } from '../api/profile.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useAction } from '../hooks/useAction.js';
-import { Button, Card, FormField, Message, Row } from '../components';
+import { Button, Card, FormField, Message, PageHeader, Row } from '../components';
 
 export default function ProfilePage() {
     const { user } = useAuth();
@@ -21,7 +21,7 @@ export default function ProfilePage() {
 
     return (
         <>
-            <h1>Profile</h1>
+            <PageHeader eyebrow="Your account" title="Profile" description="The details that keep your community connected." />
             <Card title={user.name}>
                 <p>Username: {user.username}</p>
                 <p>Email: {user.email}</p>

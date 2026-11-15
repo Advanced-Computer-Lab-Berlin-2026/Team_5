@@ -1,6 +1,6 @@
 import { listAllItems } from '../api/admin.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Message, Spinner, Table } from '../components';
+import { Message, PageHeader, Spinner, Table } from '../components';
 
 const yesNo = (value) => (value ? 'yes' : 'no');
 
@@ -9,7 +9,7 @@ export default function AdminItemsPage() {
 
     return (
         <>
-            <h1>Admin: items</h1>
+            <PageHeader eyebrow="Administration" title="Community items" description="An overview of listings and their current status." />
             {loading && <Spinner />}
             <Message type="error">{error}</Message>
             {data && (

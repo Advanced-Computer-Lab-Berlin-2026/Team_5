@@ -3,7 +3,7 @@ import { createNotice, listNotices } from '../api/notices.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, FormField, Message, Spinner } from '../components';
+import { Button, Card, FormField, Message, PageHeader, Spinner } from '../components';
 import { formatDate } from '../utils/format.js';
 
 export default function NoticesPage() {
@@ -25,7 +25,7 @@ export default function NoticesPage() {
 
     return (
         <>
-            <h1>Community notices</h1>
+            <PageHeader eyebrow="Around the community" title="Community notices" description="The latest updates, all in one place." />
             {isAdmin && (
                 <Card title="Post a notice">
                     <form onSubmit={handleSubmit}>

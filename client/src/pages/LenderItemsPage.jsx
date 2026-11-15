@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { listMyItems, toggleArchive } from '../api/lenderItems.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Message, Row, Spinner, Table } from '../components';
+import { Button, Message, PageHeader, Row, Spinner, Table } from '../components';
 
 export default function LenderItemsPage() {
     const { data, error, loading, reload } = useAsync(listMyItems);
@@ -15,7 +15,7 @@ export default function LenderItemsPage() {
 
     return (
         <>
-            <h1>My items</h1>
+            <PageHeader eyebrow="Your shared collection" title="My items" description="Manage the things you make available to your community." />
             <Row>
                 <Button to="/lender/items/new">Add an item</Button>
             </Row>

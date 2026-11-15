@@ -9,8 +9,9 @@ export function FileField({ label, name, hint, onChange, ...props }) {
                 {label}
             </label>
             <input id={name} name={name} type="file" className={inputStyles.input}
+                aria-describedby={hint ? `${name}-hint` : undefined}
                 onChange={(event) => onChange(Array.from(event.target.files))} {...props} />
-            {hint && <span className={styles.hint}>{hint}</span>}
+            {hint && <span id={`${name}-hint`} className={styles.hint}>{hint}</span>}
         </div>
     );
 }

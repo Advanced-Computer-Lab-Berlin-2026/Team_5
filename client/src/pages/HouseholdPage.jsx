@@ -4,7 +4,7 @@ import {
 } from '../api/household.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, FormField, Message, Row, Select, Spinner, Table } from '../components';
+import { Button, Card, FormField, Message, PageHeader, Row, Select, Spinner, Table } from '../components';
 
 const RELATIONS = ['spouse', 'parent', 'child', 'siblings'].map((value) => ({ value, label: value }));
 
@@ -49,13 +49,13 @@ export default function HouseholdPage() {
 
     return (
         <>
-            <h1>Household</h1>
+            <PageHeader eyebrow="Closer connections" title="Your household" description="Connect with the people you share everyday life with." />
 
             <Card title="Add a household member">
                 <form onSubmit={handleSend}>
                     <FormField label="Their email or phone" name="emailOrPhone" value={emailOrPhone} required
                         onChange={(event) => { setEmailOrPhone(event.target.value); setFound(null); }} />
-                    <Select name="relation" value={relation} options={RELATIONS}
+                    <Select name="relation" aria-label="Relationship" value={relation} options={RELATIONS}
                         onChange={(event) => setRelation(event.target.value)} />
                     <Message type="info">{found && `Found: ${found.name} (${found.username})`}</Message>
                     <Message type="success">{send.success}</Message>

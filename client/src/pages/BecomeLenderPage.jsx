@@ -3,7 +3,7 @@ import { getMyRequest, removeDocument, submitRequest, uploadDocument } from '../
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, DetailList, FileUploadCard, Message, Spinner } from '../components';
+import { Button, Card, DetailList, FileUploadCard, Message, PageHeader, Spinner } from '../components';
 import { formatDateTime } from '../utils/format.js';
 
 const SLOTS = [
@@ -44,7 +44,7 @@ export default function BecomeLenderPage() {
 
     return (
         <>
-            <h1>Become a lender</h1>
+            <PageHeader eyebrow="Share more possibilities" title="Become a lender" description="Help your community make more of the things you own." />
             <Card title="Your request">
                 <DetailList rows={[
                     ['Status', data.status],

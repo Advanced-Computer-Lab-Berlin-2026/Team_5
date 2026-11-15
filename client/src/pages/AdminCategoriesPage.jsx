@@ -3,7 +3,7 @@ import { setDepositMultiplier } from '../api/admin.js';
 import { listCategories } from '../api/categories.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Input, Message, Row, Spinner, Table } from '../components';
+import { Button, Input, Message, PageHeader, Row, Spinner, Table } from '../components';
 
 export default function AdminCategoriesPage() {
     const { data, error, loading } = useAsync(listCategories);
@@ -13,7 +13,7 @@ export default function AdminCategoriesPage() {
 
     return (
         <>
-            <h1>Admin: deposit multipliers</h1>
+            <PageHeader eyebrow="Administration" title="Deposit multipliers" />
             <p>The deposit of every item in a category is multiplied by this number. It must be at least 1.</p>
             {loading && <Spinner />}
             <Message type="error">{error || save.error}</Message>

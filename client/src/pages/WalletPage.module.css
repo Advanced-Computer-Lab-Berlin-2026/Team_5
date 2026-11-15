@@ -1,0 +1,2 @@
+.balance { font-size: var(--font-size-display); font-weight: var(--font-weight-bold); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+.balance span { font-size: var(--font-size-large); color: var(--color-text-muted); }

@@ -1,0 +1,21 @@
+.welcome { position: relative; background: var(--color-black); color: var(--color-white); overflow-anchor: none; }
+.welcome::after { content: ''; position: absolute; bottom: 0; inset-inline: 0; height: 6rem; background: linear-gradient(transparent, var(--color-black)); pointer-events: none; }
+.heading { display: grid; gap: var(--space-4); }
+.heading h1 { font-size: clamp(2.5rem, 7vw, 6rem); letter-spacing: -0.06em; line-height: 1.05; }
+.heading :global(.eyebrow) { color: var(--color-white); }
+.dot { color: var(--color-amber); }
+.expand :global(.scroll-expand__title) { height: var(--se-viewport-height, 100svh); text-shadow: 0 2px 24px var(--color-black); }
+.expand :global(.scroll-expand__media) { object-position: center 65%; }
+.expand :global(.scroll-expand__overlay) { padding: var(--space-5) var(--space-3); text-align: start; }
+.expand :global(.scroll-expand__hint) { top: calc(var(--se-viewport-height, 100svh) - 4rem); bottom: auto; color: var(--color-text-muted); pointer-events: auto; }
+.expand :global(.scroll-expand__hint) a, .guestCue, .staticWelcome > a { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-small); text-decoration: none; padding: var(--space-2); }
+.expand :global(.scroll-expand__hint) a:hover, .guestCue:hover, .staticWelcome > a:hover { color: var(--color-white); }
+.revealContent { width: min(32rem, 100%); display: flex; flex-direction: column; gap: var(--space-4); transition: width var(--duration-layout) var(--ease-layout); }
+.revealContent.wide { width: min(44rem, 100%); }
+.guestCue { align-self: center; text-align: center; }
+.shortcuts { position: absolute; top: var(--space-4); left: var(--space-4); z-index: 2; display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.shortcuts a { padding: var(--space-2); color: var(--color-white); background: var(--color-black); font-size: var(--font-size-small); }
+.shortcuts:not(:focus-within) { clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }
+.staticWelcome { min-height: 100svh; padding: var(--space-7) var(--space-4); display: grid; align-content: center; justify-items: center; text-align: center; gap: var(--space-5); background: var(--hero-gradient); }
+.staticAccount { padding: var(--space-5) var(--space-3); display: flex; justify-content: center; }
+@media (max-width: 760px) { .heading h1 { font-size: clamp(2.25rem, 9vw, 4rem); } .heading :global(.eyebrow) { letter-spacing: 0.06em; font-size: 0.75rem; } }

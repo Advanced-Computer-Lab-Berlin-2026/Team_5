@@ -1,0 +1,2 @@
+.container { overflow: hidden; transition: height var(--duration-layout) var(--ease-layout); }
+.content { display: flow-root; padding: var(--space-1); }

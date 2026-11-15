@@ -4,12 +4,12 @@ import styles from './Table.module.css';
 export function Table({ columns, rows, getRowKey, empty = 'Nothing to show.' }) {
     if (rows.length === 0) return <p className={styles.empty}>{empty}</p>;
     return (
-        <div className={styles.wrapper}>
+        <div className={styles.wrapper} role="region" aria-label="Scrollable data table" tabIndex={0}>
             <table className={styles.table}>
                 <thead>
                     <tr>
                         {columns.map((column) => (
-                            <th key={column.key}>{column.header}</th>
+                            <th key={column.key} scope="col">{column.header || <span className="sr-only">Actions</span>}</th>
                         ))}
                     </tr>
                 </thead>

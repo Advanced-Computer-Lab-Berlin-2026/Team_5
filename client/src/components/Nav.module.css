@@ -1,27 +1,20 @@
-.nav {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    border-bottom: var(--border);
+.header { background: var(--color-background); border-bottom: var(--border-muted); }
+.nav { max-width: var(--content-width); margin: auto; display: flex; align-items: center; gap: var(--space-5); min-height: 5rem; padding: var(--space-3) var(--space-5); flex-wrap: wrap; }
+.brand { color: var(--color-text); font-size: 1.75rem; font-weight: 800; letter-spacing: -0.07em; text-decoration: none; }
+.brandDot { color: var(--color-amber); }
+.links { display: flex; flex: 1; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.link { color: var(--color-text-muted); font-size: var(--font-size-small); font-weight: var(--font-weight-medium); text-decoration: none; padding: var(--space-2) 0; border-bottom: 2px solid transparent; }
+.link:hover { color: var(--color-text); }
+.active { color: var(--color-text); border-color: var(--color-amber); }
+.account { margin-left: auto; display: flex; gap: var(--space-2); align-items: center; }
+.identity { display: grid; margin-right: var(--space-2); font-size: var(--font-size-small); font-weight: var(--font-weight-medium); overflow-wrap: anywhere; }
+.identity small { font-weight: var(--font-weight-normal); text-transform: capitalize; }
+.toggle { display: none; border: var(--border-muted); background: transparent; color: var(--color-text); width: var(--control-height); height: var(--control-height); }
+@media (max-width: 1050px) {
+    .nav { gap: var(--space-3); }
+    .toggle { display: inline-flex; justify-content: center; align-items: center; order: 2; }
+    .account { order: 1; }
+    .links { display: none; order: 3; flex-basis: 100%; }
+    .links.open { display: flex; }
 }
-
-.link {
-    color: var(--color-text-muted);
-    text-decoration: none;
-}
-
-.link:hover {
-    color: var(--color-text);
-    text-decoration: underline;
-}
-
-.active {
-    color: var(--color-text);
-    font-weight: var(--font-weight-bold);
-}
-
-.spacer {
-    flex: 1;
-}
+@media (max-width: 640px) { .nav { padding: var(--space-3); } .identity { display: none; } .account { gap: var(--space-1); } }

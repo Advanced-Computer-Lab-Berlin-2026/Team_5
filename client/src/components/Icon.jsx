@@ -1,0 +1,15 @@
+const PATHS = {
+    arrow: 'M4 12h16m-6-6 6 6-6 6',
+    down: 'M12 4v16m-6-6 6 6 6-6',
+    search: 'm21 21-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+    box: 'm3 7 9-5 9 5v10l-9 5-9-5V7zm0 0 9 5 9-5m-9 5v10',
+    heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0l-1 1-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z',
+    menu: 'M4 6h16M4 12h16M4 18h16',
+    close: 'm6 6 12 12M6 18 18 6',
+    expand: 'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5',
+    sun: 'M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
+};
+
+export function Icon({ name = 'box', size = 20, ...props }) {
+    return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}><path d={PATHS[name] ?? PATHS.box} /></svg>;
+}

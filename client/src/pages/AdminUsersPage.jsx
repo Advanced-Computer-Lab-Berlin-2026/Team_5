@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { deleteUser, listUsers, searchUsers, setSuspension } from '../api/admin.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Input, Message, Row, Spinner, Table } from '../components';
+import { Button, Input, Message, PageHeader, Row, Spinner, Table } from '../components';
 
 export default function AdminUsersPage() {
     const [searchText, setSearchText] = useState('');
@@ -32,10 +32,10 @@ export default function AdminUsersPage() {
 
     return (
         <>
-            <h1>Admin: users</h1>
+            <PageHeader eyebrow="Administration" title="Community members" description="Manage accounts and access to the community." />
             <form onSubmit={handleSearch}>
                 <Row>
-                    <Input name="search" placeholder="Search by name" value={searchText}
+                    <Input name="search" aria-label="Search users by name" placeholder="Search by name" value={searchText}
                         onChange={(event) => setSearchText(event.target.value)} />
                     <Button type="submit">Search</Button>
                     {query && (

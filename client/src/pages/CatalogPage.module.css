@@ -1,0 +1,11 @@
+.heading { display: grid; gap: var(--space-2); }
+.heading h2 { font-size: var(--font-size-title); }
+.search { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.search > * { margin-top: 0; }
+.searchField { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 15rem; position: relative; }
+.searchField > svg { position: absolute; left: var(--space-3); color: var(--color-text-muted); pointer-events: none; }
+.searchField input { padding-left: var(--space-6); }
+.count { font-size: var(--font-size-small); color: var(--color-text-muted); }
+.results { display: grid; gap: var(--space-4); align-content: start; min-height: 60svh; overflow-anchor: none; }
+.resultSummary { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); min-height: 1.5em; }
+.hiddenClear { visibility: hidden; }

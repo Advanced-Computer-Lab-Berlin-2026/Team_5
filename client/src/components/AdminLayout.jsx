@@ -1,6 +1,5 @@
-import { Outlet } from 'react-router-dom';
-import { Button } from './Button.jsx';
-import { Row } from './Grid.jsx';
+import { NavLink, Outlet } from 'react-router-dom';
+import styles from './AdminLayout.module.css';
 
 const LINKS = [
     ['/admin', 'Users'],
@@ -14,11 +13,11 @@ const LINKS = [
 export function AdminLayout() {
     return (
         <>
-            <Row>
+            <nav className={styles.tabs} aria-label="Administration">
                 {LINKS.map(([to, label]) => (
-                    <Button key={to} variant="secondary" to={to}>{label}</Button>
+                    <NavLink key={to} end={to === '/admin'} className={({ isActive }) => isActive ? styles.active : ''} to={to}>{label}</NavLink>
                 ))}
-            </Row>
+            </nav>
             <Outlet />
         </>
     );

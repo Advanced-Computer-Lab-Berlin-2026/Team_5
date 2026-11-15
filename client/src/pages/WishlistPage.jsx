@@ -1,7 +1,7 @@
 import { getWishlist, removeFromWishlist } from '../api/wishlist.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, Grid, Message, Spinner } from '../components';
+import { Button, EmptyState, Grid, ItemCard, Message, PageHeader, Spinner } from '../components';
 
 export default function WishlistPage() {
     const { data, error, loading, reload } = useAsync(getWishlist);
@@ -14,23 +14,17 @@ export default function WishlistPage() {
 
     return (
         <>
-            <h1>Wishlist</h1>
+            <PageHeader eyebrow="Saved possibilities" title="Your wishlist" description="Keep your next idea close." />
             {loading && <Spinner />}
             <Message type="error">{error || removal.error}</Message>
-            {data?.wishlist.length === 0 && <Message>Your wishlist is empty.</Message>}
+            {data?.wishlist.length === 0 && <EmptyState title="Something will catch your eye" description="Explore the catalog and save items to come back to." action={<Button to="/items">Discover items</Button>} />}
             <Grid>
                 {data?.wishlist.map((item) => (
-                    <Card key={item._id} title={item.name}
-                        footer={
-                            <>
-                                <Button variant="secondary" to={`/items/${item._id}`}>View</Button>{' '}
+                    <ItemCard key={item._id} item={item}
+                        actions={
                                 <Button variant="secondary" disabled={removal.pending}
                                     onClick={() => handleRemove(item._id)}>Remove</Button>
-                            </>
-                        }>
-                        <p>{item.category}</p>
-                        <p>Deposit: {item.depositAmount}</p>
-                    </Card>
+                        } />
                 ))}
             </Grid>
         </>
