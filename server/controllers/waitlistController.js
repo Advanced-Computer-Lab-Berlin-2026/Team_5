@@ -4,6 +4,7 @@ import { Reservation } from '../models/Reservation.js';
 import { Waitlist } from '../models/Waitlist.js';
 
 const ITEM_ID_PATTERN = /^ITM-[0-9a-f]{8}$/;
+const WAITLIST_ID_PATTERN = /^WTL-[0-9a-f]{8}$/;
 const joinWaitlistSchema = Joi.object({
     startDate: Joi.date().iso().required(),
     endDate: Joi.date().iso().greater(Joi.ref('startDate')).required()
@@ -52,22 +53,20 @@ export async function joinWaitlist(req, res, next) {
 
 export async function leaveWaitlist(req, res, next) {
     try {
-        const { itemId } = req.params;
-        if (!ITEM_ID_PATTERN.test(itemId)) {
-            return res.status(400).json({ message: 'Invalid item id' });
+        const { id } = req.params;
+        if (ITEM_ID_PATTERN.test(id)) {
+            const result = await Waitlist.deleteMany({ item: id });
+            if (!result.deletedCount) {
+                return res.status(404).json({ message: 'No waitlist entries found for this item' });
+            }
+            return res.status(200).json({ message: 'Removed all waitlist entries for this item' });
         }
 
-        const { value, error } = joinWaitlistSchema.validate(req.body);
-        if (error) return res.status(400).json({ message: error.message });
+        if (!WAITLIST_ID_PATTERN.test(id)) {
+            return res.status(400).json({ message: 'Invalid waitlist id' });
+        }
 
-        const result = await Waitlist.deleteOne(
-            {
-                item: itemId,
-                startDate: value.startDate,
-                endDate: value.endDate,
-                username: req.user.id
-            }
-        );
+        const result = await Waitlist.deleteOne({ _id: id, username: req.user.id });
 
         if (!result.deletedCount) {
             return res.status(404).json({ message: 'You are not on this waitlist' });

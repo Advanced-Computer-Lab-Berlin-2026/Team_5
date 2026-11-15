@@ -11,7 +11,7 @@ vi.mock('../models/Item.js', () => ({
 }));
 
 vi.mock('../models/Waitlist.js', () => ({
-    Waitlist: { create: vi.fn(), deleteOne: vi.fn(), find: vi.fn() }
+    Waitlist: { create: vi.fn(), deleteOne: vi.fn(), deleteMany: vi.fn(), find: vi.fn() }
 }));
 
 vi.mock('../models/Reservation.js', () => ({
@@ -44,8 +44,7 @@ function rejectAuth() {
 
 const join = (id = itemId, data = body) =>
     request(app).post(`/api/waitlist/${id}`).set('Origin', TRUSTED_ORIGIN).send(data);
-const leave = (id = itemId, data = body) =>
-    request(app).delete(`/api/waitlist/${id}`).set('Origin', TRUSTED_ORIGIN).send(data);
+const leave = id => request(app).delete(`/api/waitlist/${id}`).set('Origin', TRUSTED_ORIGIN);
 const listWaitlist = () =>
     request(app).get('/api/waitlist').set('Origin', TRUSTED_ORIGIN);
 
@@ -56,6 +55,7 @@ beforeEach(() => {
     Reservation.findOverlap.mockResolvedValue({ _id: 'RES-12345678' });
     Waitlist.create.mockResolvedValue({ _id: 'WTL-12345678' });
     Waitlist.deleteOne.mockResolvedValue({ deletedCount: 1 });
+    Waitlist.deleteMany.mockResolvedValue({ deletedCount: 2 });
     Waitlist.find.mockReturnValue({
         populate: vi.fn().mockResolvedValue([])
     });
@@ -185,72 +185,75 @@ describe('DELETE /api/waitlist/:itemId', () => {
         authenticateAs('user123', role);
         Waitlist.deleteOne.mockResolvedValue({ deletedCount: 1 });
 
-        const response = await leave();
+        const response = await leave('WTL-12345678');
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual({ message: 'Left the waitlist' });
         expect(Waitlist.deleteOne).toHaveBeenCalledExactlyOnceWith(
-            {
-                item: itemId,
-                startDate: new Date(startDate),
-                endDate: new Date(endDate),
-                username: 'user123'
-            }
+            { _id: 'WTL-12345678', username: 'user123' }
         );
+    });
+
+    it('deletes all waitlist entries when given an item id', async () => {
+        const response = await leave(itemId);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ message: 'Removed all waitlist entries for this item' });
+        expect(Waitlist.deleteMany).toHaveBeenCalledExactlyOnceWith({ item: itemId });
+        expect(Waitlist.deleteOne).not.toHaveBeenCalled();
     });
 
     it('returns 401 when the request is not authenticated', async () => {
         rejectAuth();
 
-        const response = await leave();
+        const response = await leave('WTL-12345678');
 
         expect(response.status).toBe(401);
         expect(Waitlist.deleteOne).not.toHaveBeenCalled();
+        expect(Waitlist.deleteMany).not.toHaveBeenCalled();
     });
 
     it('returns 403 for a role outside member, admin, and lender', async () => {
         authenticateAs('user123', 'guest');
 
-        const response = await leave();
+        const response = await leave('WTL-12345678');
 
         expect(response.status).toBe(403);
         expect(Waitlist.deleteOne).not.toHaveBeenCalled();
+        expect(Waitlist.deleteMany).not.toHaveBeenCalled();
     });
 
     it('returns 400 for an invalid item id', async () => {
         const response = await leave('invalid-id');
 
         expect(response.status).toBe(400);
-        expect(response.body.message).toBe('Invalid item id');
+        expect(response.body.message).toBe('Invalid waitlist id');
         expect(Waitlist.deleteOne).not.toHaveBeenCalled();
-    });
-
-    it.each([
-        [{ endDate }, 'startDate'],
-        [{ startDate, endDate: 'invalid-date' }, 'endDate'],
-        [{ startDate, endDate: startDate }, 'endDate'],
-        [{ startDate: endDate, endDate: startDate }, 'endDate']
-    ])('returns 400 when the requested dates are invalid', async (data, field) => {
-        const response = await leave(itemId, data);
-
-        expect(response.status).toBe(400);
-        expect(response.body.message).toContain(field);
-        expect(Waitlist.deleteOne).not.toHaveBeenCalled();
+        expect(Waitlist.deleteMany).not.toHaveBeenCalled();
     });
 
     it('returns 404 when the user is not on the waitlist', async () => {
         Waitlist.deleteOne.mockResolvedValue({ deletedCount: 0 });
 
-        const response = await leave();
+        const response = await leave('WTL-12345678');
 
         expect(response.status).toBe(404);
         expect(response.body.message).toBe('You are not on this waitlist');
     });
 
+    it('returns 404 when an item has no waitlist entries', async () => {
+        Waitlist.deleteMany.mockResolvedValue({ deletedCount: 0 });
+
+        const response = await leave(itemId);
+
+        expect(response.status).toBe(404);
+        expect(response.body.message).toBe('No waitlist entries found for this item');
+    });
+
     it('forwards waitlist update errors to the error handler', async () => {
         Waitlist.deleteOne.mockRejectedValue(new Error('Database unavailable'));
 
-        const response = await leave();
+        const response = await leave('WTL-12345678');
 
         expect(response.status).toBe(500);
     });
