@@ -14,6 +14,7 @@ import noticeRoutes from './routes/notices.js';
 import profileRoutes from './routes/profile.js';
 import householdRoutes from './routes/household.js';
 import alternativesRoutes from './routes/alternatives.js';
+import reservationRoutes from './routes/reservations.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
@@ -42,6 +43,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/lender/items', lenderItems)
 app.use('/api/items', itemRoutes)
 app.use('/api/alternatives', alternativesRoutes)
+app.use('/api/reservations', reservationRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/wallet', walletRoutes)
