@@ -61,7 +61,7 @@ export async function createItem(req, res, next){
                 depositAmount: value.depositAmount, 
                 conditionNotes: value.conditionNotes, 
                 pickup: { location: value.pickupLocation, instructions: value.pickupInstructions },
-                delivery: value.delivery ?? { offered: false},
+                ...(value.delivery && { delivery: value.delivery }),
                 borrowingRules: value.borrowingRules,
                 owner: req.user.id
             })
