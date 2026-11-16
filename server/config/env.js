@@ -63,6 +63,13 @@ if(!CLOUDINARY_API_SECRET){
   process.exit(1);
 }
 
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+
+if (!STRIPE_SECRET_KEY || !STRIPE_SECRET_KEY.startsWith("sk_test_")) {
+  console.error("Error: Valid STRIPE_SECRET_KEY is not defined in the .env file.");
+  process.exit(1);
+}
+
 export const env = {
   backendPort: PORT,
   jwtSecret: JWT_SECRET,
@@ -71,5 +78,7 @@ export const env = {
   nodeEnv: NODE_ENV,
   cloudinaryCloudName: CLOUDINARY_CLOUD_NAME,
   cloudinaryApiKey: CLOUDINARY_API_KEY,
-  cloudinaryApiSecret: CLOUDINARY_API_SECRET
+  cloudinaryApiSecret: CLOUDINARY_API_SECRET,
+  stripeSecretKey: STRIPE_SECRET_KEY,
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET
 };

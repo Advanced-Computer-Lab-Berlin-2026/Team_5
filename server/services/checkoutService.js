@@ -78,7 +78,7 @@ export async function acquireCheckoutLock(itemId, session) {
         throw new CheckoutError(
             409,
             'ITEM_UNAVAILABLE',
-            `Item with ID ${itemId} is unavailable for checkout.`
+            `Item with ID ${itemId} is no longer available.`
         );
     }
 
@@ -249,7 +249,7 @@ function formatCheckoutResult(checkout, replayed = false) {
     };
 }
 
-export async function checkoutWithWallet(userId, idempotencyKey,promoCode = null) {
+export async function checkoutWithWallet(userId, idempotencyKey) {
 
     // 1. Validate the idempotency key
     if (

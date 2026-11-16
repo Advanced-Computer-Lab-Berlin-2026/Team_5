@@ -54,7 +54,6 @@ import {
   checkoutWithWallet,
   lockAndCheckAvailability,
   prepareCheckout,
-  removeConflictingBorrowListEntries,
   validateBorrowList,
 } from '../services/checkoutService.js';
 

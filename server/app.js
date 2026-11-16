@@ -19,12 +19,15 @@ import reservationRoutes from './routes/reservations.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
+import stripeRouter from './routes/stripe.js';
+import { handleStripeWebhook } from './controllers/stripeWebhookController.js';
 
 const app = express();
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 app.use(cookieParser());
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }),handleStripeWebhook);
 // Covers current and future API routers before they can process a mutation.
 app.use('/api', csrfProtection);
 app.use(express.json());
@@ -52,6 +55,7 @@ app.use('/api/wallet', walletRoutes)
 app.use('/api/notices', noticeRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
+app.use('/api/stripe', stripeRouter);
 
 
 // Keep These at the end for fallback errors
