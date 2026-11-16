@@ -174,6 +174,26 @@ describe('notifyReservationConfirmed', () => {
 
         expect(console.error).toHaveBeenCalledWith('failed to send the confirmation for undefined', expect.any(TypeError));
     });
+
+    // self-lend would otherwise get two in-app rows for the same username
+    it('sends one confirmation when borrower and lender are the same', async () => {
+        await notifyReservationConfirmed({ ...reservation, borrower: 'yara', lender: 'yara' });
+
+        expect(Notification.create).toHaveBeenCalledTimes(1);
+        expect(Notification.create).toHaveBeenCalledWith(
+            confirmed('yara', 'Your reservation for "Drill" from 20 Nov 2026 to 23 Nov 2026 is confirmed')
+        );
+    });
+
+    // teammates sometimes pass a populated item — still resolve the name from _id
+    it('uses a populated item._id when looking up the name', async () => {
+        await notifyReservationConfirmed({ ...reservation, item: { _id: 'ITEM-1', name: 'ignored' } });
+
+        expect(Item.findById).toHaveBeenCalledWith('ITEM-1', { name: 1 }, { lean: true });
+        expect(Notification.create).toHaveBeenCalledWith(
+            confirmed('yara', 'Your reservation for "Drill" from 20 Nov 2026 to 23 Nov 2026 is confirmed')
+        );
+    });
 });
 
 describe('cancel and reject notifications', () => {
@@ -353,16 +373,24 @@ describe('notifyWishlistItemAvailable', () => {
         expect(console.error).not.toHaveBeenCalled();
     });
 
-    // findById(undefined) is findOne({}) in mongoose, so a missing or object id would pick a random item
+    // findById(undefined) is findOne({}) in mongoose, so a missing or non-id object must not look up
     it.each([
         ['undefined', undefined],
-        ['an object', { $ne: 'x' }]
+        ['a non-id object', { $ne: 'x' }]
     ])('does nothing when the id is %s', async (label, itemId) => {
         await notifyWishlistItemAvailable(itemId);
 
         expect(Item.findById).not.toHaveBeenCalled();
         expect(User.find).not.toHaveBeenCalled();
         expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    // reject/cancel/unarchive callers may pass reservation.item still populated
+    it('accepts a populated { _id } the same as a string id', async () => {
+        await notifyWishlistItemAvailable({ _id: 'ITM-1a2b3c4d', name: 'Drill' });
+
+        expect(Item.findById).toHaveBeenCalledWith('ITM-1a2b3c4d', { name: 1, owner: 1, archived: 1, flagged: 1 }, { lean: true });
+        expect(Notification.create).toHaveBeenCalledWith(alert('yara'));
     });
 
     // yara's save goes first, so mockRejectedValueOnce fails hers and daniel's still has to go out
@@ -498,6 +526,16 @@ describe('notifyUpcomingReturn', () => {
             expect.any(Error)
         ));
         expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({ username: 'martin' }));
+    });
+
+    // job always projects endDate; still guard so a bad row doesn't throw into the morning loop
+    it('skips when endDate is missing', async () => {
+        await notifyUpcomingReturn({ ...reservation, endDate: undefined });
+
+        expect(console.error).toHaveBeenCalledWith(
+            'return reminder skipped for RES-1a2b3c4d, endDate is missing'
+        );
+        expect(Notification.create).not.toHaveBeenCalled();
     });
 
     it('logs when item lookup fails and creates nothing', async () => {

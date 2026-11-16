@@ -7,9 +7,8 @@ const BERLIN = 'Europe/Berlin';
 
 // SCRUM-469: in-process runner; vitest sets NODE_ENV=test so we never leave a live timer hanging
 export function shouldStartJobs({ nodeEnv = env.nodeEnv, enableJobs = process.env.ENABLE_JOBS } = {}) {
-    if (nodeEnv === 'test') return false;
-    if (enableJobs === 'false') return false;
-    return true;
+    // vitest sets NODE_ENV=test; ENABLE_JOBS=false turns the cron off in real deploys
+    return nodeEnv !== 'test' && enableJobs !== 'false';
 }
 
 export function startScheduler({
@@ -19,11 +18,17 @@ export function startScheduler({
 } = {}) {
     if (!shouldStartJobs()) return null;
 
-    return schedule(
-        expression,
-        () => {
-            runJob().catch((error) => console.error('return reminder job failed', error));
-        },
-        { timezone: BERLIN }
-    );
+    // bad RETURN_REMINDER_CRON would throw here — don't take down the api after listen
+    try {
+        return schedule(
+            expression,
+            () => {
+                runJob().catch((error) => console.error('return reminder job failed', error));
+            },
+            { timezone: BERLIN }
+        );
+    } catch (error) {
+        console.error('return reminder scheduler failed to start', error);
+        return null;
+    }
 }

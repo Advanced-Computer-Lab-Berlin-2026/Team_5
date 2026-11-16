@@ -43,8 +43,7 @@ export async function listNotifications(req, res, next) {
 // PATCH /api/notifications/:id/read
 export async function markNotificationRead(req, res, next) {
     try {
-        // I filter by username too, so someone else's notification is a 404 just like one that doesn't exist
-        // a 403 would tell them the id is real
+        // username in the filter so someone else's id is a 404 (403 would confirm it exists)
         const notification = await Notification.findOneAndUpdate(
             { _id: req.params.id, username: req.user.id },
             { $set: { read: true } },

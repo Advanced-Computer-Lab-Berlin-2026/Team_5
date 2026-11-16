@@ -3,6 +3,7 @@ import { Reservation } from '../models/Reservation.js';
 
 const RESERVATION_ID_PATTERN = /^RES-[0-9a-f]{8}$/;
 const CHAT_STATUSES = ['upcoming', 'active'];
+const CHAT_UNAVAILABLE = 'Chat is only available for upcoming or active reservations';
 
 const listMessagesSchema = joi.object({
     after: joi.date().iso()
@@ -20,13 +21,17 @@ function participantFilter(reservationId, userId) {
     };
 }
 
+function invalidReservationId(reservationId, res) {
+    if (RESERVATION_ID_PATTERN.test(reservationId)) return false;
+    res.status(400).json({ message: 'Invalid reservation id' });
+    return true;
+}
+
 // GET /api/reservations/:reservationId/messages
 export async function listReservationMessages(req, res, next) {
     try {
         const { reservationId } = req.params;
-        if (!RESERVATION_ID_PATTERN.test(reservationId)) {
-            return res.status(400).json({ message: 'Invalid reservation id' });
-        }
+        if (invalidReservationId(reservationId, res)) return;
 
         const { value, error } = listMessagesSchema.validate(req.query);
         if (error) return res.status(400).json({ message: error.message });
@@ -39,7 +44,7 @@ export async function listReservationMessages(req, res, next) {
         if (!reservation) return res.status(404).json({ message: 'Reservation not found' });
         // story is only upcoming / active chat; pending and finished bookings stay quiet
         if (!CHAT_STATUSES.includes(reservation.status)) {
-            return res.status(403).json({ message: 'Chat is only available for upcoming or active reservations' });
+            return res.status(403).json({ message: CHAT_UNAVAILABLE });
         }
 
         let messages = reservation.messages ?? [];
@@ -57,9 +62,7 @@ export async function listReservationMessages(req, res, next) {
 export async function sendReservationMessage(req, res, next) {
     try {
         const { reservationId } = req.params;
-        if (!RESERVATION_ID_PATTERN.test(reservationId)) {
-            return res.status(400).json({ message: 'Invalid reservation id' });
-        }
+        if (invalidReservationId(reservationId, res)) return;
 
         const { value, error } = sendMessageSchema.validate(req.body);
         if (error) return res.status(400).json({ message: error.message });
@@ -78,7 +81,7 @@ export async function sendReservationMessage(req, res, next) {
                 { lean: true }
             );
             if (!existing) return res.status(404).json({ message: 'Reservation not found' });
-            return res.status(403).json({ message: 'Chat is only available for upcoming or active reservations' });
+            return res.status(403).json({ message: CHAT_UNAVAILABLE });
         }
 
         const message = reservation.messages.at(-1);

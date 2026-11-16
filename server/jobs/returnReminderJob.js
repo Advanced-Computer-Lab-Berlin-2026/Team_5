@@ -39,7 +39,7 @@ export async function runReturnReminderJob(now = new Date()) {
     );
 
     for (const reservation of reservations) {
-        // one bad notify shouldn't skip the rest of tomorrow's loans
+        // helper usually swallows errors; keep the catch so a future throw can't abort the whole morning
         try {
             await notifyUpcomingReturn(reservation);
         } catch (error) {

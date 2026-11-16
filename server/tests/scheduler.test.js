@@ -83,4 +83,17 @@ describe('startScheduler', () => {
         await tick();
         expect(console.error).toHaveBeenCalledWith('return reminder job failed', expect.any(Error));
     });
+
+    // locks in: bad cron must not crash the api boot path
+    it('returns null and logs when schedule throws', () => {
+        const schedule = vi.fn(() => {
+            throw new Error('invalid cron');
+        });
+
+        expect(startScheduler({ schedule })).toBeNull();
+        expect(console.error).toHaveBeenCalledWith(
+            'return reminder scheduler failed to start',
+            expect.any(Error)
+        );
+    });
 });

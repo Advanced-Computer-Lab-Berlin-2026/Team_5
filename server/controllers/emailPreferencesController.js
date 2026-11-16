@@ -22,7 +22,7 @@ export async function getEmailPreferences(req, res, next) {
     }
 }
 
-// PATCH /api/settings/email-preferences — only the fields they send get flipped
+// PATCH /api/settings/email-preferences — only the fields they send get updated
 export async function updateEmailPreferences(req, res, next) {
     const { value, error } = preferenceSchema.validate(req.body ?? {}, { stripUnknown: true });
     if (error) return res.status(400).json({ message: error.message });
@@ -31,9 +31,7 @@ export async function updateEmailPreferences(req, res, next) {
         const updates = {};
         if (value.reservations !== undefined) updates['emailPreferences.reservations'] = value.reservations;
         if (value.promotions !== undefined) updates['emailPreferences.promotions'] = value.promotions;
-        if (value.communityNotices !== undefined) {
-            updates['emailPreferences.communityNotices'] = value.communityNotices;
-        }
+        if (value.communityNotices !== undefined) updates['emailPreferences.communityNotices'] = value.communityNotices;
 
         const user = await User.findByIdAndUpdate(
             req.user.id,

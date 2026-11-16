@@ -1,9 +1,9 @@
 import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
 
-// Replace these with your email provider's SMTP host and your sender address.
 const SMTP_HOST = 'smtp.gmail.com';
 const SMTP_PORT = 587;
+// reset still uses this hardcoded sender + SMTP_PASS — Martin should move it to NOTIFY_SMTP_* (desktop todo)
 const SENDER_EMAIL = 'martin@awadlouis.com';
 
 export async function sendResetEmail(email, otp) {
