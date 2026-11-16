@@ -107,6 +107,48 @@ export async function notifyReservationRejected(reservation) {
     }
 }
 
+// SCRUM-373 / 470: daily job calls this for each active loan due berlin tomorrow
+// berlin "by" date here is the same calendar day the job matched with $dateToString
+export async function notifyUpcomingReturn(reservation) {
+    try {
+        const { _id, borrower, lender, endDate } = reservation;
+        const { name } = await itemAndDates(reservation, 'return reminder');
+        const due = endDate.toLocaleDateString('en-GB', DATE_FORMAT);
+        const details = { type: 'upcoming-return-date', subject: 'Return reminder', reservation: _id };
+        // same username twice would race two findOnes and double-create, so self-lend gets one reminder
+        if (borrower === lender) {
+            await notifyReturnIfNew(borrower, {
+                ...details,
+                message: `Please return ${name ?? 'the item'} by ${due}`
+            });
+            return;
+        }
+        await Promise.all([
+            notifyReturnIfNew(borrower, {
+                ...details,
+                message: `Please return ${name ?? 'the item'} by ${due}`
+            }),
+            notifyReturnIfNew(lender, {
+                ...details,
+                message: `${borrower} should return your ${name ?? 'item'} by ${due}`
+            })
+        ]);
+    } catch (error) {
+        console.error(`failed to send the return reminder for ${reservation?._id}`, error);
+    }
+}
+
+// findOne then create — fine for a single cron; overlapping replicas can still race without a unique index
+async function notifyReturnIfNew(username, details) {
+    const already = await Notification.findOne(
+        { username, type: 'upcoming-return-date', reservation: details.reservation },
+        { _id: 1 },
+        { lean: true }
+    );
+    if (already) return;
+    return notifyOrLog(username, 'return reminder', details);
+}
+
 // nothing calls this yet: unarchive (237), unflag (394), cancel (351), reject (352), return (357/358)
 // caller rule: pass just the item id string, once, after the commit, only when your update changed something
 export async function notifyWishlistItemAvailable(itemId) {

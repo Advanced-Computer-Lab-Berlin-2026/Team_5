@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-    notify, notifyWishlistItemAvailable, notifyReservationCancelled, notifyReservationConfirmed, notifyReservationRejected
+    notify, notifyWishlistItemAvailable, notifyReservationCancelled, notifyReservationConfirmed, notifyReservationRejected,
+    notifyUpcomingReturn
 } from '../services/notificationService.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { env } from '../config/env.js';
@@ -11,7 +12,7 @@ import { Item } from '../models/Item.js';
 // env is the mock's own object, so each test can switch the gmail on and off
 vi.mock('../config/env.js', () => ({ env: {} }));
 vi.mock('../services/emailService.js', () => ({ sendNotificationEmail: vi.fn() }));
-vi.mock('../models/Notification.js', () => ({ Notification: { create: vi.fn() } }));
+vi.mock('../models/Notification.js', () => ({ Notification: { create: vi.fn(), findOne: vi.fn() } }));
 vi.mock('../models/User.js', () => ({ User: { findById: vi.fn(), find: vi.fn() } }));
 vi.mock('../models/Item.js', () => ({ Item: { findById: vi.fn() } }));
 
@@ -23,6 +24,7 @@ beforeEach(() => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     Object.assign(env, { notifySmtpUser: 'shirshad.app@gmail.com', notifySmtpPass: 'app-password' });
     Notification.create.mockResolvedValue(saved);
+    Notification.findOne.mockResolvedValue(null);
     User.findById.mockResolvedValue({ profile: { email: 'yara@example.com' } });
     sendNotificationEmail.mockResolvedValue({});
 });
@@ -390,5 +392,136 @@ describe('notifyWishlistItemAvailable', () => {
             expect(new RealNotification(doc).validateSync()).toBeUndefined();
         }
         expect(Notification.create).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('notifyUpcomingReturn', () => {
+    // end is 23:30 utc → already 23 Nov in berlin, so the "by" date must show the 23rd
+    const reservation = {
+        _id: 'RES-1a2b3c4d', item: 'ITEM-1', borrower: 'yara', lender: 'martin',
+        startDate: new Date('2026-11-20T10:00:00Z'), endDate: new Date('2026-11-22T23:30:00Z')
+    };
+    const borrowerMsg = 'Please return "Drill" by 23 Nov 2026';
+    const lenderMsg = 'yara should return your "Drill" by 23 Nov 2026';
+
+    beforeEach(() => {
+        Item.findById.mockResolvedValue({ _id: 'ITEM-1', name: 'Drill' });
+        Notification.create.mockImplementation(async (doc) => ({ _id: 'NOT-1a2b3c4d', ...doc }));
+        User.findById.mockImplementation(async (username) => ({ profile: { email: `${username}@example.com` } }));
+    });
+
+    it('reminds borrower and lender in-app and by email', async () => {
+        await notifyUpcomingReturn(reservation);
+
+        expect(Notification.create).toHaveBeenCalledWith({
+            username: 'yara', type: 'upcoming-return-date', message: borrowerMsg, reservation: 'RES-1a2b3c4d'
+        });
+        expect(Notification.create).toHaveBeenCalledWith({
+            username: 'martin', type: 'upcoming-return-date', message: lenderMsg, reservation: 'RES-1a2b3c4d'
+        });
+        await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledTimes(2));
+        expect(sendNotificationEmail).toHaveBeenCalledWith('yara@example.com', 'Return reminder', borrowerMsg);
+        expect(sendNotificationEmail).toHaveBeenCalledWith('martin@example.com', 'Return reminder', lenderMsg);
+    });
+
+    // cron can fire twice the same morning; skip anyone who already got this reservation's reminder
+    it('skips the borrower when they already have this return reminder', async () => {
+        Notification.findOne.mockImplementation(async ({ username }) => (
+            username === 'yara' ? { _id: 'NOT-OLD' } : null
+        ));
+
+        await notifyUpcomingReturn(reservation);
+
+        expect(Notification.create).toHaveBeenCalledTimes(1);
+        expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({ username: 'martin' }));
+    });
+
+    it('skips the lender when they were reminded first', async () => {
+        Notification.findOne.mockImplementation(async ({ username }) => (
+            username === 'martin' ? { _id: 'NOT-OLD' } : null
+        ));
+
+        await notifyUpcomingReturn(reservation);
+
+        expect(Notification.create).toHaveBeenCalledTimes(1);
+        expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({ username: 'yara' }));
+    });
+
+    it('skips both when each already has a reminder', async () => {
+        Notification.findOne.mockResolvedValue({ _id: 'NOT-OLD' });
+
+        await notifyUpcomingReturn(reservation);
+
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    // self-lend: one findOne race would otherwise insert twice for the same username
+    it('sends a single reminder when borrower and lender are the same user', async () => {
+        await notifyUpcomingReturn({ ...reservation, borrower: 'yara', lender: 'yara' });
+
+        expect(Notification.create).toHaveBeenCalledTimes(1);
+        expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({
+            username: 'yara',
+            message: borrowerMsg
+        }));
+    });
+
+    it('falls back when the item is gone', async () => {
+        Item.findById.mockResolvedValue(null);
+
+        await notifyUpcomingReturn(reservation);
+
+        expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('sending the return reminder without its name'));
+        expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({
+            username: 'yara',
+            message: 'Please return the item by 23 Nov 2026'
+        }));
+        expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({
+            username: 'martin',
+            message: 'yara should return your item by 23 Nov 2026'
+        }));
+    });
+
+    it('still notifies the other side when one save fails', async () => {
+        Notification.create.mockImplementation(async (doc) => {
+            if (doc.username === 'yara') throw new Error('db down');
+            return { _id: 'NOT-2', ...doc };
+        });
+
+        await expect(notifyUpcomingReturn(reservation)).resolves.toBeUndefined();
+        await vi.waitFor(() => expect(console.error).toHaveBeenCalledWith(
+            expect.stringContaining('failed to save the return reminder for RES-1a2b3c4d to yara'),
+            expect.any(Error)
+        ));
+        expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({ username: 'martin' }));
+    });
+
+    it('logs when item lookup fails and creates nothing', async () => {
+        Item.findById.mockRejectedValue(new Error('db down'));
+
+        await expect(notifyUpcomingReturn(reservation)).resolves.toBeUndefined();
+        expect(console.error).toHaveBeenCalledWith(
+            'failed to send the return reminder for RES-1a2b3c4d',
+            expect.any(Error)
+        );
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    it('saves notifications the real schema accepts', async () => {
+        const { Notification: RealNotification } = await vi.importActual('../models/Notification.js');
+
+        await notifyUpcomingReturn(reservation);
+
+        for (const [doc] of Notification.create.mock.calls) {
+            expect(new RealNotification(doc).validateSync()).toBeUndefined();
+        }
+    });
+
+    it('logs and does not throw when the reservation is missing', async () => {
+        await expect(notifyUpcomingReturn(undefined)).resolves.toBeUndefined();
+        expect(console.error).toHaveBeenCalledWith(
+            'failed to send the return reminder for undefined',
+            expect.any(TypeError)
+        );
     });
 });
