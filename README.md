@@ -144,6 +144,10 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `GET /api/admin/lender-requests/:username` | None; admin only | Returns the applicant's username, profile and verification with documents. |
 | `GET /api/admin/lender-requests/:username/documents/:slot` | None; admin only; optional `?download=true` | Redirects to a signed Cloudinary link to view or download the document. |
 | `PATCH /api/admin/lender-requests/:username/decision` | `decision` (`accept` or `reject`); `reason` required when rejecting | Accept sets the role to `lender` and status `accepted`; reject sets status `rejected` and saves the reason in `verification.note`. |
+| `GET /api/items?startDate=&endDate=` | None; public; both dates together, `endDate` after `startDate`; works with `category`, `search`, `page`, `limit` | Leaves out items with a pending, upcoming or active reservation that overlaps the dates. |
+| `POST /api/borrow-list/:itemId` | `startDate`, `endDate` (not in the past); member or lender | Adds the item to the borrow list if it is free for those dates. `409` if already in the list or booked; `403` for your own item. |
+| `GET /api/borrow-list` | None; member or lender | Returns the borrow list with each item's name, category, photos, deposit, pickup location and dates. |
+
 
 The password recovery URL is spelled `forget-password`, matching the current
 router. Reset codes expire after 10 minutes and allow at most five verification
