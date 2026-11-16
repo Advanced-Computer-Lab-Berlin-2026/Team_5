@@ -136,6 +136,20 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `POST /api/auth/forget-password` | `email` | Sends a six-digit code if the account exists; returns the same success message for unknown accounts. |
 | `POST /api/auth/verify-reset-otp` | `email`, `otp` as a six-digit string | Exchanges the code for a reset token returned in JSON. |
 | `POST /api/auth/reset-password` | `resetToken`, `newPassword` | Changes the password, revokes all of the user's refresh sessions, and clears this browser's auth cookies. |
+| `POST /api/reports` | Member only; `targetType` (`item` or `user`), `targetId`, `reason` | Creates an open report for an item listing or user. |
+| `GET /api/admin/reports?status=open` | Admin only; optional `status` (`open`, `flagged`, `removed`, `dismissed`, or `all`) | Lists reports with reporter and target details; defaults to open reports. |
+| `PATCH /api/admin/reports/:id/decision` | Admin only; `action` (`flag`, `remove`, or `dismiss`) | Flags or removes the reported target, or dismisses the report. Flagging a user suspends them; removing a user deletes their account. |
+| `POST /api/admin/promo-codes` | Admin only; `code`, `discountPercent`; optional `expiresAt`, `maxUses`, `minimumDeposit` | Creates an active promotional discount code. |
+| `GET /api/admin/promo-codes` | Admin only | Lists all codes with redemption counts and derived statuses (`active`, `inactive`, `expired`, `usage-limit-reached`). |
+| `GET /api/admin/promo-codes/usage` | Admin only; optional `code`, `from`, `to` | Reports recorded redemptions with user, reservation, transaction details, and per-code totals. |
+| `POST /api/promo-codes/validate` | Member only; `code`, `itemId` | Validates an active, unexpired promo code and returns a discounted deposit quote without recording usage. |
+| `POST /api/support-tickets` | Member only; `subject`, `message` | Creates an in-progress support ticket with the member's initial message. |
+| `GET /api/support-tickets` | Member only | Lists the signed-in member's tickets, statuses, and message history. |
+| `GET /api/admin/support-tickets` | Admin only; optional `status` (`in-progress`, `resolved`, or `all`) | Lists tickets with member details; defaults to all statuses. |
+| `POST /api/admin/support-tickets/:id/respond` | Admin only; `message`, optional `resolve` boolean | Adds an admin reply and optionally resolves the ticket in the same request. Resolved tickets cannot receive further replies. |
+| `GET /api/lender/reservations` | None; verified lender only | Lists the lender's pending requests with item and borrower details. |
+| `PATCH /api/lender/reservations/:id/approve` | None; verified lender only | Changes a pending request to `upcoming` and notifies the borrower. |
+| `PATCH /api/lender/reservations/:id/reject` | None; verified lender only | Changes a pending request to `rejected`, freeing its dates, and credits the deposit to the borrower's wallet. |
 | `GET /api/lender-requests` | None; login required | Returns the member's `verification`: status and uploaded documents. |
 | `POST /api/lender-requests/documents/:slot` | Form data with a `file` field (PDF, JPEG, JPG or PNG, max 5 MB); `:slot` is `id` or `addressProof` | Uploads or replaces the document while the request is not submitted (or after a rejection). Lenders and admins get `403`. |
 | `DELETE /api/lender-requests/documents/:slot` | None | Removes the document while the request is not submitted. |

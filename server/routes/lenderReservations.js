@@ -1,10 +1,21 @@
 import { Router } from 'express';
-import { markPickedUp, markReturnedGood, addConditionPhotos, reportDamage } from '../controllers/lenderReservationController.js';
+import {
+	listIncomingReservations,
+	approveReservation,
+	rejectReservation,
+	markPickedUp,
+	markReturnedGood,
+	addConditionPhotos,
+	reportDamage,
+} from '../controllers/lenderReservationController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { uploadItemPhotos, handleItemPhotoUploadErrors } from '../middleware/uploadItemPhotos.js';
 
 const router = Router();
 
+router.get('/', requireAuth, requireRole('lender'), listIncomingReservations);
+router.patch('/:id/approve', requireAuth, requireRole('lender'), approveReservation);
+router.patch('/:id/reject', requireAuth, requireRole('lender'), rejectReservation);
 router.patch('/:id/pickup', requireAuth, requireRole('lender'), markPickedUp);
 router.patch('/:id/return', requireAuth, requireRole('lender'), markReturnedGood);
 router.post('/:id/photos/:stage', requireAuth, requireRole('lender'), uploadItemPhotos, addConditionPhotos, handleItemPhotoUploadErrors);

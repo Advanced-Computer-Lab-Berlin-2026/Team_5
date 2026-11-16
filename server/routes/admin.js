@@ -11,6 +11,9 @@ import {
 } from '../controllers/adminController.js';
 
 import { createNotice } from '../controllers/noticeController.js';
+import { listReports, reviewReport } from '../controllers/reportController.js';
+import { createPromoCode, listPromoCodes, getPromoCodeUsage } from '../controllers/promoCodeController.js';
+import { listAdminSupportTickets, respondToSupportTicket } from '../controllers/supportTicketController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 const authenticate = requireAuth;
 const requireAdmin = requireRole('admin');
@@ -23,6 +26,13 @@ router.get('/items', authenticate, requireAdmin, listItems);
 router.delete('/users/:id', authenticate, requireAdmin, removeUser);
 router.post('/users/admins', authenticate, requireAdmin, createAdmin);
 router.patch('/categories/:id/deposit-multiplier', authenticate, requireAdmin, updateCategoryDepositMultiplier);
+router.get('/reports', authenticate, requireAdmin, listReports);
+router.patch('/reports/:id/decision', authenticate, requireAdmin, reviewReport);
+router.post('/promo-codes', authenticate, requireAdmin, createPromoCode);
+router.get('/promo-codes', authenticate, requireAdmin, listPromoCodes);
+router.get('/promo-codes/usage', authenticate, requireAdmin, getPromoCodeUsage);
+router.get('/support-tickets', authenticate, requireAdmin, listAdminSupportTickets);
+router.post('/support-tickets/:id/respond', authenticate, requireAdmin, respondToSupportTicket);
 router.post('/notices', authenticate, requireAdmin, createNotice);
 
 export default router;
