@@ -12,8 +12,8 @@ export async function listNotifications(req, res, next) {
         const { value, error } = listNotificationsSchema.validate(req.query);
         if (error) return res.status(400).json({ message: error.message });
 
-        // no unread filter yet, so ?unread= is a 400 and the username + read index can't do the sort
-        // mongo sorts in memory, fine for a few hundred per user. add a username + createdAt index if it gets slow
+        // no unread filter yet, joi rejects unknown params so ?unread= is a 400
+        // the username + read index can't do this sort, add { username: 1, createdAt: -1, _id: 1 } if it gets slow
         const filter = { username: req.user.id };
         const [notifications, total] = await Promise.all([
             Notification.find(filter, { __v: 0 }, {

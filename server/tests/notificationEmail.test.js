@@ -15,9 +15,9 @@ beforeEach(() => {
 });
 
 describe('sendNotificationEmail', () => {
-    // the notify gmail, never the reset sender, and timeouts short enough for the one minute target
-    // this runs first, the connection is made once per test file so later tests reuse it
-    it('sends from the notify gmail with one pooled connection and short timeouts', async () => {
+    // the notify gmail, never the reset sender, and timeouts so a stuck gmail gives up instead of hanging
+    // this runs first, the transporter is made once per test file so later tests reuse it
+    it('sends from the notify gmail through one reused pool with short timeouts', async () => {
         await sendNotificationEmail('yara@example.com', 'Reservation confirmed', 'Confirmed');
         await sendNotificationEmail('martin@example.com', 'Reservation confirmed', 'Confirmed');
 

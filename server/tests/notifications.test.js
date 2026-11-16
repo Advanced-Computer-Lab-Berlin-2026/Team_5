@@ -57,6 +57,14 @@ describe('GET /api/notifications', () => {
 
         expect(res.status).toBe(401);
     });
+
+    it('passes a database error on as a 500', async () => {
+        Notification.find.mockRejectedValue(new Error('db down'));
+
+        const res = await request(app).get('/api/notifications');
+
+        expect(res.status).toBe(500);
+    });
 });
 
 describe('PATCH /api/notifications/:id/read', () => {
@@ -79,5 +87,23 @@ describe('PATCH /api/notifications/:id/read', () => {
 
         expect(res.status).toBe(404);
         expect(res.body).toEqual({ message: 'Notification not found' });
+        expect(Notification.findOneAndUpdate.mock.calls[0][0]).toEqual({ _id: 'NOT-99999999', username: 'yara' });
+    });
+
+    it('needs a login', async () => {
+        requireAuth.mockImplementation((req, res) => res.status(401).json({ message: 'Authentication required' }));
+
+        const res = await request(app).patch('/api/notifications/NOT-1a2b3c4d/read').set('Origin', TRUSTED_ORIGIN);
+
+        expect(res.status).toBe(401);
+        expect(Notification.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('passes a database error on as a 500', async () => {
+        Notification.findOneAndUpdate.mockRejectedValue(new Error('db down'));
+
+        const res = await request(app).patch('/api/notifications/NOT-1a2b3c4d/read').set('Origin', TRUSTED_ORIGIN);
+
+        expect(res.status).toBe(500);
     });
 });

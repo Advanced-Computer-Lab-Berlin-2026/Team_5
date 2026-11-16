@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { notify, notifyReservationConfirmed } from '../services/notificationService.js';
+import { notify, notifyReservationCancelled, notifyReservationConfirmed, notifyReservationRejected } from '../services/notificationService.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { env } from '../config/env.js';
 import { Notification } from '../models/Notification.js';
@@ -114,15 +114,6 @@ describe('notifyReservationConfirmed', () => {
         expect(sendNotificationEmail).toHaveBeenCalledWith('martin@example.com', 'Reservation confirmed', lenderMessage);
     });
 
-    // a hand built reservation might have string dates instead of Date objects
-    it('works with string dates', async () => {
-        await notifyReservationConfirmed({ ...reservation, startDate: '2026-11-20T10:00:00Z', endDate: '2026-11-22T23:30:00Z' });
-
-        expect(Notification.create).toHaveBeenCalledWith(
-            confirmed('yara', 'Your reservation for "Drill" from 20 Nov 2026 to 23 Nov 2026 is confirmed')
-        );
-    });
-
     it('still tells both without the item name when the item is gone', async () => {
         Item.findById.mockResolvedValue(null);
 
@@ -130,7 +121,7 @@ describe('notifyReservationConfirmed', () => {
 
         expect(console.warn).toHaveBeenCalledWith('item ITEM-1 not found for RES-1a2b3c4d, sending the confirmation without its name');
         expect(Notification.create).toHaveBeenCalledWith(
-            confirmed('yara', 'Your reservation for their item from 20 Nov 2026 to 23 Nov 2026 is confirmed')
+            confirmed('yara', 'Your reservation for the item from 20 Nov 2026 to 23 Nov 2026 is confirmed')
         );
         expect(Notification.create).toHaveBeenCalledWith(
             confirmed('martin', 'yara\'s reservation for your item from 20 Nov 2026 to 23 Nov 2026 is confirmed')
@@ -138,17 +129,14 @@ describe('notifyReservationConfirmed', () => {
         await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledTimes(2));
     });
 
-    // a database hiccup on the item lookup shouldn't stop a real booking from being announced
-    it('treats a failed item lookup like a missing item', async () => {
+    // if the item lookup fails the saves would fail too, so nobody is notified and it's logged once, not thrown
+    it('logs and notifies nobody when the item lookup fails', async () => {
         Item.findById.mockRejectedValue(new Error('db down'));
 
         await expect(notifyReservationConfirmed(reservation)).resolves.toBeUndefined();
 
-        expect(console.error).toHaveBeenCalledWith('failed to look up item ITEM-1 for RES-1a2b3c4d', expect.any(Error));
-        expect(Notification.create).toHaveBeenCalledWith(
-            confirmed('yara', 'Your reservation for their item from 20 Nov 2026 to 23 Nov 2026 is confirmed')
-        );
-        expect(Notification.create).toHaveBeenCalledTimes(2);
+        expect(console.error).toHaveBeenCalledWith('failed to send the confirmation for RES-1a2b3c4d', expect.any(Error));
+        expect(Notification.create).not.toHaveBeenCalled();
     });
 
     // the lender still gets theirs when the member's save fails, and nothing reaches the caller
@@ -168,4 +156,123 @@ describe('notifyReservationConfirmed', () => {
 
         expect(console.error).toHaveBeenCalledWith('failed to send the confirmation for undefined', expect.any(TypeError));
     });
+});
+
+describe('cancel and reject notifications', () => {
+    // the end is 23:30 utc, which is already the 23rd in berlin
+    const reservation = {
+        _id: 'RES-1a2b3c4d', item: 'ITEM-1', borrower: 'yara', lender: 'martin',
+        startDate: new Date('2026-11-20T10:00:00Z'), endDate: new Date('2026-11-22T23:30:00Z')
+    };
+    const expectedNotification = (username, type, message) => ({ username, type, message, reservation: 'RES-1a2b3c4d' });
+
+    // create echoes what it saved and each user has their own email, so each email can be checked against its message
+    beforeEach(() => {
+        Item.findById.mockResolvedValue({ name: 'Drill' });
+        Notification.create.mockImplementation(async (doc) => ({ _id: 'NOT-1a2b3c4d', ...doc }));
+        User.findById.mockImplementation(async (username) => ({ profile: { email: `${username}@example.com` } }));
+    });
+
+    describe('notifyReservationCancelled', () => {
+        it('tells the member and the lender, in-app and by email', async () => {
+            const borrowerMessage = 'You cancelled your reservation for "Drill" from 20 Nov 2026 to 23 Nov 2026';
+            const lenderMessage = 'yara cancelled their reservation for your "Drill" from 20 Nov 2026 to 23 Nov 2026';
+
+            await notifyReservationCancelled(reservation);
+
+            // other, because the shared notification model has no cancelled type
+            expect(Notification.create).toHaveBeenCalledWith(expectedNotification('yara', 'other', borrowerMessage));
+            expect(Notification.create).toHaveBeenCalledWith(expectedNotification('martin', 'other', lenderMessage));
+            await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledTimes(2));
+            expect(sendNotificationEmail).toHaveBeenCalledWith('yara@example.com', 'Reservation cancelled', borrowerMessage);
+            expect(sendNotificationEmail).toHaveBeenCalledWith('martin@example.com', 'Reservation cancelled', lenderMessage);
+        });
+
+        it('still tells both, by email too, without the item name when the item is gone', async () => {
+            Item.findById.mockResolvedValue(null);
+
+            await notifyReservationCancelled(reservation);
+
+            expect(console.warn).toHaveBeenCalledWith('item ITEM-1 not found for RES-1a2b3c4d, sending the cancellation without its name');
+            expect(Notification.create).toHaveBeenCalledWith(
+                expectedNotification('yara', 'other', 'You cancelled your reservation for the item from 20 Nov 2026 to 23 Nov 2026')
+            );
+            expect(Notification.create).toHaveBeenCalledWith(
+                expectedNotification('martin', 'other', 'yara cancelled their reservation for your item from 20 Nov 2026 to 23 Nov 2026')
+            );
+            await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledTimes(2));
+        });
+
+        // the borrower's save goes first, so mockRejectedValueOnce fails theirs and the lender's still has to go out
+        it('logs a failed save and still notifies the other side', async () => {
+            Notification.create.mockRejectedValueOnce(new Error('db down'));
+
+            await expect(notifyReservationCancelled(reservation)).resolves.toBeUndefined();
+
+            expect(console.error).toHaveBeenCalledWith('failed to save the cancellation for RES-1a2b3c4d to yara', expect.any(Error));
+            expect(Notification.create).toHaveBeenLastCalledWith(
+                expectedNotification('martin', 'other', 'yara cancelled their reservation for your "Drill" from 20 Nov 2026 to 23 Nov 2026')
+            );
+        });
+
+        it('logs instead of throwing when it gets no reservation', async () => {
+            await expect(notifyReservationCancelled(undefined)).resolves.toBeUndefined();
+
+            expect(console.error).toHaveBeenCalledWith('failed to send the cancellation for undefined', expect.any(TypeError));
+        });
+    });
+
+    describe('notifyReservationRejected', () => {
+        it('tells the member and the lender, in-app and by email', async () => {
+            const borrowerMessage = 'martin rejected your reservation request for "Drill" from 20 Nov 2026 to 23 Nov 2026';
+            const lenderMessage = 'You rejected yara\'s reservation request for your "Drill" from 20 Nov 2026 to 23 Nov 2026';
+
+            await notifyReservationRejected(reservation);
+
+            expect(Notification.create).toHaveBeenCalledWith(expectedNotification('yara', 'rejected', borrowerMessage));
+            expect(Notification.create).toHaveBeenCalledWith(expectedNotification('martin', 'rejected', lenderMessage));
+            await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledTimes(2));
+            expect(sendNotificationEmail).toHaveBeenCalledWith('yara@example.com', 'Reservation request rejected', borrowerMessage);
+            expect(sendNotificationEmail).toHaveBeenCalledWith('martin@example.com', 'Reservation request rejected', lenderMessage);
+        });
+
+        it('still tells both without the item name when the item is gone', async () => {
+            Item.findById.mockResolvedValue(null);
+
+            await notifyReservationRejected(reservation);
+
+            expect(console.warn).toHaveBeenCalledWith('item ITEM-1 not found for RES-1a2b3c4d, sending the rejection without its name');
+            expect(Notification.create).toHaveBeenCalledWith(
+                expectedNotification('yara', 'rejected', 'martin rejected your reservation request for their item from 20 Nov 2026 to 23 Nov 2026')
+            );
+            expect(Notification.create).toHaveBeenCalledWith(
+                expectedNotification('martin', 'rejected', 'You rejected yara\'s reservation request for your item from 20 Nov 2026 to 23 Nov 2026')
+            );
+        });
+
+        it('logs instead of throwing when it gets no reservation', async () => {
+            await expect(notifyReservationRejected(undefined)).resolves.toBeUndefined();
+
+            expect(console.error).toHaveBeenCalledWith('failed to send the rejection for undefined', expect.any(TypeError));
+        });
+    });
+
+    // create is mocked everywhere else, so a type that isn't in the real enum would only show up as a logged failed save
+    it.each([
+        ['notifyReservationConfirmed', notifyReservationConfirmed],
+        ['notifyReservationCancelled', notifyReservationCancelled],
+        ['notifyReservationRejected', notifyReservationRejected]
+    ])(
+        '%s saves notifications the real schema accepts',
+        async (name, notifyReservation) => {
+            const { Notification: RealNotification } = await vi.importActual('../models/Notification.js');
+
+            await notifyReservation(reservation);
+
+            expect(Notification.create).toHaveBeenCalledTimes(2);
+            for (const [doc] of Notification.create.mock.calls) {
+                expect(new RealNotification(doc).validateSync()).toBeUndefined();
+            }
+        }
+    );
 });

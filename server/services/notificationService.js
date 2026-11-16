@@ -2,7 +2,8 @@ import { Item, Notification, User } from '../models/index.js';
 import { sendNotificationEmail } from './emailService.js';
 import { env } from '../config/env.js';
 
-// nothing reaches this from a route yet. approve gets it through notifyReservationConfirmed (SCRUM-352), cancel / reject in SCRUM-355
+// no route reaches this yet, only the notifyReservation* helpers below call it
+// those get called from the approve / reject in SCRUM-352 and the cancel in SCRUM-351
 // callers run this after their transaction commits, so nobody gets emailed about a change that got rolled back
 // not inside withTransaction, that callback can retry and send the same email twice
 // callers should catch and log errors from it, or a failed save turns an already committed booking into a 500
@@ -36,32 +37,68 @@ async function emailUser(notification, subject) {
 // berlin time, a utc server would show the wrong day for bookings around midnight
 const DATE_FORMAT = { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Berlin' };
 
-// nothing calls this yet, it goes right after the approve transaction commits in SCRUM-352 (pending -> upcoming)
-// I log errors instead of throwing, so a failed notification can't turn a booking that already went through into a 500
-// pass the reservation without populate on borrower, a populated user prints whole (password hash, email) into the lender's message
-// call it once, only when the status: 'pending' update actually changed the reservation, or a double confirm sends everything twice
+// name comes back quoted ("Drill"), or null when the item is gone
+// callers fall back to "the item" / "their item" / "item" then
+async function itemAndDates({ _id, item: itemId, startDate, endDate }, label) {
+    // admin user removal deletes items but keeps reservations, so the item can really be gone
+    const item = await Item.findById(itemId, { name: 1 }, { lean: true });
+    if (!item) console.warn(`item ${itemId} not found for ${_id}, sending the ${label} without its name`);
+    const format = (date) => date.toLocaleDateString('en-GB', DATE_FORMAT);
+    return { name: item && `"${item.name}"`, dates: `from ${format(startDate)} to ${format(endDate)}` };
+}
+
+// Promise.all rejects on the first failure and only reports that one, so each side catches and logs its own
+function notifyOrLog(username, label, details) {
+    return notify(username, details)
+        .catch((error) => console.error(`failed to save the ${label} for ${details.reservation} to ${username}`, error));
+}
+
+// caller rule for all three: pass the doc your status-guarded findOneAndUpdate returned, unpopulated,
+// only when it isn't null, and after withTransaction finishes. it logs instead of throwing so it can't 500
+
+// nothing calls this yet, it goes right after the approve commits in SCRUM-352 (pending -> upcoming)
 export async function notifyReservationConfirmed(reservation) {
     try {
-        const { _id, item: itemId, borrower, lender, startDate, endDate } = reservation;
-        // a failed lookup counts as a deleted item, the booking is still real so both sides hear about it anyway
-        const item = await Item.findById(itemId, { name: 1 }, { lean: true }).catch((error) => {
-            console.error(`failed to look up item ${itemId} for ${_id}`, error);
-            return null;
-        });
-        if (!item) console.warn(`item ${itemId} not found for ${_id}, sending the confirmation without its name`);
-        const name = item && `"${item.name}"`;
-        // new Date so a plain object with string dates works too
-        const format = (date) => new Date(date).toLocaleDateString('en-GB', DATE_FORMAT);
-        const dates = `from ${format(startDate)} to ${format(endDate)}`;
-
-        const send = (username, message) =>
-            notify(username, { type: 'accepted', subject: 'Reservation confirmed', message, reservation: _id })
-                .catch((error) => console.error(`failed to save the confirmation for ${_id} to ${username}`, error));
+        const { _id, borrower, lender } = reservation;
+        const { name, dates } = await itemAndDates(reservation, 'confirmation');
+        const details = { type: 'accepted', subject: 'Reservation confirmed', reservation: _id };
         await Promise.all([
-            send(borrower, `Your reservation for ${name ?? 'their item'} ${dates} is confirmed`),
-            send(lender, `${borrower}'s reservation for your ${name ?? 'item'} ${dates} is confirmed`)
+            notifyOrLog(borrower, 'confirmation', { ...details, message: `Your reservation for ${name ?? 'the item'} ${dates} is confirmed` }),
+            notifyOrLog(lender, 'confirmation', { ...details, message: `${borrower}'s reservation for your ${name ?? 'item'} ${dates} is confirmed` })
         ]);
     } catch (error) {
         console.error(`failed to send the confirmation for ${reservation?._id}`, error);
+    }
+}
+
+// nothing calls this yet, it goes after the borrower's cancel commits in SCRUM-351 (pending or upcoming -> cancelled)
+// SCRUM-351 only lets the borrower cancel, so the wording assumes it was them
+export async function notifyReservationCancelled(reservation) {
+    try {
+        const { _id, borrower, lender } = reservation;
+        const { name, dates } = await itemAndDates(reservation, 'cancellation');
+        // the notification model has no cancelled type, so I send it as other instead of touching the shared enum
+        const details = { type: 'other', subject: 'Reservation cancelled', reservation: _id };
+        await Promise.all([
+            notifyOrLog(borrower, 'cancellation', { ...details, message: `You cancelled your reservation for ${name ?? 'the item'} ${dates}` }),
+            notifyOrLog(lender, 'cancellation', { ...details, message: `${borrower} cancelled their reservation for your ${name ?? 'item'} ${dates}` })
+        ]);
+    } catch (error) {
+        console.error(`failed to send the cancellation for ${reservation?._id}`, error);
+    }
+}
+
+// nothing calls this yet, it goes after the lender's reject commits in SCRUM-352 (pending -> rejected)
+export async function notifyReservationRejected(reservation) {
+    try {
+        const { _id, borrower, lender } = reservation;
+        const { name, dates } = await itemAndDates(reservation, 'rejection');
+        const details = { type: 'rejected', subject: 'Reservation request rejected', reservation: _id };
+        await Promise.all([
+            notifyOrLog(borrower, 'rejection', { ...details, message: `${lender} rejected your reservation request for ${name ?? 'their item'} ${dates}` }),
+            notifyOrLog(lender, 'rejection', { ...details, message: `You rejected ${borrower}'s reservation request for your ${name ?? 'item'} ${dates}` })
+        ]);
+    } catch (error) {
+        console.error(`failed to send the rejection for ${reservation?._id}`, error);
     }
 }

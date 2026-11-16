@@ -28,7 +28,7 @@ export async function sendResetEmail(email, otp) {
 let notifyTransporter;
 
 // notify emails go out from the app's own gmail, not the reset sender above
-// I make one pooled connection and reuse it, a new gmail login per email gets rate limited when lots go out at once
+// I make one pool (up to 2 connections) and reuse it, a new gmail login per email gets rate limited
 function getNotifyTransporter() {
     notifyTransporter ??= nodemailer.createTransport({
         host: SMTP_HOST,
