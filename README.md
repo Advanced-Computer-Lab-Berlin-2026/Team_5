@@ -136,6 +136,9 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `POST /api/auth/forget-password` | `email` | Sends a six-digit code if the account exists; returns the same success message for unknown accounts. |
 | `POST /api/auth/verify-reset-otp` | `email`, `otp` as a six-digit string | Exchanges the code for a reset token returned in JSON. |
 | `POST /api/auth/reset-password` | `resetToken`, `newPassword` | Changes the password, revokes all of the user's refresh sessions, and clears this browser's auth cookies. |
+| `GET /api/items?startDate=&endDate=` | None; public; both dates together, `endDate` after `startDate`; works with `category`, `search`, `page`, `limit` | Leaves out items with a pending, upcoming or active reservation that overlaps the dates. |
+| `POST /api/borrow-list/:itemId` | `startDate`, `endDate` (not in the past); member or lender | Adds the item to the borrow list if it is free for those dates. `409` if already in the list or booked; `403` for your own item. |
+| `GET /api/borrow-list` | None; member or lender | Returns the borrow list with each item's name, category, photos, deposit, pickup location and dates. |
 | `GET /api/lender-requests` | None; login required | Returns the member's `verification`: status and uploaded documents. |
 | `POST /api/lender-requests/documents/:slot` | Form data with a `file` field (PDF, JPEG, JPG or PNG, max 5 MB); `:slot` is `id` or `addressProof` | Uploads or replaces the document while the request is not submitted (or after a rejection). Lenders and admins get `403`. |
 | `DELETE /api/lender-requests/documents/:slot` | None | Removes the document while the request is not submitted. |

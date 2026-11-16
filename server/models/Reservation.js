@@ -80,6 +80,8 @@ const reservationSchema = new mongoose.Schema(
 reservationSchema.index({ item: 1, startDate: 1, endDate: 1 });
 reservationSchema.index({ borrower: 1, status: 1 });
 reservationSchema.index({ lender: 1, status: 1 });
+reservationSchema.index({ status: 1, startDate: 1, endDate: 1, item: 1 });
+
 
 export const BLOCKING_STATUSES = ["pending", "upcoming", "active"];
 
