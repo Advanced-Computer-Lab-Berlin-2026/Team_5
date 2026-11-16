@@ -6,7 +6,7 @@ const supportTicketSchema = new mongoose.Schema(
     _id: { type: String, default: () => `TKT-${crypto.randomBytes(4).toString("hex")}` },
     user: { type: String, ref: "User", required: true },
     subject: { type: String, required: true, trim: true },
-    status: { type: String, enum: ["in-progress", "resolved"]},
+    status: { type: String, enum: ["in-progress", "resolved"], default: "in-progress" },
     messages: [
       {
         sender: { type: String, ref: "User", required: true },

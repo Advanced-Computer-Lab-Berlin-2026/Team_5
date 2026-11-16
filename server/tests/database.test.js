@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Reservation, BLOCKING_STATUSES, Category, MembershipTier, PromoCode, PromoCodeUsage, User } from '../models/index.js';
+import { Reservation, BLOCKING_STATUSES, Category, MembershipTier, PromoCode, PromoCodeUsage, SupportTicket, User } from '../models/index.js';
 
 // These tests check the schemas directly, so no database connection is needed.
 // Only models with custom logic (validators, hooks, statics) are tested here.
@@ -222,6 +222,18 @@ describe('PromoCodeUsage model', () => {
             finalDeposit: 90,
         });
         expect(await validationErrors(doc)).toEqual({});
+    });
+});
+
+describe('SupportTicket model', () => {
+    it('defaults new support tickets to in-progress', async () => {
+        const doc = new SupportTicket({
+            user: 'alice',
+            subject: 'Need help',
+            messages: [{ sender: 'alice', userType: 'member', text: 'Please help.' }],
+        });
+        expect(await validationErrors(doc)).toEqual({});
+        expect(doc.status).toBe('in-progress');
     });
 });
 

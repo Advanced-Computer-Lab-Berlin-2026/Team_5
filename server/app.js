@@ -18,6 +18,7 @@ import alternativesRoutes from './routes/alternatives.js';
 import reservationRoutes from './routes/reservations.js';
 import reportRoutes from './routes/reports.js';
 import promoCodeRoutes from './routes/promoCodes.js';
+import supportTicketRoutes from './routes/supportTickets.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
@@ -50,6 +51,7 @@ app.use('/api/alternatives', alternativesRoutes)
 app.use('/api/reservations', reservationRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/promo-codes', promoCodeRoutes)
+app.use('/api/support-tickets', supportTicketRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/wallet', walletRoutes)
