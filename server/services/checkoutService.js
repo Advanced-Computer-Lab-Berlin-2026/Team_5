@@ -249,7 +249,7 @@ function formatCheckoutResult(checkout, replayed = false) {
     };
 }
 
-export async function checkoutWithWallet(userId, idempotencyKey) {
+export async function checkoutWithWallet(userId, idempotencyKey,promoCode = null) {
 
     // 1. Validate the idempotency key
     if (

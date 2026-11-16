@@ -22,6 +22,17 @@ export async function payWalletCheckout(req, res, next) {
     try {
         const userId = req.user.id;
         const idempotencyKey = req.get('Idempotency-Key');
+        const promoCode = req.body?.promoCode;
+
+        if (
+            promoCode !== undefined &&
+            (typeof promoCode !== 'string' || !promoCode.trim())
+        ) {
+            return res.status(400).json({
+                error: 'INVALID_PROMO_CODE',
+                message: 'Promo code must be a non-empty string.'
+            });
+        }
 
         if (
             typeof idempotencyKey !== 'string' ||
@@ -36,7 +47,8 @@ export async function payWalletCheckout(req, res, next) {
 
         const result = await checkoutWithWallet(
             userId,
-            idempotencyKey.trim()
+            idempotencyKey.trim(),
+            promoCode?.trim().toUpperCase() ?? null
         );
 
         return res.status(result.replayed ? 200 : 201).json(result);
