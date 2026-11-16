@@ -63,6 +63,11 @@ if(!CLOUDINARY_API_SECRET){
   process.exit(1);
 }
 
+// optional on purpose, unlike SMTP_PASS above. without the notify gmail, notify still saves the in-app notification
+// and just logs that the email was skipped
+const NOTIFY_SMTP_USER = process.env.NOTIFY_SMTP_USER;
+const NOTIFY_SMTP_PASS = process.env.NOTIFY_SMTP_PASS;
+
 export const env = {
   backendPort: PORT,
   jwtSecret: JWT_SECRET,
@@ -71,5 +76,7 @@ export const env = {
   nodeEnv: NODE_ENV,
   cloudinaryCloudName: CLOUDINARY_CLOUD_NAME,
   cloudinaryApiKey: CLOUDINARY_API_KEY,
-  cloudinaryApiSecret: CLOUDINARY_API_SECRET
+  cloudinaryApiSecret: CLOUDINARY_API_SECRET,
+  notifySmtpUser: NOTIFY_SMTP_USER,
+  notifySmtpPass: NOTIFY_SMTP_PASS
 };
