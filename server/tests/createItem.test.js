@@ -106,6 +106,34 @@ describe('POST /api/lender/items', () => {
 
     });
 
+    it('should let the item model default delivery when omitted', async () => {
+        Category.findById.mockResolvedValue(mockCategory);
+        Item.create.mockResolvedValue({ ...validBody, _id: 'itemId' });
+
+        const response = await request(app).post('/api/lender/items').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`).send(validBody);
+
+        expect(response.status).toBe(201);
+        expect(Item.create.mock.calls[0][0]).not.toHaveProperty('delivery');
+    });
+
+    it('should store delivery details when provided', async () => {
+        Category.findById.mockResolvedValue(mockCategory);
+        Item.create.mockResolvedValue({ ...validBody, _id: 'itemId' });
+        const body = {
+            ...validBody,
+            delivery: { fee: 30, details: 'Delivered within the city, same day.' }
+        };
+
+        const response = await request(app).post('/api/lender/items').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`).send(body);
+
+        expect(response.status).toBe(201);
+        expect(Item.create.mock.calls[0][0].delivery).toEqual({
+            offered: true,
+            fee: 30,
+            details: 'Delivered within the city, same day.'
+        });
+    });
+
     it('should return 400 for an invalid borrowing rule', async () => {
         const body = { ...validBody, borrowingRules: { minTrustScore: 150} };
         const response = await request(app).post('/api/lender/items').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`).send(body);
