@@ -136,6 +136,9 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `POST /api/auth/forget-password` | `email` | Sends a six-digit code if the account exists; returns the same success message for unknown accounts. |
 | `POST /api/auth/verify-reset-otp` | `email`, `otp` as a six-digit string | Exchanges the code for a reset token returned in JSON. |
 | `POST /api/auth/reset-password` | `resetToken`, `newPassword` | Changes the password, revokes all of the user's refresh sessions, and clears this browser's auth cookies. |
+| `GET /api/lender/reservations` | None; verified lender only | Lists the lender's pending requests with item and borrower details. |
+| `PATCH /api/lender/reservations/:id/approve` | None; verified lender only | Changes a pending request to `upcoming` and notifies the borrower. |
+| `PATCH /api/lender/reservations/:id/reject` | None; verified lender only | Changes a pending request to `rejected`, freeing its dates, and credits the deposit to the borrower's wallet. |
 | `GET /api/lender-requests` | None; login required | Returns the member's `verification`: status and uploaded documents. |
 | `POST /api/lender-requests/documents/:slot` | Form data with a `file` field (PDF, JPEG, JPG or PNG, max 5 MB); `:slot` is `id` or `addressProof` | Uploads or replaces the document while the request is not submitted (or after a rejection). Lenders and admins get `403`. |
 | `DELETE /api/lender-requests/documents/:slot` | None | Removes the document while the request is not submitted. |
