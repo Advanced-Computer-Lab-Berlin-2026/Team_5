@@ -136,6 +136,9 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `POST /api/auth/forget-password` | `email` | Sends a six-digit code if the account exists; returns the same success message for unknown accounts. |
 | `POST /api/auth/verify-reset-otp` | `email`, `otp` as a six-digit string | Exchanges the code for a reset token returned in JSON. |
 | `POST /api/auth/reset-password` | `resetToken`, `newPassword` | Changes the password, revokes all of the user's refresh sessions, and clears this browser's auth cookies. |
+| `POST /api/reports` | Member only; `targetType` (`item` or `user`), `targetId`, `reason` | Creates an open report for an item listing or user. |
+| `GET /api/admin/reports?status=open` | Admin only; optional `status` (`open`, `flagged`, `removed`, `dismissed`, or `all`) | Lists reports with reporter and target details; defaults to open reports. |
+| `PATCH /api/admin/reports/:id/decision` | Admin only; `action` (`flag`, `remove`, or `dismiss`) | Flags or removes the reported target, or dismisses the report. Flagging a user suspends them; removing a user deletes their account. |
 | `GET /api/lender/reservations` | None; verified lender only | Lists the lender's pending requests with item and borrower details. |
 | `PATCH /api/lender/reservations/:id/approve` | None; verified lender only | Changes a pending request to `upcoming` and notifies the borrower. |
 | `PATCH /api/lender/reservations/:id/reject` | None; verified lender only | Changes a pending request to `rejected`, freeing its dates, and credits the deposit to the borrower's wallet. |
