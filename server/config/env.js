@@ -33,12 +33,6 @@ if(!MONGODB_URI){
   process.exit(1);
 }
 
-const SMTP_PASS = process.env.SMTP_PASS;
-if(!SMTP_PASS){
-  console.error("Error: SMTP_PASS is not defined in the .env file.");
-  process.exit(1);
-}
-
 const NODE_ENV = process.env.NODE_ENV;
 if(!NODE_ENV){
   console.error("Error: NODE_ENV is not defined in the .env file.");
@@ -63,8 +57,8 @@ if(!CLOUDINARY_API_SECRET){
   process.exit(1);
 }
 
-// optional on purpose, unlike SMTP_PASS above. without the notify gmail, notify still saves the in-app notification
-// and just logs that the email was skipped
+// reset + notification mail share these. without them, notify still saves in-app and skips SMTP;
+// forgot-password throws when it tries to send
 const NOTIFY_SMTP_USER = process.env.NOTIFY_SMTP_USER;
 const NOTIFY_SMTP_PASS = process.env.NOTIFY_SMTP_PASS;
 
@@ -72,7 +66,6 @@ export const env = {
   backendPort: PORT,
   jwtSecret: JWT_SECRET,
   mongoDB: MONGODB_URI,
-  smtpPass: SMTP_PASS,
   nodeEnv: NODE_ENV,
   cloudinaryCloudName: CLOUDINARY_CLOUD_NAME,
   cloudinaryApiKey: CLOUDINARY_API_KEY,

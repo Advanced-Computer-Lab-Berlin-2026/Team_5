@@ -3,32 +3,10 @@ import { env } from '../config/env.js';
 
 const SMTP_HOST = 'smtp.gmail.com';
 const SMTP_PORT = 587;
-// reset still uses this hardcoded sender + SMTP_PASS — Martin should move it to NOTIFY_SMTP_* (desktop todo)
-const SENDER_EMAIL = 'martin@awadlouis.com';
-
-export async function sendResetEmail(email, otp) {
-    const transporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port: SMTP_PORT,
-        secure: SMTP_PORT === 465,
-        auth: {
-            user: SENDER_EMAIL,
-            pass: env.smtpPass
-        }
-    });
-
-    await transporter.sendMail({
-        from: { name: 'ACL Support', address: SENDER_EMAIL },
-        to: email,
-        subject: 'Your password reset code',
-        text: `Your reset code is ${otp}. It expires in 10 minutes. If you did not request this, ignore this email.`
-    });
-}
 
 let notifyTransporter;
 
-// notify emails go out from the app's own gmail, not the reset sender above
-// I make one pool (up to 2 connections) and reuse it, a new gmail login per email gets rate limited
+// one pool for reset + notification mail — both use NOTIFY_SMTP_* (no hardcoded sender / SMTP_PASS)
 function getNotifyTransporter() {
     notifyTransporter ??= nodemailer.createTransport({
         host: SMTP_HOST,
@@ -47,6 +25,22 @@ function getNotifyTransporter() {
         }
     });
     return notifyTransporter;
+}
+
+function requireNotifySmtp() {
+    if (!env.notifySmtpUser || !env.notifySmtpPass) {
+        throw new Error("NOTIFY_SMTP_USER / NOTIFY_SMTP_PASS aren't set");
+    }
+}
+
+export async function sendResetEmail(email, otp) {
+    requireNotifySmtp();
+    await getNotifyTransporter().sendMail({
+        from: { name: 'ACL Support', address: env.notifySmtpUser },
+        to: email,
+        subject: 'Your password reset code',
+        text: `Your reset code is ${otp}. It expires in 10 minutes. If you did not request this, ignore this email.`
+    });
 }
 
 export async function sendNotificationEmail(to, subject, text) {

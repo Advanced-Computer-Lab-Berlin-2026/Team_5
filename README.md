@@ -28,13 +28,14 @@ Keep secrets in `.env` and out of Git. Update `.env.sample` with placeholders wh
 | `BACKEND_PORT` | HTTP listening port, for example `3000`. |
 | `JWT_SECRET` | Strong random secret used to sign and verify access JWTs. Keep it private and consistent across instances. |
 | `MONGODB_URI` | MongoDB connection URI. |
-| `SMTP_PASS` | Credentials for the sender configured in `server/services/emailService.js`. |
 | `NODE_ENV` | Use `local` locally and `production` for deployment over HTTPS. Only the exact value `production` enables Secure auth cookies. |
 | `CLOUDINARY_CLOUD_NAME` | Cloud name from the Cloudinary dashboard, used to store lender documents. |
 | `CLOUDINARY_API_KEY` | Cloudinary API key. |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret. Keep it private. |
+| `NOTIFY_SMTP_USER` | App Gmail address for password-reset and notification mail (optional for boot; required to actually send mail). |
+| `NOTIFY_SMTP_PASS` | App Gmail app password for the same. |
 
-All eight values must be nonempty. Configuration is captured at module load;
+Required boot values must be nonempty. Configuration is captured at module load;
 restart the server after changing it.
 
 In the Cloudinary dashboard, enable **Settings → Security → Allow delivery of

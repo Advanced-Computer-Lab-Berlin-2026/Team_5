@@ -4,7 +4,7 @@ import { sendNotificationEmail } from '../services/emailService.js';
 
 vi.mock('nodemailer', () => ({ default: { createTransport: vi.fn() } }));
 vi.mock('../config/env.js', () => ({
-    env: { smtpPass: 'reset-password', notifySmtpUser: 'shirshad.app@gmail.com', notifySmtpPass: 'notify-password' }
+    env: { notifySmtpUser: 'shirshad.app@gmail.com', notifySmtpPass: 'notify-password' }
 }));
 
 const sendMail = vi.fn();
