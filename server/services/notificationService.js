@@ -2,8 +2,8 @@ import { Item, Notification, User } from '../models/index.js';
 import { sendNotificationEmail } from './emailService.js';
 import { env } from '../config/env.js';
 
-// no route reaches this yet, only the notifyReservation* helpers below call it
-// those get called from the approve / reject in SCRUM-352 and the cancel in SCRUM-351
+// no route reaches this yet, only the notifyReservation* and notifyWishlistItemAvailable helpers below call it
+// see each helper for which ticket calls it
 // callers run this after their transaction commits, so nobody gets emailed about a change that got rolled back
 // not inside withTransaction, that callback can retry and send the same email twice
 // callers should catch and log errors from it, or a failed save turns an already committed booking into a 500
@@ -41,16 +41,20 @@ const DATE_FORMAT = { day: 'numeric', month: 'short', year: 'numeric', timeZone:
 // callers fall back to "the item" / "their item" / "item" then
 async function itemAndDates({ _id, item: itemId, startDate, endDate }, label) {
     // admin user removal deletes items but keeps reservations, so the item can really be gone
-    const item = await Item.findById(itemId, { name: 1 }, { lean: true });
+    // findById(undefined) is findOne({}) in mongoose, so a missing id must not pick a random name
+    const item = typeof itemId === 'string'
+        ? await Item.findById(itemId, { name: 1 }, { lean: true })
+        : null;
     if (!item) console.warn(`item ${itemId} not found for ${_id}, sending the ${label} without its name`);
     const format = (date) => date.toLocaleDateString('en-GB', DATE_FORMAT);
     return { name: item && `"${item.name}"`, dates: `from ${format(startDate)} to ${format(endDate)}` };
 }
 
 // Promise.all rejects on the first failure and only reports that one, so each side catches and logs its own
-function notifyOrLog(username, label, details) {
+// about defaults to the reservation id; wishlist alerts pass the item id instead
+function notifyOrLog(username, label, details, about = details.reservation) {
     return notify(username, details)
-        .catch((error) => console.error(`failed to save the ${label} for ${details.reservation} to ${username}`, error));
+        .catch((error) => console.error(`failed to save the ${label} for ${about} to ${username}`, error));
 }
 
 // caller rule for all three: pass the doc your status-guarded findOneAndUpdate returned, unpopulated,
@@ -100,5 +104,28 @@ export async function notifyReservationRejected(reservation) {
         ]);
     } catch (error) {
         console.error(`failed to send the rejection for ${reservation?._id}`, error);
+    }
+}
+
+// nothing calls this yet: unarchive (237), unflag (394), cancel (351), reject (352), return (357/358)
+// caller rule: pass just the item id string, once, after the commit, only when your update changed something
+export async function notifyWishlistItemAvailable(itemId) {
+    try {
+        // mongoose turns findById(undefined) into findOne({}), which would pick a random item and alert everyone
+        if (typeof itemId !== 'string') return;
+        const item = await Item.findById(itemId, { name: 1, owner: 1, archived: 1, flagged: 1 }, { lean: true });
+        if (!item || item.archived || item.flagged) return;
+        // the owner can put their own item on their wishlist, they don't need telling it's back
+        const wishers = await User.find({ wishlist: item._id, _id: { $ne: item.owner } }, { _id: 1 }, { lean: true });
+        // it stays on their wishlist, so they hear every time it comes back. no cooldown on purpose
+        const details = {
+            // favourite-available is already on Yara's shared enum for wishlist; renaming it would break the model
+            type: 'favourite-available',
+            subject: 'An item on your wishlist is available',
+            message: `"${item.name}" on your wishlist is available to reserve again`
+        };
+        await Promise.all(wishers.map(({ _id }) => notifyOrLog(_id, 'wishlist alert', details, itemId)));
+    } catch (error) {
+        console.error(`failed to send the wishlist alerts for ${itemId}`, error);
     }
 }
