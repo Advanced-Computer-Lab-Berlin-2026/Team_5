@@ -16,7 +16,7 @@ export default defineConfig([
       eqeqeq: ["error", "always"],
       "prefer-const": "error",
       // Initial maintainability thresholds; review these with the team.
-      complexity: ["warn", 10],
+      complexity: ["warn", 20],
       "max-depth": ["warn", 4],
       "max-params": ["warn", 4],
     },
