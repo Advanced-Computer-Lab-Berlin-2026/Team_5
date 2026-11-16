@@ -45,6 +45,7 @@ export async function markPickedUp(req, res, next) {
         reservation.handover.pickedUpAt = new Date();
         await reservation.save();
 
+        // in-app only here — SCRUM-519 prefs run when this goes through notify() / emailUser
         await Notification.create({
             username: reservation.borrower,
             reservation: reservation._id,
@@ -90,6 +91,7 @@ export async function markReturnedGood(req, res, next) {
                 method: 'wallet',
                 description: `Deposit returned for reservation ${reservation._id}`,
             }], { session });
+            // in-app only — prefs gate SMTP on notify() / emailUser, not bare create
             await Notification.create([{
                 username: reservation.borrower,
                 reservation: reservation._id,
@@ -195,6 +197,7 @@ export async function reportDamage(req, res, next) {
                     message: value.message,
                 },
             }], { session });
+            // in-app only — prefs gate SMTP on notify() / emailUser, not bare create
             await Notification.create([{
                 username: reservation.borrower,
                 reservation: reservation._id,

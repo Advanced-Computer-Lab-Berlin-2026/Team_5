@@ -17,6 +17,7 @@ import householdRoutes from './routes/household.js';
 import alternativesRoutes from './routes/alternatives.js';
 import reservationRoutes from './routes/reservations.js';
 import notificationRoutes from './routes/notifications.js';
+import settingsRoutes from './routes/settings.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
@@ -54,6 +55,7 @@ app.use('/api/notices', noticeRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
 app.use('/api/notifications', notificationRoutes)
+app.use('/api/settings', settingsRoutes)
 
 
 // Keep These at the end for fallback errors

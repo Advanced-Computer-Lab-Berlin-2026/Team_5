@@ -1,6 +1,22 @@
 import { Item, Notification, User } from '../models/index.js';
 import { sendNotificationEmail } from './emailService.js';
 import { env } from '../config/env.js';
+import { normalizeEmailPreferences } from '../utils/emailPreferences.js';
+
+// SCRUM-519: which preference switch gates which Notification.type
+// promotions has no notification types yet — wire them here when they land
+const EMAIL_CATEGORY_BY_TYPE = {
+    delivery: 'reservations',
+    accepted: 'reservations',
+    rejected: 'reservations',
+    'upcoming-return-date': 'reservations',
+    'renewal-reminder': 'reservations',
+    'waitlist-available': 'reservations',
+    // wishlist mail uses the reservations switch on purpose (same bucket in settings UI)
+    'favourite-available': 'reservations',
+    other: 'reservations',
+    'community-notice': 'communityNotices'
+};
 
 // no route reaches this yet, only the notifyReservation* and notifyWishlistItemAvailable helpers below call it
 // see each helper for which ticket calls it
@@ -8,6 +24,7 @@ import { env } from '../config/env.js';
 // not inside withTransaction, that callback can retry and send the same email twice
 // callers should catch and log errors from it, or a failed save turns an already committed booking into a 500
 export async function notify(username, { type, message, subject, reservation }) {
+    // Notification.type defaults to "other" in the model when callers skip type — emailUser sees that saved value
     const notification = await Notification.create({ username, type, message, reservation });
 
     // I don't await the email so a slow gmail never slows the request, it still goes out right after
@@ -18,16 +35,41 @@ export async function notify(username, { type, message, subject, reservation }) 
     return notification;
 }
 
+// null means send; otherwise the bit after "email skipped for NOT-…, " in the warn line
+function prefsSkipReason(notification, emailPreferences) {
+    const category = EMAIL_CATEGORY_BY_TYPE[notification.type];
+    // new enum values with no map entry skip mail until someone adds them — I don't fail-open on opt-out
+    if (notification.type && category === undefined) {
+        return `type ${notification.type} isn't in EMAIL_CATEGORY_BY_TYPE yet`;
+    }
+    const prefs = normalizeEmailPreferences(emailPreferences);
+    if (category && prefs[category] === false) {
+        return `${notification.username} turned off ${category}`;
+    }
+    return null;
+}
+
 async function emailUser(notification, subject) {
     if (!env.notifySmtpUser || !env.notifySmtpPass) {
         console.warn(`email skipped for ${notification._id}, NOTIFY_SMTP_USER / NOTIFY_SMTP_PASS aren't set`);
         return;
     }
     // username is the User _id, so findById works here
-    const user = await User.findById(notification.username, { 'profile.email': 1 }, { lean: true });
+    const user = await User.findById(
+        notification.username,
+        { 'profile.email': 1, emailPreferences: 1 },
+        { lean: true }
+    );
     const email = user?.profile?.email;
     if (!email) {
         console.warn(`email skipped for ${notification._id}, ${notification.username} has no email on file`);
+        return;
+    }
+
+    // in-app row is already saved; only the gmail respects the category switch
+    const skipReason = prefsSkipReason(notification, user.emailPreferences);
+    if (skipReason) {
+        console.warn(`email skipped for ${notification._id}, ${skipReason}`);
         return;
     }
 

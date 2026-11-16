@@ -43,7 +43,11 @@ describe('notify', () => {
         await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledExactlyOnceWith(
             'yara@example.com', 'Reservation confirmed', saved.message
         ));
-        expect(User.findById).toHaveBeenCalledWith('yara', { 'profile.email': 1 }, { lean: true });
+        expect(User.findById).toHaveBeenCalledWith(
+            'yara',
+            { 'profile.email': 1, emailPreferences: 1 },
+            { lean: true }
+        );
     });
 
     // sendNotificationEmail never resolves here, notify still has to return
