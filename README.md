@@ -144,6 +144,10 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `GET /api/admin/lender-requests/:username` | None; admin only | Returns the applicant's username, profile and verification with documents. |
 | `GET /api/admin/lender-requests/:username/documents/:slot` | None; admin only; optional `?download=true` | Redirects to a signed Cloudinary link to view or download the document. |
 | `PATCH /api/admin/lender-requests/:username/decision` | `decision` (`accept` or `reject`); `reason` required when rejecting | Accept sets the role to `lender` and status `accepted`; reject sets status `rejected` and saves the reason in `verification.note`. |
+| `POST /api/waitlist/:itemId` | `startDate`, `endDate` | Joins the waitlist when a pending, upcoming, or active reservation overlaps the requested dates; authenticated members, admins, and lenders. |
+| `GET /api/waitlist` | None | Returns the signed-in user's waitlist entries with item details populated; authenticated members, admins, and lenders. |
+| `DELETE /api/waitlist/WTL-...` | None | Removes the signed-in user's waitlist entry; authenticated members, admins, and lenders. |
+| `DELETE /api/waitlist/:itemId` | None | Removes all waitlist entries for the item; authenticated members, admins, and lenders. |
 
 The password recovery URL is spelled `forget-password`, matching the current
 router. Reset codes expire after 10 minutes and allow at most five verification
