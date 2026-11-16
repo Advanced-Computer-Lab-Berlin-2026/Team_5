@@ -39,6 +39,7 @@ jobs:
           CLOUDINARY_CLOUD_NAME: 'test-only-cloud'
           CLOUDINARY_API_KEY: 'test-only-key'
           CLOUDINARY_API_SECRET: 'test-only-secret'
+          STRIPE_SECRET_KEY: 'stripe-test'
         run: |
           npm run test:coverage
     
