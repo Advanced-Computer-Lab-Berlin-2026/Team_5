@@ -148,6 +148,8 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `GET /api/waitlist` | None | Returns the signed-in user's waitlist entries with item details populated; authenticated members, admins, and lenders. |
 | `DELETE /api/waitlist/WTL-...` | None | Removes the signed-in user's waitlist entry; authenticated members, admins, and lenders. |
 | `DELETE /api/waitlist/:itemId` | None | Removes all waitlist entries for the item; authenticated members, admins, and lenders. |
+| `GET /api/reservations/:reservationId/delivery` | None | Returns the reservation's delivery object to the borrower or an admin. |
+| `POST /api/reservations/:reservationId/delivery` | `status` (`preparing`, `out-for-delivery` or `delivered`) | Updates the reservation's delivery status for the lender or an admin. |
 | `GET /api/admin/reports/usage` | None; admin only; `?month=YYYY-MM` (default current month) or `?from=YYYY-MM-DD&to=YYYY-MM-DD`; optional `?item=` and `?category=` | Counts confirmed reservations (upcoming, active, completed) that start in the period, per item and per category, with days reserved and deposits. |
 | `GET /api/admin/reports/usage/export` | Same query as the usage report plus `?format=` `csv` or `pdf` | Downloads the usage report as a file. |
 | `GET /api/admin/reports/damage` | None; admin only; optional `?status=` `pending-review`, `decided`, `disputed` or `resolved` | Lists one case per reservation with its report, dispute and resolution history, status and forfeited deposit. |
