@@ -18,7 +18,7 @@ export default defineConfig([
       // Initial maintainability thresholds; review these with the team.
       complexity: ["warn", 22],
       "max-depth": ["warn", 4],
-      "max-params": ["warn", 4],
+      "max-params": ["warn", 5],
     },
   },
 ]);
