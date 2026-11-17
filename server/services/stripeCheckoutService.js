@@ -230,7 +230,8 @@ function readCheckoutItems(payment) {
         lenderId: entry.lenderId,
         startDate: new Date(entry.startDate),
         endDate: new Date(entry.endDate),
-        depositAmount: entry.depositAmount
+        depositAmount: entry.depositAmount,
+        cancellationPolicy: entry.cancellationPolicy
     }));
 
     let centsTotal = 0;
@@ -535,7 +536,8 @@ export async function finalizeCardPayment(paymentIntent) {
                             depositAmount: entry.depositAmount,
                             method: 'card',
                             stripePaymentIntentId: paymentIntent.id
-                        }
+                        },
+                        cancellationPolicy: entry.cancellationPolicy,
                     }],
                     { session }
                 );

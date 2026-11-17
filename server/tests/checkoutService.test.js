@@ -209,8 +209,15 @@ describe('prepareCheckout — SCRUM-424', () => {
   it('constructs entries using server-side item prices and lender IDs', async () => {
     const result = await prepareCheckout('member1', session);
     expect(result).toEqual([{
-      itemId: 'ITM-1', lenderId: 'lender1', ...dates, depositAmount: 100,
-    }]);
+      itemId: 'ITM-1',
+      lenderId: 'lender1',
+      ...dates,
+      depositAmount: 100,
+      cancellationPolicy: {
+          freeDays: 0,
+          forfeitPercent: 0
+      }
+  }]);
   });
 
   it.each([

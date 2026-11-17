@@ -64,7 +64,7 @@ export async function calculateCheckoutPricing(userId, checkoutItems, promoCode 
     // Allocate the total discount across items, including rounding cents.
     const exactAmounts = originalCents.map(value => value * multiplier);
     const allocated = exactAmounts.map(Math.floor);
-    let remaining = totalCents - allocated.reduce((sum, value) => sum + value, 0);
+    const remaining = totalCents - allocated.reduce((sum, value) => sum + value, 0);
 
     const order = exactAmounts.map((value, index) => ({
         index,

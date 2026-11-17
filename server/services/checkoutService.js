@@ -197,7 +197,11 @@ export async function prepareCheckout(userId, session = null) {
             lenderId: item.owner,
             startDate: new Date(entry.startDate),
             endDate: new Date(entry.endDate),
-            depositAmount: item.depositAmount
+            depositAmount: item.depositAmount,
+            cancellationPolicy: {
+                freeDays: item.cancellation?.freeDays ?? 0,
+                forfeitPercent: item.cancellation?.forfeitPercent ?? 0
+            }
         });
     }
 
@@ -372,7 +376,8 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
                         payment: {
                             depositAmount: entry.depositAmount,
                             method: 'wallet'
-                        }
+                        },
+                        cancellationPolicy: entry.cancellationPolicy,
                     }],
                     { session }
                 );

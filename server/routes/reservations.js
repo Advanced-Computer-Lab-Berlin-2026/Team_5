@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDeliveryStatus } from '../controllers/reservationController.js';
+import { getDeliveryStatus, cancelReservation } from '../controllers/reservationController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
@@ -8,5 +8,5 @@ const router = Router();
 
 //This route may be temporary as when full reservation GET request is implemented it might be redundant to have one for delivery only.
 router.get('/:reservationId/delivery', requireAuth, requireRole('member', 'lender', 'admin'), getDeliveryStatus);
-
+router.post('/:reservationId/cancel',requireAuth,requireRole('member', 'lender'),cancelReservation);
 export default router;

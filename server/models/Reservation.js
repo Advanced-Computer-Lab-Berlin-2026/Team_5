@@ -27,6 +27,22 @@ const reservationSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    // Policy agreed at booking time.
+    cancellationPolicy: {
+        freeDays: { type: Number, min: 0 },
+        forfeitPercent: { type: Number, min: 0, max: 100 }
+    },
+
+    cancelledAt: { type: Date },
+    cancelledBy: {
+        type: String,
+        enum: ['member', 'lender']
+    },
+    cancelledByUser: { type: String, ref: 'User' },
+    cancellationRefundAmount: { type: Number, min: 0 },
+    cancellationRefundPaymentId: { type: String, ref: 'Payment' },
+
+
     // ---- group: handover
     handover: {
       pickedUpAt: { type: Date },
