@@ -19,8 +19,11 @@ import reservationRoutes from './routes/reservations.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
+import lenderDashboardRoutes from './routes/lenderDashboard.js';
+import reportRoutes from './routes/reports.js';
 
 const app = express();
+
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
@@ -52,6 +55,10 @@ app.use('/api/wallet', walletRoutes)
 app.use('/api/notices', noticeRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
+app.use('/api/admin/reports', reportRoutes);
+app.use('/api/lender/dashboard', lenderDashboardRoutes);
+
+
 
 
 // Keep These at the end for fallback errors
