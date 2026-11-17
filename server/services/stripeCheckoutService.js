@@ -7,9 +7,10 @@ import { Item } from '../models/Item.js';
 import { User } from '../models/User.js';
 import { Reservation } from '../models/Reservation.js';
 import { lockAndCheckAvailability, removeConflictingBorrowListEntries} from './checkoutService.js';
+import { calculateCheckoutPricing, normalizePromoCode } from './checkoutPricingService.js';
+import { redeemCheckoutPromo, requirePromoRedemptionSupport } from './checkoutPromoRedemption.js';
 
-
-export async function createCardPaymentIntent(userId, idempotencyKey) {
+export async function createCardPaymentIntent(userId, idempotencyKey, promoCode = null) {
 
     // 1. Validate the idempotency key
     if (
@@ -25,6 +26,7 @@ export async function createCardPaymentIntent(userId, idempotencyKey) {
     }
 
     const key = idempotencyKey.trim();
+    const requestedPromo = normalizePromoCode(promoCode);
 
     // 2. Check whether a Payment already exists for this checkout
     let payment = await Payment.findOne({
@@ -36,35 +38,11 @@ export async function createCardPaymentIntent(userId, idempotencyKey) {
 
         // 3. Retrieve and validate the member's borrow list
         const checkoutItems = await prepareCheckout(userId);
+        const pricing = await calculateCheckoutPricing(userId, checkoutItems, requestedPromo);
+        if (pricing.promoCode) requirePromoRedemptionSupport();
 
-        // 4. Calculate the deposit amounts in cents
-        const items = checkoutItems.map(item => {
-
-            const deposit = item.depositAmount;
-            const cents = Math.round(deposit * 100);
-
-            if (
-                !Number.isFinite(deposit) ||
-                deposit < 0 ||
-                !Number.isSafeInteger(cents)
-            ) {
-                throw new Error(
-                    `Invalid deposit amount for item ${item.itemId}.`
-                );
-            }
-
-            return {
-                ...item,
-                depositAmount: cents / 100
-            };
-        });
-
-        const amountInCents = items.reduce(
-            (total, item) => total + Math.round(item.depositAmount * 100),
-            0
-        );
-
-        // 1 Martinie = 1 EUR
+        // 4. Validate the ACTUAL discounted amount Stripe will charge.
+        const amountInCents = pricing.totalCents;
         if (
             !Number.isSafeInteger(amountInCents) ||
             amountInCents < 50 ||
@@ -73,24 +51,25 @@ export async function createCardPaymentIntent(userId, idempotencyKey) {
             throw new CheckoutError(
                 400,
                 'INVALID_PAYMENT_AMOUNT',
-                'Checkout amount is not valid for a Stripe card payment.'
+                'Discounted checkout amount is not valid for a Stripe card payment.'
             );
         }
-
-        const totalDeposit = amountInCents / 100;
 
         // 5. Save the pending payment before calling Stripe
         try {
             payment = await Payment.create({
                 user: userId,
                 type: 'deposit-pending',
-                amount: totalDeposit,
+                amount: pricing.totalDeposit,
                 direction: 'deduct',
                 method: 'card',
                 status: 'awaiting_payment',
                 checkoutKey: key,
-                stripeAmountCents: amountInCents,
-                checkoutItems: items
+                stripeAmountCents: pricing.totalCents,
+                checkoutItems: pricing.items,
+                promoCode: pricing.promoCode,
+                originalTotal: pricing.originalTotal,
+                promoDiscountPercent: pricing.discountPercent
             });
 
         } catch (error) {
@@ -109,6 +88,15 @@ export async function createCardPaymentIntent(userId, idempotencyKey) {
                 throw error;
             }
         }
+    }
+
+    // Never reuse an existing PaymentIntent for a different promo selection.
+    if (normalizePromoCode(payment.promoCode) !== requestedPromo) {
+        throw new CheckoutError(
+            409,
+            'IDEMPOTENCY_KEY_CONFLICT',
+            'This checkout key was already used with a different promo code.'
+        );
     }
 
     // 6. Ensure we are working with a pending card payment
@@ -224,7 +212,11 @@ export async function createCardPaymentIntent(userId, idempotencyKey) {
 const UNAVAILABLE_CODES = new Set([
     'ITEM_UNAVAILABLE',
     'ITEM_ALREADY_RESERVED',
-    'MEMBER_UNAVAILABLE'
+    'MEMBER_UNAVAILABLE',
+    // These codes must be used by the teammate for permanent redemption failures.
+    'PROMO_EXPIRED',
+    'PROMO_USAGE_LIMIT_REACHED',
+    'PROMO_NO_LONGER_VALID'
 ]);
 
 // Read the saved checkout snapshot, not the current borrow list.
@@ -595,6 +587,16 @@ export async function finalizeCardPayment(paymentIntent) {
                     'Payment was modified concurrently.'
                 );
             }
+
+            // One redemption per card checkout; a retry must not redeem again.
+            await redeemCheckoutPromo({
+                promoCode: current.promoCode,
+                userId: current.user,
+                paymentId: current._id,
+                paymentIds: [current._id],
+                reservationIds: reservations,
+                session
+            });
 
             return {
                 status: 'completed',

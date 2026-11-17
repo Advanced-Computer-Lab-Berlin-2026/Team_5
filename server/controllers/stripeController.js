@@ -17,10 +17,11 @@ export async function createPaymentIntent(req, res, next) {
                 message: 'A valid Idempotency-Key header is required.'
             });
         }
-
+        const promoCode = req.body?.promoCode ?? null;
         const result = await createCardPaymentIntent(
             userId,
-            idempotencyKey.trim()
+            idempotencyKey.trim(),
+            promoCode
         );
 
         return res.status(200).json(result);

@@ -31,6 +31,7 @@ const paymentSchema = new mongoose.Schema(
     }],
     reservations: [{ type: String, ref: 'Reservation' }],
     stripeRefundId: { type: String },
+    promoCode: { type: String, trim: true },
   },
   { timestamps: true }
 

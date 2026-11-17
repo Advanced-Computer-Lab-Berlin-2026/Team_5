@@ -5,6 +5,8 @@ import { Payment } from '../models/Payment.js';
 import { Checkout } from '../models/Checkout.js';
 import mongoose from 'mongoose';
 import { CheckoutError } from '../utils/CheckoutError.js';
+import { calculateCheckoutPricing, normalizePromoCode } from './checkoutPricingService.js';
+import { redeemCheckoutPromo, requirePromoRedemptionSupport } from './checkoutPromoRedemption.js';
 export function validateBorrowList(borrowList) {
     if (!Array.isArray(borrowList) || borrowList.length === 0) {
         throw new CheckoutError(
@@ -244,12 +246,25 @@ function formatCheckoutResult(checkout, replayed = false) {
         reservations: checkout.reservations,
         payments: checkout.payments,
         totalDeposit: checkout.totalDeposit,
+        originalTotal: checkout.originalTotal ?? checkout.totalDeposit,
+        promoCode: checkout.promoCode ?? null,
+        promoDiscountPercent: checkout.promoDiscountPercent ?? 0,
         remainingBalance: checkout.remainingBalance,
         replayed
     };
 }
 
-export async function checkoutWithWallet(userId, idempotencyKey) {
+function assertMatchingWalletPromo(checkout, requestedPromo) {
+    if (normalizePromoCode(checkout.promoCode) !== requestedPromo) {
+        throw new CheckoutError(
+            409,
+            'IDEMPOTENCY_KEY_CONFLICT',
+            'This idempotency key was already used with a different promo code.'
+        );
+    }
+}
+
+export async function checkoutWithWallet(userId, idempotencyKey, promoCode = null) {
 
     // 1. Validate the idempotency key
     if (
@@ -265,6 +280,7 @@ export async function checkoutWithWallet(userId, idempotencyKey) {
     }
 
     const key = idempotencyKey.trim();
+    const requestedPromo = normalizePromoCode(promoCode);
 
     // 2. Check if this checkout was already completed
     const existingCheckout = await Checkout.findOne({
@@ -273,6 +289,7 @@ export async function checkoutWithWallet(userId, idempotencyKey) {
     });
 
     if (existingCheckout) {
+        assertMatchingWalletPromo(existingCheckout, requestedPromo);
         return formatCheckoutResult(existingCheckout, true);
     }
 
@@ -288,6 +305,7 @@ export async function checkoutWithWallet(userId, idempotencyKey) {
             }).session(session);
 
             if (previousCheckout) {
+                assertMatchingWalletPromo(previousCheckout, requestedPromo);
                 return formatCheckoutResult(previousCheckout, true);
             }
 
@@ -300,20 +318,13 @@ export async function checkoutWithWallet(userId, idempotencyKey) {
                 session
             );
 
-            // 6. Calculate total deposit
-            const totalDeposit = availableItems.reduce((total, item) => {
-                if (
-                    typeof item.depositAmount !== 'number' ||
-                    !Number.isFinite(item.depositAmount) ||
-                    item.depositAmount < 0
-                ) {
-                    throw new Error(
-                        `Invalid deposit amount for item ${item.itemId}.`
-                    );
-                }
+            
 
-                return total + item.depositAmount;
-            }, 0);
+            // 6. Calculate total deposit
+            const pricing = await calculateCheckoutPricing(userId, availableItems, requestedPromo);
+            const totalDeposit = pricing.totalDeposit;
+            const pricedItems = pricing.items;
+            if (pricing.promoCode) requirePromoRedemptionSupport();
 
             if (!Number.isFinite(totalDeposit)) {
                 throw new Error('Invalid total deposit amount.');
@@ -348,7 +359,7 @@ export async function checkoutWithWallet(userId, idempotencyKey) {
             const reservations = [];
             const payments = [];
 
-            for (const entry of availableItems) {
+            for (const entry of pricedItems) {
 
                 const [reservation] = await Reservation.create(
                     [{
@@ -406,10 +417,24 @@ export async function checkoutWithWallet(userId, idempotencyKey) {
                     reservations: reservations.map(r => r._id),
                     payments: payments.map(p => p._id),
                     totalDeposit,
+                    originalTotal: pricing.originalTotal,
+                    promoCode: pricing.promoCode,
+                    promoDiscountPercent: pricing.discountPercent,
                     remainingBalance: user.wallet
                 }],
                 { session }
             );
+
+            // Count one promo redemption for the entire checkout, not each item.
+            // If this fails, wallet charge, payments and reservations roll back.
+            await redeemCheckoutPromo({
+                promoCode: pricing.promoCode,
+                userId,
+                checkoutId: checkout._id,
+                paymentIds: payments.map(p => p._id),
+                reservationIds: reservations.map(r => r._id),
+                session
+            });
 
             // 12. Return the saved checkout result
             return formatCheckoutResult(checkout);
@@ -426,6 +451,7 @@ export async function checkoutWithWallet(userId, idempotencyKey) {
             });
 
             if (completedCheckout) {
+                assertMatchingWalletPromo(completedCheckout, requestedPromo);
                 return formatCheckoutResult(completedCheckout, true);
             }
         }

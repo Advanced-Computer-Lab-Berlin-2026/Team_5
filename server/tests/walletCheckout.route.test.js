@@ -65,7 +65,16 @@ describe('POST /api/wallet/checkout — SCRUM-428', () => {
       .set('Idempotency-Key', key);
     expect(response.status).toBe(201);
     expect(response.body).toEqual(checkoutResponse);
-    expect(mocks.checkoutWithWallet).toHaveBeenCalledWith('member1', key,null);
+    expect(mocks.checkoutWithWallet).toHaveBeenCalledWith('member1', key, null);
+  });
+
+  it('forwards a promo code from the request body', async () => {
+    const response = await request(app)
+      .post(endpoint)
+      .set('Idempotency-Key', key)
+      .send({ promoCode: 'SAVE20' });
+    expect(response.status).toBe(201);
+    expect(mocks.checkoutWithWallet).toHaveBeenCalledWith('member1', key, 'SAVE20');
   });
 
   it('returns 200 for an idempotent replay', async () => {

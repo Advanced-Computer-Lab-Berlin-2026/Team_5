@@ -56,7 +56,16 @@ describe('POST /api/stripe/payment-intent — SCRUM-431', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual(intentResponse);
     expect(mocks.createCardPaymentIntent).toHaveBeenCalledTimes(1);
-    expect(mocks.createCardPaymentIntent).toHaveBeenCalledWith('member1', key);
+    expect(mocks.createCardPaymentIntent).toHaveBeenCalledWith('member1', key, null);
+  });
+
+  it('forwards the promo code to the Stripe checkout service', async () => {
+    const response = await request(app)
+      .post(endpoint)
+      .set('Idempotency-Key', key)
+      .send({ promoCode: 'SAVE20' });
+    expect(response.status).toBe(200);
+    expect(mocks.createCardPaymentIntent).toHaveBeenCalledWith('member1', key, 'SAVE20');
   });
 
   it('returns 400 if Idempotency-Key is missing', async () => {
