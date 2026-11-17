@@ -1,0 +1,23 @@
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 20rem)); gap: var(--space-4); }
+/* three columns on wide screens: the details card takes one, the password card two, both the same height */
+@media (min-width: 960px) { .grid { grid-template-columns: repeat(3, 1fr); } .tile.wide { grid-column: span 2; aspect-ratio: auto; } }
+.tile { aspect-ratio: 4 / 5; }
+@media (max-width: 959px) { .tile.wide { aspect-ratio: 4 / 5; } }
+.face { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; height: 100%; padding: var(--space-6) var(--space-5) var(--space-5); border-radius: var(--radius-card); overflow: auto; }
+.details { color: #fff; }
+.darkText { color: #1d1a14; }
+.darkText .avatar { background: rgb(20 20 20 / 12%); }
+.top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.avatar { display: inline-flex; align-items: center; justify-content: center; width: 4rem; height: 4rem; border-radius: 50%; background: rgb(255 255 255 / 22%); font-weight: var(--font-weight-bold); font-size: 1.75rem; }
+.role { padding: 2px var(--space-2); border: 1px solid currentColor; border-radius: 999px; font-size: var(--font-size-small); text-transform: capitalize; opacity: 0.9; }
+.name { margin-top: var(--space-4); font-size: 1.5rem; overflow-wrap: anywhere; }
+.line { font-size: var(--font-size-small); opacity: 0.85; overflow-wrap: anywhere; }
+/* both sides of the flip card are forms on the surface color */
+.section { justify-content: flex-start; gap: var(--space-3); min-width: 0; background: var(--color-surface); color: var(--color-text); border: var(--border-muted); }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: auto; padding-top: var(--space-3); }
+.section h2 { font-size: 1.5rem; }
+/* the tilted card turns off text selection, which stops typing in Safari, so turn it back on for the fields */
+.section input { user-select: text; -webkit-user-select: text; }
+/* flip control: grayed out, no border, label plus the reset symbol; sits on the same line as the save button */
+.flip { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-height); padding: 0 var(--space-2); border: 0; background: transparent; color: var(--color-text-muted); font-size: var(--font-size-small); font-weight: var(--font-weight-medium); cursor: pointer; transition: color var(--duration-fast); }
+.flip:hover, .flip:focus-visible { color: var(--color-text); }

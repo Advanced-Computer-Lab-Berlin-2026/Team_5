@@ -1,0 +1,4 @@
+.search { display: flex; align-items: center; gap: var(--space-2); }
+.field { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 15rem; position: relative; }
+.field > svg { position: absolute; left: var(--space-3); color: var(--color-text-muted); pointer-events: none; }
+.field input { padding-left: var(--space-6); }

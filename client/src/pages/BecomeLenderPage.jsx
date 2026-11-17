@@ -44,7 +44,7 @@ export default function BecomeLenderPage() {
 
     return (
         <>
-            <PageHeader eyebrow="Share more possibilities" title="Become a lender" description="Help your community make more of the things you own." />
+            <PageHeader title="Become a lender" />
             <Card title="Your request">
                 <DetailList rows={[
                     ['Status', data.status],

@@ -1,15 +1,19 @@
-import { useEffect, useRef } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getItem } from '../api/items.js';
 import { addToWishlist } from '../api/wishlist.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, DetailList, Message, PageHeader, PageSection, PhotoGallery, Spinner } from '../components';
+import { BackLink, Button, Card, DetailList, Message, PageHeader, PageSection, PhotoGallery, Spinner } from '../components';
+import { cameFromGuestPage, clearGuestSpot } from '../components/scroll/transition.js';
 import styles from './ItemDetailPage.module.css';
 
 export default function ItemDetailPage() {
     const { id } = useParams();
+    // opened from the guest page: the < arrow goes back there, to the same scroll position
+    const [fromGuest] = useState(cameFromGuestPage);
+    useEffect(() => clearGuestSpot, []);
     const navigate = useNavigate();
     const [params, setParams] = useSearchParams();
     const { isLoggedIn, isAdmin } = useAuth();
@@ -28,29 +32,31 @@ export default function ItemDetailPage() {
     }, [itemId, isLoggedIn, params, setParams, wishlist.run]);
 
     if (loading) return <Spinner />;
-    if (error) return <><Message type="error">{error}</Message><Link to="/items">Back to catalog</Link></>;
+    if (error) return <><Message type="error">{error}</Message><BackLink to="/items" label="Back to catalog" /></>;
 
     const { item } = data;
 
     function handleWishlist() {
         if (!isLoggedIn) {
-            navigate('/login', { state: { from: `/items/${item._id}?wishlist=add` } });
+            // straight to the login card, skipping the opening logo animation
+            navigate('/login#account-access', { state: { from: `/items/${item._id}?wishlist=add` } });
             return;
         }
         wishlist.run(() => addToWishlist(item._id), 'Added to wishlist.');
     }
 
+    const manual = item.documents?.[0];
+
     return (
         <>
-            <PageSection theme="light" contentClassName={styles.gallerySection} aria-label="Item photos">
+            <PageSection contentClassName={styles.gallerySection} aria-label="Item photos">
                 <div className={styles.intro}>
-                    <p><Link to="/items">Back to catalog</Link></p>
-                    <PageHeader eyebrow={item.category} title={item.name} description="Take a closer look. Find your next possibility." />
+                    <PageHeader title={item.name} backTo="/items" backLabel={fromGuest ? 'Back' : 'Back to catalog'} backHistory={fromGuest} />
                 </div>
                 <PhotoGallery key={item._id} photos={item.photos} alt={item.name} edgeToEdge />
             </PageSection>
 
-            <PageSection theme="dark" contentClassName={styles.details} aria-label="Item details">
+            <PageSection contentClassName={styles.details} aria-label="Item details">
             <Card title="Details">
                 <p>{item.description}</p>
                 <DetailList rows={[
@@ -67,20 +73,19 @@ export default function ItemDetailPage() {
                     ['Free cancellation', item.cancellation?.freeDays ? `${item.cancellation.freeDays} days, then ${item.cancellation.forfeitPercent}% of the deposit is kept` : ''],
                     ...(item.attributes ?? []).map(({ key, value }) => [key, value])
                 ]} />
-                {item.documents?.length > 0 && (
-                    <p><a href={item.documents[0].url} target="_blank" rel="noreferrer">Open the manual</a></p>
-                )}
             </Card>
 
-            {!isAdmin && (
-                <div className={styles.wishlist}>
-                    <Message type="success">{wishlist.success}</Message>
-                    <Message type="error">{wishlist.error}</Message>
-                    <div>
-                        <Button disabled={wishlist.pending} onClick={handleWishlist}>Add to wishlist</Button>
-                    </div>
+            <div className={styles.bottom}>
+                <Message type="success">{wishlist.success}</Message>
+                <Message type="error">{wishlist.error}</Message>
+                <div className={styles.actions}>
+                    <Button className={styles.manual} fullWidth href={manual?.url} disabled={!manual} target="_blank" rel="noreferrer">{manual ? 'See the manual' : 'No manual'}</Button>
+                    {!isAdmin && <>
+                        <Button fullWidth disabled={wishlist.pending} onClick={handleWishlist}>Add to wishlist</Button>
+                        <Button className={styles.reserve} fullWidth>Reserve</Button>
+                    </>}
                 </div>
-            )}
+            </div>
             </PageSection>
         </>
     );

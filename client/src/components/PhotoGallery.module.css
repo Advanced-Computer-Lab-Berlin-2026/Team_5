@@ -15,8 +15,6 @@
 .toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
 .controls { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .count { font-size: var(--font-size-small); color: var(--color-text-muted); font-variant-numeric: tabular-nums; margin-left: var(--space-2); }
-.hint { font-size: var(--font-size-small); color: var(--color-text-muted); }
-.viewSwitch { justify-self: start; padding: var(--space-2) 0; border: 0; background: none; color: var(--color-link); font-size: var(--font-size-small); text-decoration: underline; text-underline-offset: 4px; }
 .dialog { width: min(72rem, 95vw); max-height: 95dvh; border: var(--border-muted); background: var(--color-background); color: var(--color-text); padding: var(--space-4); }
 .dialog::backdrop { background: rgb(0 0 0 / 85%); }
 .dialogToolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }

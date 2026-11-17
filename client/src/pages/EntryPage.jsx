@@ -1,55 +1,66 @@
-import { useEffect, useRef } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+
+import { useState } from 'react';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getLoginDestination } from '../theme/routes.js';
-import { PageSection, Spinner } from '../components';
+import { Icon, PageSection, Spinner } from '../components';
+import TiltedCard from '../components/TiltedCard.jsx';
 import { LoginForm } from '../components/auth/LoginForm.jsx';
+import { ForgotPasswordForm } from '../components/auth/ForgotPasswordForm.jsx';
 import { RegisterForm } from '../components/auth/RegisterForm.jsx';
 import CatalogPage from './CatalogPage.jsx';
+import { StickerField, StickerSpacer } from '../components/scroll/StickerField.jsx';
+import { isHoldingRedirect } from '../components/scroll/transition.js';
 import { WelcomeExpand } from '../components/scroll/WelcomeExpand.jsx';
-import { AnimatedHeight } from '../components/AnimatedHeight.jsx';
 import { GuestIntroduction } from '../components/scroll/GuestIntroduction.jsx';
 import styles from './EntryPage.module.css';
 
 export default function EntryPage() {
     const { isLoggedIn, checking, role } = useAuth();
     const location = useLocation();
+    const navigate = useNavigate();
     const registering = location.pathname === '/register';
-    const initialAccountJump = useRef(false);
-    useEffect(() => {
-        if (checking || initialAccountJump.current) return;
-        if (location.pathname === '/' || window.location.hash) { initialAccountJump.current = true; return; }
-        const frame = window.requestAnimationFrame(() => {
-            document.getElementById('account-access')?.scrollIntoView({ behavior: 'instant' });
-            initialAccountJump.current = true;
-        });
-        return () => window.cancelAnimationFrame(frame);
-    }, [checking, location.pathname]);
+    // the login side of the card turns into the reset-password view in place
+    const [forgot, setForgot] = useState(Boolean(location.state?.forgot));
+    // flipping the card also moves the address between /login and /register, keeping any redirect state
+    const flipTo = path => navigate(`${path}${location.search}`, { state: location.state });
     if (checking) return <Spinner label="Checking your session…" />;
-    if (isLoggedIn) return <Navigate to={getLoginDestination(location.state?.from, role)} replace />;
+    if (isLoggedIn && !isHoldingRedirect()) return <Navigate to={getLoginDestination(location.state?.from, role)} replace />;
 
     return <>
-        <WelcomeExpand registering={registering}>
-            <section className={styles.auth} data-theme="dark" aria-labelledby="entry-heading">
-                <nav className={styles.switch} aria-label="Account access">
-                    <Link to={`/login${location.search}`} state={location.state} className={!registering ? styles.active : ''} aria-current={!registering ? 'page' : undefined}>Log in</Link>
-                    <Link to={`/register${location.search}`} state={location.state} className={registering ? styles.active : ''} aria-current={registering ? 'page' : undefined}>Register</Link>
-                </nav>
-                <AnimatedHeight>
-                <div className={`${styles.authContent} ${registering ? styles.registerReveal : styles.loginReveal}`}>
-                <div className={styles.formHeading}>
-                    <p className="eyebrow">Your community, connected</p>
-                    <h2 id="entry-heading">{registering ? 'Make yourself at home.' : 'Welcome back.'}</h2>
-                    <p className="muted">{registering ? 'Create an account to save your favorite finds.' : 'Log in to keep your next idea moving.'}</p>
-                </div>
-                <div hidden={registering}><LoginForm /></div>
-                <div hidden={!registering}><RegisterForm /></div>
-                </div>
-                </AnimatedHeight>
-            </section>
+        <StickerField />
+        <WelcomeExpand>
+            <TiltedCard containerWidth="100%" containerHeight="var(--auth-card-height)" imageWidth="100%" imageHeight="100%" className={styles.card} radius={12}
+                rotateAmplitude={3} scaleOnHover={1.01} glare={0.1} shadow={0.4} parallax={0} showTooltip={false} intro={false}
+                altText="Account access" flipped={registering} flipOnClick={false}
+                backContent={
+                    <section className={styles.face} aria-label="Register" inert={!registering}>
+                        <RegisterForm />
+                        <div className={styles.footer}>
+                            <button type="button" className={styles.flip} onClick={() => flipTo('/login')}>Log in <Icon name="reset" size={20} /></button>
+                        </div>
+                    </section>
+                }>
+                <section className={`${styles.face} ${styles.loginFace}`} aria-label="Log in" inert={registering}>
+                    {forgot ? <div key="forgot" className={`${styles.view} ${styles.fromRight}`}>
+                        <div className={styles.faceHead}>
+                            <button type="button" className={styles.back} onClick={() => setForgot(false)} aria-label="Back to log in" title="Back to log in"><Icon name="back" size={28} /></button>
+                            <h2 id="entry-heading">Reset password</h2>
+                        </div>
+                        <ForgotPasswordForm onDone={notice => { setForgot(false); navigate('/login', { replace: true, state: { notice } }); }} />
+                    </div> : <div key="login" className={`${styles.view} ${styles.fromLeft}`}>
+                        <h2 id="entry-heading">Welcome back.</h2>
+                        <LoginForm onForgot={() => setForgot(true)} />
+                        <div className={styles.footer}>
+                            <button type="button" className={styles.flip} onClick={() => flipTo('/register')}>Register <Icon name="reset" size={20} /></button>
+                        </div>
+                    </div>}
+                </section>
+            </TiltedCard>
         </WelcomeExpand>
         <section id="guest-catalog" className={styles.guestSection} data-theme="light" aria-label="Guest catalog">
         <section className={styles.themeBridge} aria-label="Guest introduction">
+            <StickerSpacer />
             <GuestIntroduction />
         </section>
         <PageSection theme="light" contentClassName={styles.catalog} aria-label="Browse items">

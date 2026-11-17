@@ -4,6 +4,8 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
 import { Button, Card, FormField, Message, PageHeader, Spinner } from '../components';
+import ScrollStack, { ScrollStackItem } from '../components/ScrollStack.jsx';
+import styles from './NoticesPage.module.css';
 import { formatDate } from '../utils/format.js';
 
 export default function NoticesPage() {
@@ -25,7 +27,7 @@ export default function NoticesPage() {
 
     return (
         <>
-            <PageHeader eyebrow="Around the community" title="Community notices" description="The latest updates, all in one place." />
+            <PageHeader title="Community notices" />
             {isAdmin && (
                 <Card title="Post a notice">
                     <form onSubmit={handleSubmit}>
@@ -42,12 +44,18 @@ export default function NoticesPage() {
             {loading && <Spinner />}
             <Message type="error">{error}</Message>
             {data?.notices.length === 0 && <Message>No notices yet.</Message>}
-            {data?.notices.map((notice) => (
-                <Card key={notice._id} title={notice.title}>
-                    <p>{notice.body}</p>
-                    <small>Posted by {notice.postedBy} on {formatDate(notice.createdAt)}</small>
-                </Card>
-            ))}
+            {data?.notices.length > 0 && (
+                <ScrollStack useWindowScroll smoothScroll={false} className={styles.stack} stackPosition={128} itemDistance={24}
+                    itemStackDistance={20} itemScale={0.04} baseScale={0.85} dimAmount={0.15} holdDistance={120}>
+                    {data.notices.map((notice) => (
+                        <ScrollStackItem key={notice._id} itemClassName={styles.notice}>
+                            <h2>{notice.title}</h2>
+                            <p className={styles.body}>{notice.body}</p>
+                            <small>Posted by {notice.postedBy} on {formatDate(notice.createdAt)}</small>
+                        </ScrollStackItem>
+                    ))}
+                </ScrollStack>
+            )}
         </>
     );
 }

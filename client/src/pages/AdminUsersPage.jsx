@@ -2,10 +2,9 @@ import { useState } from 'react';
 import { deleteUser, listUsers, searchUsers, setSuspension } from '../api/admin.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Input, Message, PageHeader, Row, Spinner, Table } from '../components';
+import { Button, Message, PageHeader, Row, SearchField, Spinner, Table } from '../components';
 
 export default function AdminUsersPage() {
-    const [searchText, setSearchText] = useState('');
     // the name that was actually searched for; empty means "show everyone"
     const [query, setQuery] = useState('');
     const { data, error, loading, reload } = useAsync(
@@ -25,24 +24,10 @@ export default function AdminUsersPage() {
         }
     }
 
-    function handleSearch(event) {
-        event.preventDefault();
-        setQuery(searchText.trim());
-    }
-
     return (
         <>
-            <PageHeader eyebrow="Administration" title="Community members" description="Manage accounts and access to the community." />
-            <form onSubmit={handleSearch}>
-                <Row>
-                    <Input name="search" aria-label="Search users by name" placeholder="Search by name" value={searchText}
-                        onChange={(event) => setSearchText(event.target.value)} />
-                    <Button type="submit">Search</Button>
-                    {query && (
-                        <Button variant="secondary" onClick={() => { setSearchText(''); setQuery(''); }}>Show all</Button>
-                    )}
-                </Row>
-            </form>
+            <PageHeader title="Community members" />
+            <SearchField label="Search users by name" placeholder="Search by name" onSearch={setQuery} />
             {loading && <Spinner />}
             <Message type="error">{error || action.error}</Message>
             {data && (

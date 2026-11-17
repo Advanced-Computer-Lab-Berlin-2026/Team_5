@@ -1,5 +1,14 @@
 .gallerySection { max-width: none; padding: 0 0 var(--space-5); }
-.intro { display: grid; gap: var(--space-4); max-width: var(--content-width); width: 100%; margin-inline: auto; padding: var(--space-6) var(--space-5) 0; }
+.intro { display: grid; gap: var(--space-4); max-width: var(--content-width); width: 100%; margin-inline: auto; padding: var(--space-3) var(--space-5) 0; }
 .details { gap: var(--space-5); }
-.wishlist { display: grid; justify-items: center; gap: var(--space-3); text-align: center; }
-@media (max-width: 640px) { .intro { padding: var(--space-5) var(--space-3) 0; } }
+.bottom { display: grid; gap: var(--space-3); }
+.actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: var(--space-3); }
+@media (max-width: 640px) { .actions { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .intro { padding: var(--space-2) var(--space-3) 0; } }
+
+
+/* filled colors for the manual (blue) and reserve (green) buttons; disabled ones keep the normal disabled look */
+.actions .manual:not(:disabled):not([aria-disabled]) { background: #8fb0ff; border-color: #8fb0ff; color: #141414; }
+.actions .manual:not(:disabled):not([aria-disabled]):hover { background: #7a9ef5; border-color: #7a9ef5; }
+.actions .reserve:not(:disabled):not([aria-disabled]) { background: #8fd4a8; border-color: #8fd4a8; color: #141414; }
+.actions .reserve:not(:disabled):not([aria-disabled]):hover { background: #78c495; border-color: #78c495; }

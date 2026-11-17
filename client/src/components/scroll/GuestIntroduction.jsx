@@ -19,9 +19,7 @@ export function GuestIntroduction() {
     }, []);
 
     const settings = { enableBlur: true, baseOpacity: 0.15, baseRotation: 0, blurStrength: 4, smoothing: 0.15, wordAnimationEnd: 'bottom 45%', rotationEnd: 'bottom 45%' };
-    return <header className={styles.intro}>
-        <ScrollReveal {...settings} as="p" containerClassName={styles.label} textClassName={styles.labelText}>Take a look around</ScrollReveal>
+    return <header id="guest-intro" className={styles.intro}>
         <ScrollReveal {...settings} containerClassName={styles.title} textClassName={styles.titleText}>Find your next possibility.</ScrollReveal>
-        <ScrollReveal {...settings} as="p" containerClassName={styles.description} textClassName={styles.descriptionText}>Browse freely. Log in when you find something worth saving.</ScrollReveal>
     </header>;
 }

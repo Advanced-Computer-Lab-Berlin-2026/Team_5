@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { decideLenderRequest, getLenderRequest, lenderDocumentUrl } from '../api/admin.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, DetailList, FormField, Message, PageHeader, Row, Spinner } from '../components';
+import { BackLink, Button, Card, DetailList, FormField, Message, PageHeader, Row, Spinner } from '../components';
 import { formatDateTime } from '../utils/format.js';
 
 const SLOT_TITLES = { id: 'ID document', addressProof: 'Proof of address' };
@@ -15,7 +15,7 @@ export default function AdminLenderRequestPage() {
     const [reason, setReason] = useState('');
 
     if (loading) return <Spinner />;
-    if (error) return <><Message type="error">{error}</Message><Link to="/admin/lender-requests">Back to requests</Link></>;
+    if (error) return <><Message type="error">{error}</Message><BackLink to="/admin/lender-requests" label="Back to requests" /></>;
 
     const { profile, verification } = data;
 
@@ -29,8 +29,7 @@ export default function AdminLenderRequestPage() {
 
     return (
         <>
-            <p><Link to="/admin/lender-requests">Back to requests</Link></p>
-            <PageHeader eyebrow="Lender verification" title={`Request from ${username}`} />
+            <PageHeader title={`Request from ${username}`} backTo="/admin/lender-requests" backLabel="Back to requests" />
 
             <Card title="Applicant">
                 <DetailList rows={[

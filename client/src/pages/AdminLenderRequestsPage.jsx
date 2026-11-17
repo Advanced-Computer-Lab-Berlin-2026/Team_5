@@ -13,7 +13,7 @@ export default function AdminLenderRequestsPage() {
 
     return (
         <>
-            <PageHeader eyebrow="Administration" title="Lender requests" description="Review the people who want to share more." />
+            <PageHeader title="Lender requests" />
             <Row>
                 <Select name="status" aria-label="Request status" value={status} options={STATUSES} onChange={(event) => setStatus(event.target.value)} />
             </Row>

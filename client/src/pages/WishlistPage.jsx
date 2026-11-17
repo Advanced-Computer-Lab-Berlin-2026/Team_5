@@ -14,7 +14,7 @@ export default function WishlistPage() {
 
     return (
         <>
-            <PageHeader eyebrow="Saved possibilities" title="Your wishlist" description="Keep your next idea close." />
+            <PageHeader title="Your wishlist" />
             {loading && <Spinner />}
             <Message type="error">{error || removal.error}</Message>
             {data?.wishlist.length === 0 && <EmptyState title="Something will catch your eye" description="Explore the catalog and save items to come back to." action={<Button to="/items">Discover items</Button>} />}

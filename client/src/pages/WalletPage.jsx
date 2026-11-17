@@ -8,7 +8,7 @@ export default function WalletPage() {
 
     return (
         <>
-            <PageHeader eyebrow="Your account" title="Wallet" description="A clear view of your community balance." />
+            <PageHeader title="Wallet" />
             {loading && <Spinner />}
             <Message type="error">{error}</Message>
             {data && (

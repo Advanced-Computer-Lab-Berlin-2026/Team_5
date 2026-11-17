@@ -1,21 +1,26 @@
-.welcome { position: relative; background: var(--color-black); color: var(--color-white); overflow-anchor: none; }
-.welcome::after { content: ''; position: absolute; bottom: 0; inset-inline: 0; height: 6rem; background: linear-gradient(transparent, var(--color-black)); pointer-events: none; }
-.heading { display: grid; gap: var(--space-4); }
+.welcome { transition: opacity 0.5s ease; position: relative; color: var(--color-white); overflow-anchor: none; }
+.heading { display: grid; justify-items: center; gap: var(--space-4); }
+/* the logo is a transparent mask painted white so it reads on the gradient */
+.logo { display: block; width: clamp(9rem, 40vmin, 24rem); aspect-ratio: 635 / 600; background: #fff; -webkit-mask: url('../../assets/logo-mark.png') center / contain no-repeat; mask: url('../../assets/logo-mark.png') center / contain no-repeat; }
 .heading h1 { font-size: clamp(2.5rem, 7vw, 6rem); letter-spacing: -0.06em; line-height: 1.05; }
 .heading :global(.eyebrow) { color: var(--color-white); }
 .dot { color: var(--color-amber); }
-.expand :global(.scroll-expand__title) { height: var(--se-viewport-height, 100svh); text-shadow: 0 2px 24px var(--color-black); }
-.expand :global(.scroll-expand__media) { object-position: center 65%; }
+.expand :global(.scroll-expand__title) { height: var(--se-viewport-height, 100svh); text-shadow: none; mix-blend-mode: difference; }
+.expand :global(.scroll-expand__media) { object-position: center center; }
 .expand :global(.scroll-expand__overlay) { padding: var(--space-5) var(--space-3); text-align: start; }
 .expand :global(.scroll-expand__hint) { top: calc(var(--se-viewport-height, 100svh) - 4rem); bottom: auto; color: var(--color-text-muted); pointer-events: auto; }
-.expand :global(.scroll-expand__hint) a, .guestCue, .staticWelcome > a { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-small); text-decoration: none; padding: var(--space-2); }
-.expand :global(.scroll-expand__hint) a:hover, .guestCue:hover, .staticWelcome > a:hover { color: var(--color-white); }
-.revealContent { width: min(32rem, 100%); display: flex; flex-direction: column; gap: var(--space-4); transition: width var(--duration-layout) var(--ease-layout); }
-.revealContent.wide { width: min(44rem, 100%); }
-.guestCue { align-self: center; text-align: center; }
+.expand :global(.scroll-expand__hint) a, .staticWelcome > a { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-small); text-decoration: none; padding: var(--space-2); }
+.expand :global(.scroll-expand__hint) a:hover, .staticWelcome > a:hover { color: var(--color-white); }
+.revealContent { width: min(40rem, 100%); display: flex; flex-direction: column; gap: var(--space-4); transition: width var(--duration-layout) var(--ease-layout); }
+/* sits at the bottom of the viewport through the whole welcome section */
+.guestDock { position: sticky; bottom: var(--space-4); z-index: 5; display: flex; justify-content: center; pointer-events: none; }
+.guestButton { pointer-events: auto; display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-height); padding: var(--space-2) var(--space-3); border: 0; background: transparent; color: #fff; font-size: var(--font-size-small); font-weight: var(--font-weight-bold); cursor: pointer; mix-blend-mode: difference; }
 .shortcuts { position: absolute; top: var(--space-4); left: var(--space-4); z-index: 2; display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .shortcuts a { padding: var(--space-2); color: var(--color-white); background: var(--color-black); font-size: var(--font-size-small); }
 .shortcuts:not(:focus-within) { clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }
 .staticWelcome { min-height: 100svh; padding: var(--space-7) var(--space-4); display: grid; align-content: center; justify-items: center; text-align: center; gap: var(--space-5); background: var(--hero-gradient); }
 .staticAccount { padding: var(--space-5) var(--space-3); display: flex; justify-content: center; }
 @media (max-width: 760px) { .heading h1 { font-size: clamp(2.25rem, 9vw, 4rem); } .heading :global(.eyebrow) { letter-spacing: 0.06em; font-size: 0.75rem; } }
+
+/* while the explosion plays after logging in, the logo, card and button fade away so only the burst is left */
+:global(html[data-exploding]) .welcome { opacity: 0; pointer-events: none; }

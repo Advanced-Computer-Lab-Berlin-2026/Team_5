@@ -13,7 +13,7 @@ export default function AdminCategoriesPage() {
 
     return (
         <>
-            <PageHeader eyebrow="Administration" title="Deposit multipliers" />
+            <PageHeader title="Deposit multipliers" />
             <p>The deposit of every item in a category is multiplied by this number. It must be at least 1.</p>
             {loading && <Spinner />}
             <Message type="error">{error || save.error}</Message>

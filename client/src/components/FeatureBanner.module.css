@@ -1,6 +1,0 @@
-.banner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-6); background: var(--hero-gradient), var(--color-black); color: var(--color-white); border-radius: var(--radius-card); overflow: hidden; }
-.copy { display: grid; justify-items: start; gap: var(--space-3); max-width: 42rem; }
-.copy h2 { font-size: clamp(1.75rem, 3.5vw, 3rem); }
-.copy > p:not(:first-child) { color: var(--color-text-muted); }
-.mark { color: var(--color-amber); transform: rotate(-10deg); padding: var(--space-3); }
-@media (max-width: 640px) { .banner { padding: var(--space-5); } .mark { display: none; } }

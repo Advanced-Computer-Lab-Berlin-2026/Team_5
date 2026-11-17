@@ -1,3 +1,4 @@
+@import './fonts.css';
 /* Shared design tokens. Components use semantic roles, never page-specific hex values. */
 :root, [data-theme='light'] {
     font-family: 'Inter Variable', Inter, system-ui, sans-serif;
@@ -107,7 +108,7 @@ button:disabled { cursor: not-allowed; }
 :focus-visible { outline: 3px solid var(--color-focus); outline-offset: 4px; }
 ::selection { background: var(--color-selection); color: var(--color-selection-text); }
 h1, h2, h3, p { margin: 0; }
-h1, h2, h3 { font-weight: var(--font-weight-bold); line-height: 1.2; letter-spacing: -0.035em; overflow-wrap: anywhere; }
+h1, h2, h3 { font-family: var(--font-title, var(--font-family)); font-weight: var(--font-weight-bold); line-height: 1.2; letter-spacing: -0.035em; overflow-wrap: anywhere; }
 h1 { font-size: var(--font-size-title); }
 h2 { font-size: var(--font-size-large); }
 h3 { font-size: var(--font-size-base); }

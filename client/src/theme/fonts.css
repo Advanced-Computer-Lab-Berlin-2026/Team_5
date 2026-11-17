@@ -1,0 +1,12 @@
+/* TITLE FONT: Neuton Bold (src/assets/fonts/Neuton-Bold.ttf) */
+@font-face {
+    font-family: 'Neuton';
+    src: url('../assets/fonts/Neuton-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+:root {
+    --font-title: 'Neuton', Georgia, serif;
+}

@@ -15,12 +15,17 @@ const ScrollExpand = ({
   src = '',
   mediaType = 'image',
   poster = '',
+  mediaNode = null,
   alt = '',
   title = '',
   scrollHint = '',
   startWidth = 42,
   startHeight = 58,
   startRadius = 24,
+  shape = 'rect',
+  startSize = 52,
+  startAspect = 1,
+  invert = false,
   endRadius = 0,
   mediaZoom = 1.35,
   scrollDistance = 1.2,
@@ -51,6 +56,10 @@ const ScrollExpand = ({
     startWidth,
     startHeight,
     startRadius,
+    shape,
+    startSize,
+    startAspect,
+    invert,
     endRadius,
     mediaZoom,
     scrollDistance,
@@ -70,12 +79,41 @@ const ScrollExpand = ({
 
     const e = smoothstep(0, 1, p);
 
+    if (c.shape === 'circle') {
+      // a circle or oval that opens from the middle of the first screen until it covers the whole stage
+      const width = frame.clientWidth;
+      const height = frame.clientHeight;
+      const viewport = parseFloat(stageRef.current?.style.getPropertyValue('--se-viewport-height')) || height;
+      const cx = width / 2;
+      const cy = Math.min(viewport, height) / 2;
+      // startAspect > 1 makes the opening an oval, wider than it is tall
+      const startRy = Math.max(0.5, (Math.min(width, viewport) * c.startSize) / 200);
+      const startRx = Math.max(0.5, Math.min(startRy * c.startAspect, width * 0.47));
+      const aspect = startRx / startRy;
+      // smallest ellipse of the same shape that still covers the farthest corner
+      const dx = Math.max(cx, width - cx);
+      const dy = Math.max(cy, height - cy);
+      const endRy = Math.hypot(dx / aspect, dy);
+      const endRx = endRy * aspect;
+      const rx = startRx + (endRx - startRx) * e;
+      const ry = startRy + (endRy - startRy) * e;
+      if (c.invert) {
+        // inverted: the media shows around the opening and the opening itself is empty (the page behind shows through)
+        const hole = `radial-gradient(ellipse ${rx.toFixed(1)}px ${ry.toFixed(1)}px at ${cx}px ${cy}px, transparent 0%, transparent calc(100% - 1px), #000 100%)`;
+        frame.style.clipPath = 'none';
+        media.style.webkitMaskImage = hole;
+        media.style.maskImage = hole;
+      } else {
+        frame.style.clipPath = `ellipse(${rx.toFixed(1)}px ${ry.toFixed(1)}px at ${cx}px ${cy}px)`;
+      }
+    }
+
     const w = c.startWidth + (100 - c.startWidth) * e;
     const h = c.startHeight + (100 - c.startHeight) * e;
     const ix = Math.max(0, (100 - w) / 2);
     const iy = Math.max(0, (100 - h) / 2);
     const r = c.startRadius + (c.endRadius - c.startRadius) * e;
-    frame.style.clipPath = `inset(${iy}% ${ix}% ${iy}% ${ix}% round ${r}px)`;
+    if (c.shape !== 'circle') frame.style.clipPath = `inset(${iy}% ${ix}% ${iy}% ${ix}% round ${r}px)`;
 
     media.style.transform = `scale(${c.mediaZoom + (1 - c.mediaZoom) * e})`;
 
@@ -245,7 +283,10 @@ const ScrollExpand = ({
     };
   }, [applyProgress, useWindowScroll, fitContent]);
 
-  const media =
+  const media = mediaNode ? (
+    // any element (for example an animated background) can stand in for the image
+    <div ref={mediaRef} className="scroll-expand__media">{mediaNode}</div>
+  ) :
     mediaType === 'video' ? (
       <video
         ref={mediaRef}
