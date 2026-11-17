@@ -148,6 +148,12 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `GET /api/waitlist` | None | Returns the signed-in user's waitlist entries with item details populated; authenticated members, admins, and lenders. |
 | `DELETE /api/waitlist/WTL-...` | None | Removes the signed-in user's waitlist entry; authenticated members, admins, and lenders. |
 | `DELETE /api/waitlist/:itemId` | None | Removes all waitlist entries for the item; authenticated members, admins, and lenders. |
+| `GET /api/admin/reports/usage` | None; admin only; `?month=YYYY-MM` (default current month) or `?from=YYYY-MM-DD&to=YYYY-MM-DD`; optional `?item=` and `?category=` | Counts confirmed reservations (upcoming, active, completed) that start in the period, per item and per category, with days reserved and deposits. |
+| `GET /api/admin/reports/usage/export` | Same query as the usage report plus `?format=` `csv` or `pdf` | Downloads the usage report as a file. |
+| `GET /api/admin/reports/damage` | None; admin only; optional `?status=` `pending-review`, `decided`, `disputed` or `resolved` | Lists one case per reservation with its report, dispute and resolution history, status and forfeited deposit. |
+| `GET /api/admin/reports/damage/export` | `?format=` `csv` or `pdf`; optional `?status=` | Downloads the damage report as a file. |
+| `GET /api/admin/reports/membership-tiers` | None; admin only | Returns the number and percentage of members and lenders in each tier. |
+| `GET /api/lender/dashboard` | None; lender only | Returns listed items, times lent, distinct items lent, total deposits collected and the damage incident rate. |
 
 The password recovery URL is spelled `forget-password`, matching the current
 router. Reset codes expire after 10 minutes and allow at most five verification
@@ -292,3 +298,4 @@ View results and download the report from the repository's **Actions** tab. Step
 Every PR must pass CI and receive at least one peer approval before merging into `main`. Repository administrators should configure an active branch ruleset targeting `main` that requires pull requests, the `acl-code-check` status check, and at least one approval. Enable dismissal of stale approvals when new commits are pushed so updated code is reviewed again.
 
 These requirements are enforced by GitHub repository settings, not by this README or the workflow alone. Confirm that the ruleset is active and supported by the repository's visibility and account plan. Automated checks support peer review; they do not replace it.
+
