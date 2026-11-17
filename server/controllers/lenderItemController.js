@@ -23,7 +23,12 @@ const itemSchema = joi.object(
         borrowingRules: joi.object({
             maxDurationDays: joi.number().integer().min(1),
             minTrustScore: joi.number().min(0).max(100),
-    }).min(1)
+        }).min(1),
+
+        cancellation: joi.object({
+            freeDays: joi.number().integer().min(0),
+            forfeitPercent: joi.number().min(0).max(100)
+        }).min(1)
 })
 
 
@@ -39,8 +44,12 @@ const updateSchema = joi.object(
         borrowingRules: joi.object({
             maxDurationDays: joi.number().integer().min(1),
             minTrustScore: joi.number().min(0).max(100),
-    }).min(1), 
-}).min(1) // require at least one field to be present
+        }).min(1),
+        cancellation: joi.object({
+            freeDays: joi.number().integer().min(0),
+            forfeitPercent: joi.number().min(0).max(100)
+        }).min(1)
+    }).min(1) // require at least one field to be present
 
 
 export async function createItem(req, res, next){
@@ -63,6 +72,7 @@ export async function createItem(req, res, next){
                 pickup: { location: value.pickupLocation, instructions: value.pickupInstructions },
                 ...(value.delivery && { delivery: value.delivery }),
                 borrowingRules: value.borrowingRules,
+                ...(value.cancellation && { cancellation: value.cancellation }),
                 owner: req.user.id
             })
             res.status(201).json({ item })
@@ -112,6 +122,16 @@ function applyBorrowingRules(item, borrowingRules) {
     if (borrowingRules?.minTrustScore !== undefined) item.borrowingRules.minTrustScore = borrowingRules.minTrustScore
 }
 
+function applyCancellation(item, cancellation) {
+    if (cancellation?.freeDays !== undefined) {
+        item.cancellation.freeDays = cancellation.freeDays;
+    }
+
+    if (cancellation?.forfeitPercent !== undefined) {
+        item.cancellation.forfeitPercent = cancellation.forfeitPercent;
+    }
+}
+
 export async function updateItem(req, res, next){
     try {
         const { value, error } = updateSchema.validate(req.body, { stripUnknown: true })
@@ -119,7 +139,13 @@ export async function updateItem(req, res, next){
         const item = await Item.findById(req.params.id)
         if (!item) return res.status(404).json({ message: 'Item not found' })
         if (item.owner !== req.user.id) return res.status(403).json({ message: 'You do not have permission to update this item' })
-        const { pickupLocation, pickupInstructions, borrowingRules, ...rest } = value
+        const {
+            pickupLocation,
+            pickupInstructions,
+            borrowingRules,
+            cancellation,
+            ...rest
+        } = value;
         
         if (rest.category) {
             const category = await Category.findById(rest.category)
@@ -129,6 +155,7 @@ export async function updateItem(req, res, next){
         Object.assign(item, rest)
         applyPickup(item, pickupLocation, pickupInstructions)
         applyBorrowingRules(item, borrowingRules)
+        applyCancellation(item, cancellation)
         await item.save()
         res.status(200).json({ item })
     }
