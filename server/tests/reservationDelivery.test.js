@@ -5,7 +5,10 @@ import { Reservation } from '../models/Reservation.js';
 import { requireAuth } from '../middleware/auth.js';
 
 vi.mock('../models/Reservation.js', () => ({
-    Reservation: { findById: vi.fn() }
+    Reservation: {
+        findById: vi.fn(),
+        findByIdAndUpdate: vi.fn()
+    }
 }));
 
 vi.mock('../middleware/auth.js', async (importOriginal) => ({
@@ -16,6 +19,7 @@ vi.mock('../middleware/auth.js', async (importOriginal) => ({
 const TRUSTED_ORIGIN = 'http://localhost:3000';
 const reservationId = 'RES-95ced8b1';
 const reservationQuery = { lean: vi.fn() };
+const updateQuery = { lean: vi.fn() };
 
 function authenticateAs(id = 'Youries', role = 'member') {
     requireAuth.mockImplementation((req, res, next) => {
@@ -35,15 +39,26 @@ const getDelivery = id =>
         .get(`/api/reservations/${id}/delivery`)
         .set('Origin', TRUSTED_ORIGIN);
 
+const updateDelivery = (id, status) =>
+    request(app)
+        .post(`/api/reservations/${id}/delivery`)
+        .set('Origin', TRUSTED_ORIGIN)
+        .send({ status });
+
 beforeEach(() => {
     vi.resetAllMocks();
     authenticateAs();
     Reservation.findById.mockReturnValue(reservationQuery);
+    Reservation.findByIdAndUpdate.mockReturnValue(updateQuery);
     reservationQuery.lean.mockResolvedValue({
         _id: reservationId,
         borrower: 'Youries',
         lender: 'martinies',
         delivery: { status: 'out-for-delivery', fee: 25, address: 'Martin Home' }
+    });
+    updateQuery.lean.mockResolvedValue({
+        _id: reservationId,
+        delivery: { status: 'delivered', fee: 25, address: 'Martin Home' }
     });
 });
 
@@ -137,5 +152,49 @@ describe('GET /api/reservations/:reservationId/delivery', () => {
         const response = await getDelivery(reservationId);
 
         expect(response.status).toBe(500);
+    });
+});
+
+describe('POST /api/reservations/:reservationId/delivery', () => {
+    it('updates the status for the lender', async () => {
+        authenticateAs('martinies', 'lender');
+
+        const response = await updateDelivery(reservationId, 'delivered');
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ message: 'Updated status to delivered' });
+        expect(Reservation.findByIdAndUpdate).toHaveBeenCalledExactlyOnceWith(
+            reservationId,
+            { $set: { 'delivery.status': 'delivered' } },
+            { new: true, runValidators: true }
+        );
+    });
+
+    it('rejects an invalid status', async () => {
+        authenticateAs('martinies', 'lender');
+
+        const response = await updateDelivery(reservationId, 'lost');
+
+        expect(response.status).toBe(400);
+        expect(Reservation.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('forbids an unrelated lender', async () => {
+        authenticateAs('different-lender', 'lender');
+
+        const response = await updateDelivery(reservationId, 'delivered');
+
+        expect(response.status).toBe(403);
+        expect(Reservation.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for an invalid reservation id before updating', async () => {
+        authenticateAs('martinies', 'lender');
+
+        const response = await updateDelivery('invalid', 'delivered');
+
+        expect(response.status).toBe(400);
+        expect(Reservation.findById).not.toHaveBeenCalled();
+        expect(Reservation.findByIdAndUpdate).not.toHaveBeenCalled();
     });
 });
