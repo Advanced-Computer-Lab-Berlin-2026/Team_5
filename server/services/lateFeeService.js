@@ -1,0 +1,110 @@
+
+import { Item } from '../models/Item.js';
+import { User } from '../models/User.js';
+import { Payment } from '../models/Payment.js';
+import { Reservation } from '../models/Reservation.js';
+import { CheckoutError } from '../utils/CheckoutError.js';
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// SCRUM-467
+export function calculateLateFee({
+    endDate,
+    returnedAt,
+    lateFeePerDay
+}) {
+    const dueTime = new Date(endDate).getTime();
+    const returnTime = new Date(returnedAt).getTime();
+
+    if (
+        !Number.isFinite(dueTime) ||
+        !Number.isFinite(returnTime) ||
+        !Number.isFinite(lateFeePerDay) ||
+        lateFeePerDay < 0
+    ) {
+        throw new Error('Invalid late-fee calculation inputs.');
+    }
+
+    const daysLate = Math.max(
+        0,
+        Math.ceil((returnTime - dueTime) / MS_PER_DAY)
+    );
+
+    const lateFee = Math.round(
+        daysLate * lateFeePerDay * 100
+    ) / 100;
+
+    return { daysLate, lateFee };
+}
+
+// SCRUM-468
+// Must be called inside the existing return transaction.
+export async function chargeLateFeeForReturn(reservation, session) {
+    const item = await Item.findById(
+        reservation.item
+    ).session(session);
+
+    if (!item) {
+        throw new CheckoutError(
+            409,
+            'ITEM_NOT_FOUND',
+            'Item not found for late-fee calculation.'
+        );
+    }
+
+    const { daysLate, lateFee } = calculateLateFee({
+        endDate: reservation.endDate,
+        returnedAt: reservation.handover.returnedAt,
+        lateFeePerDay: item.borrowingRules?.lateFeePerDay ?? 0
+    });
+
+    if (lateFee > 0) {
+        const member = await User.findOneAndUpdate(
+            {
+                _id: reservation.borrower,
+                wallet: { $gte: lateFee }
+            },
+            {
+                $inc: { wallet: -lateFee }
+            },
+            {
+                session,
+                new: true
+            }
+        );
+
+        if (!member) {
+            throw new CheckoutError(
+                409,
+                'INSUFFICIENT_WALLET',
+                'Member wallet cannot cover the late fee.'
+            );
+        }
+
+        await Payment.create([{
+            user: reservation.borrower,
+            reservation: reservation._id,
+            type: 'late-fee',
+            amount: lateFee,
+            direction: 'deduct',
+            method: 'wallet',
+            status: 'completed',
+            description: `Late fee for ${daysLate} overdue day(s)`
+        }], { session });
+    }
+
+    await Reservation.updateOne(
+        {
+            _id: reservation._id,
+            status: 'completed'
+        },
+        {
+            $set: {
+                'payment.lateFee': lateFee
+            }
+        },
+        { session }
+    );
+
+    return { daysLate, lateFee };
+}

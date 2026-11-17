@@ -1,6 +1,7 @@
 import { Reservation } from '../models/Reservation.js';
 import { cancelReservationWithRefund } from '../services/reservationCancellationService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
+import { requestExtension } from '../services/extensionService.js';
 const RESERVATION_ID_PATTERN = /^RES-[0-9a-f]{8}$/;
 
 function canViewDelivery(user, reservation) {
@@ -43,6 +44,27 @@ export async function cancelReservation(req, res, next) {
 
         return res.status(200).json(result);
 
+    } catch (error) {
+        if (error instanceof CheckoutError) {
+            return res.status(error.statusCode).json({
+                error: error.code,
+                message: error.message
+            });
+        }
+
+        return next(error);
+    }
+}
+
+export async function requestReservationExtension(req, res, next) {
+    try {
+        const result = await requestExtension(
+            req.params.reservationId,
+            req.user.id,
+            req.body?.requestedEndDate
+        );
+
+        return res.status(201).json(result);
     } catch (error) {
         if (error instanceof CheckoutError) {
             return res.status(error.statusCode).json({

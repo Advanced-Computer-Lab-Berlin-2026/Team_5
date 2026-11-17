@@ -23,6 +23,7 @@ const itemSchema = joi.object(
         borrowingRules: joi.object({
             maxDurationDays: joi.number().integer().min(1),
             minTrustScore: joi.number().min(0).max(100),
+            lateFeePerDay: joi.number().min(0)
         }).min(1),
 
         cancellation: joi.object({
@@ -44,6 +45,7 @@ const updateSchema = joi.object(
         borrowingRules: joi.object({
             maxDurationDays: joi.number().integer().min(1),
             minTrustScore: joi.number().min(0).max(100),
+            lateFeePerDay: joi.number().min(0)
         }).min(1),
         cancellation: joi.object({
             freeDays: joi.number().integer().min(0),
@@ -120,6 +122,7 @@ function applyPickup(item, pickupLocation, pickupInstructions) {
 function applyBorrowingRules(item, borrowingRules) {
     if(borrowingRules?.maxDurationDays !== undefined) item.borrowingRules.maxDurationDays = borrowingRules.maxDurationDays
     if (borrowingRules?.minTrustScore !== undefined) item.borrowingRules.minTrustScore = borrowingRules.minTrustScore
+    if (borrowingRules?.lateFeePerDay !== undefined) item.borrowingRules.lateFeePerDay = borrowingRules.lateFeePerDay
 }
 
 function applyCancellation(item, cancellation) {

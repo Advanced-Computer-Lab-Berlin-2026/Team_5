@@ -1,7 +1,7 @@
 import { User } from '../models/User.js';
 import { checkoutWithWallet } from '../services/checkoutService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
-
+import { Payment } from '../models/Payment.js';
 // GET /api/wallet
 export async function getWalletBalance(req, res, next) {
     try {
@@ -74,5 +74,23 @@ export async function payWalletCheckout(req, res, next) {
 
         // Unexpected errors
         return next(error);
+    }
+}
+
+
+export async function getLateFees(req, res, next) {
+    try {
+        const fees = await Payment.find({
+            user: req.user.id,
+            type: 'late-fee',
+            method: 'wallet'
+        })
+            .sort({ createdAt: -1 })
+            .select('reservation amount status date createdAt')
+            .lean();
+
+        return res.status(200).json({ fees });
+    } catch (error) {
+        next(error);
     }
 }

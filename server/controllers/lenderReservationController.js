@@ -7,6 +7,9 @@ import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js';
+import { decideExtension, getPendingExtensions } from '../services/extensionService.js';
+import { CheckoutError } from '../utils/CheckoutError.js';
+import { chargeLateFeeForReturn } from '../services/lateFeeService.js';
 
 // Finds the reservation and checks that it belongs to this lender and has one of the allowed statuses.
 // Returns { reservation } or { status, message } for the error response.
@@ -80,6 +83,7 @@ export async function markReturnedGood(req, res, next) {
             if (!updated) return;
 
             await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
+            await chargeLateFeeForReturn(updated, session);
             // create() needs an array when options like { session } are passed
             await Payment.create([{
                 user: reservation.borrower,
@@ -101,6 +105,7 @@ export async function markReturnedGood(req, res, next) {
         if (!updated) return res.status(409).json({ message: 'Only active reservations can be marked as returned' });
         res.status(200).json({ reservation: updated, refunded: refund });
     } catch (error) {
+        if (error instanceof CheckoutError) {return res.status(error.statusCode).json({error: error.code,message: error.message}); }
         next(error);
     } finally {
         await session?.endSession();
@@ -185,7 +190,7 @@ export async function reportDamage(req, res, next) {
                 { new: true, session }
             );
             if (!updated) return;
-
+            await chargeLateFeeForReturn(updated, session);
             [report] = await DamageReport.create([{
                 reservation: reservation._id,
                 type: 'report',
@@ -210,8 +215,40 @@ export async function reportDamage(req, res, next) {
         res.status(201).json({ report });
     } catch (error) {
         await deletePhotos(uploaded);
+        if (error instanceof CheckoutError) {return res.status(error.statusCode).json({error: error.code,message: error.message });}
         next(error);
     } finally {
         await session?.endSession();
+    }
+}
+
+export async function listPendingExtensionRequests(req, res, next) {
+    try {
+        const requests = await getPendingExtensions(req.user.id);
+        return res.status(200).json({ requests });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+export async function decideReservationExtension(req, res, next) {
+    try {
+        const result = await decideExtension(
+            req.params.id,
+            req.params.requestId,
+            req.user.id,
+            req.body?.decision
+        );
+
+        return res.status(200).json(result);
+    } catch (error) {
+        if (error instanceof CheckoutError) {
+            return res.status(error.statusCode).json({
+                error: error.code,
+                message: error.message
+            });
+        }
+
+        return next(error);
     }
 }

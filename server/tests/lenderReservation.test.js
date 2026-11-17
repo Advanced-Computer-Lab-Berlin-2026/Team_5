@@ -10,11 +10,13 @@ import { Payment } from '../models/Payment.js';
 import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
-
+import { chargeLateFeeForReturn } from '../services/lateFeeService.js';
 vi.mock('../models/User.js', () => ({
     User: { findById: vi.fn(), updateOne: vi.fn() }
 }));
-
+vi.mock('../services/lateFeeService.js', () => ({
+    chargeLateFeeForReturn: vi.fn()
+}));
 vi.mock('../services/itemPhotoStorage.js', () => ({
     uploadItemPhoto: vi.fn(),
     deleteItemPhoto: vi.fn(),
@@ -35,6 +37,7 @@ const mockReservation = (overrides = {}) => ({
 beforeEach(() => {
     vi.restoreAllMocks();
     vi.resetAllMocks();
+    chargeLateFeeForReturn.mockResolvedValue({daysLate: 0,lateFee: 0});
 });
 
 describe('PATCH /api/lender/reservations/:id/pickup', () => {

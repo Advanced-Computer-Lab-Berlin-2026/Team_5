@@ -100,13 +100,27 @@ reservationSchema.index({ lender: 1, status: 1 });
 export const BLOCKING_STATUSES = ["pending", "upcoming", "active"];
 
 // Finds a reservation that overlaps the dates.
-reservationSchema.statics.findOverlap = function (itemId, start, end, session) {
-  return this.findOne({
-    item: itemId,
-    status: { $in: BLOCKING_STATUSES },
-    startDate: { $lt: end },
-    endDate: { $gt: start },
-  }).session(session || null);
+
+reservationSchema.statics.findOverlap = function (
+    itemId,
+    start,
+    end,
+    session,
+    excludeReservationId = null
+) {
+    const filter = {
+        item: itemId,
+        status: { $in: BLOCKING_STATUSES },
+        startDate: { $lt: end },
+        endDate: { $gt: start }
+    };
+
+    if (excludeReservationId) {
+        filter._id = { $ne: excludeReservationId };
+    }
+
+    return this.findOne(filter).session(session || null);
 };
+
 
 export const Reservation = mongoose.model("Reservation", reservationSchema);
