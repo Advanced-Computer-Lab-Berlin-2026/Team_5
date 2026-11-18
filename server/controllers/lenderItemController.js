@@ -4,7 +4,7 @@ import { Item } from '../models/Item.js'
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js'
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js'
 import { uploadItemManual, deleteItemManual } from '../services/itemManualStorage.js'
-import { notifyWishlistItemAvailable } from '../services/notificationService.js'
+import { notifyWishlistItemAvailable, notifyWaitlistItemAvailable } from '../services/notificationService.js'
 
 
 const itemSchema = joi.object(
@@ -109,6 +109,11 @@ export async function toggleArchiveItem(req, res, next){
                 await notifyWishlistItemAvailable(updated._id)
             } catch (error) {
                 console.error(`failed to send wishlist alerts after unarchive for ${updated._id}`, error)
+            }
+            try {
+                await notifyWaitlistItemAvailable(updated._id)
+            } catch (error) {
+                console.error(`failed to send waitlist alerts after unarchive for ${updated._id}`, error)
             }
         }
 
