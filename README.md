@@ -144,6 +144,7 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `GET /api/admin/lender-requests/:username` | None; admin only | Returns the applicant's username, profile and verification with documents. |
 | `GET /api/admin/lender-requests/:username/documents/:slot` | None; admin only; optional `?download=true` | Redirects to a signed Cloudinary link to view or download the document. |
 | `PATCH /api/admin/lender-requests/:username/decision` | `decision` (`accept` or `reject`); `reason` required when rejecting | Accept sets the role to `lender` and status `accepted`; reject sets status `rejected` and saves the reason in `verification.note`. |
+| `GET /api/items/:id/calendar` | None; login required | Returns `{ reservations: [{ startDate, endDate }] }` for the item, sorted by start date. Only `pending`, `upcoming` and `active` reservations are included, and only their dates (no borrower or other details). `400` for an invalid item id; `404` if the item is missing, flagged, or its lender is suspended. |
 
 The password recovery URL is spelled `forget-password`, matching the current
 router. Reset codes expire after 10 minutes and allow at most five verification
