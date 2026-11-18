@@ -4,7 +4,7 @@ import app from '../app.js';
 import { Item, User } from '../models/index.js';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
-import { notifyWishlistItemAvailable } from '../services/notificationService.js';
+import { notifyWishlistItemAvailable, notifyWaitlistItemAvailable } from '../services/notificationService.js';
 
 vi.mock('../models/User.js', () => ({
     User: { findById: vi.fn() }
@@ -12,11 +12,13 @@ vi.mock('../models/User.js', () => ({
 
 vi.mock('../services/notificationService.js', () => ({
     notifyWishlistItemAvailable: vi.fn(),
+    notifyWaitlistItemAvailable: vi.fn(),
 }));
 
 beforeEach(() => {
     vi.resetAllMocks();
     notifyWishlistItemAvailable.mockResolvedValue(undefined);
+    notifyWaitlistItemAvailable.mockResolvedValue(undefined);
 });
 
 describe('PATCH /api/lender/items/:id/archive', () => {
@@ -67,6 +69,7 @@ describe('PATCH /api/lender/items/:id/archive', () => {
             { new: true }
         );
         expect(notifyWishlistItemAvailable).not.toHaveBeenCalled();
+        expect(notifyWaitlistItemAvailable).not.toHaveBeenCalled();
     });
 
     it('item exists and belongs to lender should toggle archived status back to false and return 200', async () => {
@@ -79,6 +82,7 @@ describe('PATCH /api/lender/items/:id/archive', () => {
         expect(response.status).toBe(200);
         expect(response.body.item.archived).toBe(false);
         expect(notifyWishlistItemAvailable).toHaveBeenCalledWith('itemId');
+        expect(notifyWaitlistItemAvailable).toHaveBeenCalledWith('itemId');
     });
 
     it('should handle errors and return a 500 status', async () => {

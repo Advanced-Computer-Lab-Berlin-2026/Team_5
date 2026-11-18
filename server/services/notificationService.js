@@ -1,4 +1,4 @@
-import { Item, Notification, User } from '../models/index.js';
+import { Item, Notification, User, Waitlist } from '../models/index.js';
 import { sendNotificationEmail } from './emailService.js';
 import { env } from '../config/env.js';
 import { normalizeEmailPreferences } from '../utils/emailPreferences.js';
@@ -275,5 +275,34 @@ export async function notifyWishlistItemAvailable(itemRef) {
         await Promise.all(wishers.map(({ _id }) => notifyOrLog(_id, 'wishlist alert', details, itemId)));
     } catch (error) {
         console.error(`failed to send the wishlist alerts for ${itemId}`, error);
+    }
+}
+
+export async function notifyWaitlistItemAvailable(itemRef) {
+    const itemId = asItemId(itemRef);
+    try {
+        if (!itemId) return;
+        const item = await Item.findById(itemId, { name: 1, owner: 1, archived: 1, flagged: 1 }, { lean: true });
+        if (!item || item.archived || item.flagged) return;
+
+        const now = new Date();
+        const waitlists = await Waitlist.find(
+            { item: item._id, startDate: { $lt: now }, endDate: { $gt: now } },
+            { username: 1 },
+            { lean: true }
+        );
+        const usernames = new Set(
+            waitlists.map(({ username }) => username).filter((username) => username !== item.owner)
+        );
+        const details = {
+            type: 'waitlist-available',
+            subject: 'An item on your waitlist is available',
+            message: `"${item.name}" on your waitlist is available to reserve now`
+        };
+        await Promise.all([...usernames].map((username) =>
+            notifyOrLog(username, 'waitlist alert', details, itemId)
+        ));
+    } catch (error) {
+        console.error(`failed to send the waitlist alerts for ${itemId}`, error);
     }
 }
