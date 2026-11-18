@@ -21,6 +21,8 @@ import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
 import lenderDashboardRoutes from './routes/lenderDashboard.js';
 import reportRoutes from './routes/reports.js';
+import adminDamageReportRoutes from './routes/adminDamageReports.js';
+import damageReportRoutes from './routes/damageReports.js';
 
 const app = express();
 
@@ -57,6 +59,8 @@ app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
 app.use('/api/admin/reports', reportRoutes);
 app.use('/api/lender/dashboard', lenderDashboardRoutes);
+app.use('/api/admin/damage-reports', adminDamageReportRoutes);
+app.use('/api/damage-reports', damageReportRoutes);
 
 
 

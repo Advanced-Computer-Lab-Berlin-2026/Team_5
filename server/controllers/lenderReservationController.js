@@ -5,7 +5,7 @@ import { User } from '../models/User.js';
 import { Payment } from '../models/Payment.js';
 import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
-import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
+import { uploadPhotos, deletePhotos } from '../services/photoUpload.js';
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js';
 
 // Finds the reservation and checks that it belongs to this lender and has one of the allowed statuses.
@@ -18,20 +18,6 @@ async function findLenderReservation(id, lenderId, allowedStatuses, action) {
         return { status: 409, message: `Only ${allowedStatuses.join(' or ')} reservations can ${action}` };
     }
     return { reservation };
-}
-
-const deletePhotos = (files) => Promise.allSettled(files.map((file) => deleteItemPhoto(file.public_id)));
-
-// Uploads all files. If one fails, removes the ones that did upload and throws.
-async function uploadPhotos(files) {
-    const results = await Promise.allSettled(files.map((file) => uploadItemPhoto(file.buffer)));
-    const uploaded = results.filter((result) => result.status === 'fulfilled').map((result) => result.value);
-    const failed = results.find((result) => result.status === 'rejected');
-    if (failed) {
-        await deletePhotos(uploaded);
-        throw failed.reason;
-    }
-    return uploaded;
 }
 
 // PATCH /api/lender/reservations/:id/pickup
