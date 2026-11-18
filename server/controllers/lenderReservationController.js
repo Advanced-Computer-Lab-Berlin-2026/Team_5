@@ -7,6 +7,8 @@ import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js';
+import { recalculateTrustScore } from '../services/trustScoreService.js';
+import { rewardReferralIfEligible } from '../services/referralService.js';
 
 // Finds the reservation and checks that it belongs to this lender and has one of the allowed statuses.
 // Returns { reservation } or { status, message } for the error response.
@@ -96,7 +98,12 @@ export async function markReturnedGood(req, res, next) {
                 type: 'other',
                 message: `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`,
             }], { session });
+                    await recalculateTrustScore(reservation.borrower, session);
+            await recalculateTrustScore(reservation.lender, session);
+            await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
         });
+            
+        
 
         if (!updated) return res.status(409).json({ message: 'Only active reservations can be marked as returned' });
         res.status(200).json({ reservation: updated, refunded: refund });
@@ -201,6 +208,8 @@ export async function reportDamage(req, res, next) {
                 type: 'other',
                 message: 'Your lender reported the returned item as damaged. Your deposit is held until the report is resolved.',
             }], { session });
+            await recalculateTrustScore(reservation.borrower, session);
+            await recalculateTrustScore(reservation.lender, session);
         });
 
         if (!report) {

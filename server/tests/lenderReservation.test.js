@@ -20,6 +20,14 @@ vi.mock('../services/itemPhotoStorage.js', () => ({
     deleteItemPhoto: vi.fn(),
 }));
 
+vi.mock('../services/trustScoreService.js', () => ({
+    recalculateTrustScore: vi.fn(),
+}));
+
+vi.mock('../services/referralService.js', () => ({
+    rewardReferralIfEligible: vi.fn(),
+}));
+
 const ORIGIN = 'http://localhost:3000';
 const token = (id, role) => jwt.sign({ id, role }, env.jwtSecret, { expiresIn: '15m' });
 const asLender = () => {

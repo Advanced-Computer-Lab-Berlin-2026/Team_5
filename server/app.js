@@ -16,6 +16,9 @@ import profileRoutes from './routes/profile.js';
 import householdRoutes from './routes/household.js';
 import alternativesRoutes from './routes/alternatives.js';
 import reservationRoutes from './routes/reservations.js';
+import borrowListRoutes from './routes/borrowList.js';
+import referralRoutes from './routes/referrals.js';
+import reviewRoutes from './routes/reviews.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
@@ -52,6 +55,9 @@ app.use('/api/wallet', walletRoutes)
 app.use('/api/notices', noticeRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
+app.use('/api/borrow-list', borrowListRoutes)
+app.use('/api/referrals', referralRoutes)
+app.use('/api/reviews', reviewRoutes)
 
 
 // Keep These at the end for fallback errors
