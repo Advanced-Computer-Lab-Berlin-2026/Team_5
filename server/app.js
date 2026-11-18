@@ -14,6 +14,7 @@ import walletRoutes from './routes/wallet.js';
 import noticeRoutes from './routes/notices.js';
 import profileRoutes from './routes/profile.js';
 import householdRoutes from './routes/household.js';
+import waitlistRoutes from './routes/waitlist.js';
 import alternativesRoutes from './routes/alternatives.js';
 import reservationRoutes from './routes/reservations.js';
 import notificationRoutes from './routes/notifications.js';
@@ -21,8 +22,11 @@ import settingsRoutes from './routes/settings.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
+import lenderDashboardRoutes from './routes/lenderDashboard.js';
+import reportRoutes from './routes/reports.js';
 
 const app = express();
+
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
@@ -56,6 +60,11 @@ app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/settings', settingsRoutes)
+app.use('/api/waitlist', waitlistRoutes)
+app.use('/api/admin/reports', reportRoutes);
+app.use('/api/lender/dashboard', lenderDashboardRoutes);
+
+
 
 
 // Keep These at the end for fallback errors
