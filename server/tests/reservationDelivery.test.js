@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../app.js';
 import { Reservation } from '../models/Reservation.js';
 import { requireAuth } from '../middleware/auth.js';
+import { notifyDeliveryStatus } from '../services/notificationService.js';
 
 vi.mock('../models/Reservation.js', () => ({
     Reservation: {
@@ -14,6 +15,10 @@ vi.mock('../models/Reservation.js', () => ({
 vi.mock('../middleware/auth.js', async (importOriginal) => ({
     ...(await importOriginal()),
     requireAuth: vi.fn()
+}));
+
+vi.mock('../services/notificationService.js', () => ({
+    notifyDeliveryStatus: vi.fn()
 }));
 
 const TRUSTED_ORIGIN = 'http://localhost:3000';
@@ -163,11 +168,33 @@ describe('POST /api/reservations/:reservationId/delivery', () => {
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual({ message: 'Updated status to delivered' });
+        expect(notifyDeliveryStatus).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ _id: reservationId, borrower: 'Youries' }),
+            'delivered'
+        );
         expect(Reservation.findByIdAndUpdate).toHaveBeenCalledExactlyOnceWith(
             reservationId,
             { $set: { 'delivery.status': 'delivered' } },
             { new: true, runValidators: true }
         );
+    });
+
+    it('does not send a delivery notification for preparing', async () => {
+        authenticateAs('martinies', 'lender');
+
+        const response = await updateDelivery(reservationId, 'preparing');
+
+        expect(response.status).toBe(200);
+        expect(notifyDeliveryStatus).not.toHaveBeenCalled();
+    });
+
+    it('does not send a duplicate notification when the status is unchanged', async () => {
+        authenticateAs('martinies', 'lender');
+
+        const response = await updateDelivery(reservationId, 'out-for-delivery');
+
+        expect(response.status).toBe(200);
+        expect(notifyDeliveryStatus).not.toHaveBeenCalled();
     });
 
     it('rejects an invalid status', async () => {

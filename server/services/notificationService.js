@@ -217,6 +217,32 @@ export async function notifyUpcomingReturn(reservation) {
     }
 }
 
+export async function notifyDeliveryStatus(reservation, status) {
+    if (!reservation?._id || !reservation.borrower) return;
+    if (!['out-for-delivery', 'delivered'].includes(status)) return;
+
+    try {
+        const itemId = asItemId(reservation.item);
+        const item = itemId
+            ? await Item.findById(itemId, { name: 1 }, { lean: true })
+            : null;
+        const name = item?.name ? `"${item.name}"` : 'item';
+        const subject = status === 'delivered' ? 'Item delivered' : 'Item out for delivery';
+        const message = status === 'delivered'
+            ? `Your ${name} has been delivered`
+            : `Your ${name} is out for delivery`;
+
+        await notifyOrLog(reservation.borrower, 'delivery status', {
+            type: 'delivery',
+            subject,
+            reservation: reservation._id,
+            message
+        });
+    } catch (error) {
+        console.error(`failed to send the delivery status for ${reservation?._id}`, error);
+    }
+}
+
 // findOne then create — fine for a single cron; overlapping replicas can still race without a unique index
 async function notifyReturnIfNew(username, details) {
     const already = await Notification.findOne(

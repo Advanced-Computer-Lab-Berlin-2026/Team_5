@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     notify, notifyWishlistItemAvailable, notifyReservationCancelled, notifyReservationConfirmed, notifyReservationRejected,
-    notifyUpcomingReturn
+    notifyUpcomingReturn, notifyDeliveryStatus
 } from '../services/notificationService.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { env } from '../config/env.js';
@@ -424,6 +424,69 @@ describe('notifyWishlistItemAvailable', () => {
             expect(new RealNotification(doc).validateSync()).toBeUndefined();
         }
         expect(Notification.create).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('notifyDeliveryStatus', () => {
+    const reservation = {
+        _id: 'RES-1a2b3c4d',
+        item: 'ITEM-1',
+        borrower: 'yara',
+        lender: 'martin'
+    };
+
+    beforeEach(() => {
+        Item.findById.mockResolvedValue({ _id: 'ITEM-1', name: 'Drill' });
+        Notification.create.mockImplementation(async (doc) => ({ _id: 'NOT-1a2b3c4d', ...doc }));
+        User.findById.mockImplementation(async () => ({ profile: { email: 'yara@example.com' } }));
+    });
+
+    it.each([
+        ['out-for-delivery', 'Item out for delivery', 'Your "Drill" is out for delivery'],
+        ['delivered', 'Item delivered', 'Your "Drill" has been delivered']
+    ])('notifies the borrower when status becomes %s', async (status, subject, message) => {
+        await notifyDeliveryStatus(reservation, status);
+
+        expect(Notification.create).toHaveBeenCalledWith({
+            username: 'yara',
+            type: 'delivery',
+            message,
+            reservation: 'RES-1a2b3c4d',
+        });
+        await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledWith(
+            'yara@example.com',
+            subject,
+            message
+        ));
+    });
+
+    it('does not notify for preparing', async () => {
+        await notifyDeliveryStatus(reservation, 'preparing');
+
+        expect(Item.findById).not.toHaveBeenCalled();
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the item when the item lookup returns null', async () => {
+        Item.findById.mockResolvedValue(null);
+
+        await notifyDeliveryStatus(reservation, 'delivered');
+
+        expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({
+            message: 'Your item has been delivered'
+        }));
+    });
+
+    it('logs lookup failures without throwing', async () => {
+        Item.findById.mockRejectedValue(new Error('db down'));
+
+        await expect(notifyDeliveryStatus(reservation, 'delivered')).resolves.toBeUndefined();
+
+        expect(console.error).toHaveBeenCalledWith(
+            'failed to send the delivery status for RES-1a2b3c4d',
+            expect.any(Error)
+        );
+        expect(Notification.create).not.toHaveBeenCalled();
     });
 });
 

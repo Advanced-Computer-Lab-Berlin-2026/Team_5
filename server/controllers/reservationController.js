@@ -1,5 +1,6 @@
 import joi from 'joi';
 import { Reservation } from '../models/Reservation.js';
+import { notifyDeliveryStatus } from '../services/notificationService.js';
 
 const RESERVATION_ID_PATTERN = /^RES-[0-9a-f]{8}$/;
 const DELIVERY_STATUSES = ['preparing', 'out-for-delivery', 'delivered'];
@@ -73,6 +74,13 @@ export async function updateDeliveryStatus(req, res, next) {
 
         if (!updatedReservation) {
             return res.status(404).json({ message: 'Reservation not found' });
+        }
+
+        if (
+            reservation.delivery?.status !== value.status &&
+            ['out-for-delivery', 'delivered'].includes(value.status)
+        ) {
+            await notifyDeliveryStatus(reservation, value.status);
         }
 
         return res.status(200).json({
