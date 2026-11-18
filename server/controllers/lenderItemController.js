@@ -4,6 +4,7 @@ import { Item } from '../models/Item.js'
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js'
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js'
 import { uploadItemManual, deleteItemManual } from '../services/itemManualStorage.js'
+import { notifyWishlistItemAvailable } from '../services/notificationService.js'
 
 
 const itemSchema = joi.object(
@@ -92,9 +93,26 @@ export async function toggleArchiveItem(req, res, next){
         const item = await Item.findById(req.params.id)
         if (!item) return res.status(404).json({ message: 'Item not found' })
         if (item.owner !== req.user.id) return res.status(403).json({ message: 'You do not have permission to archive this item' })
-        item.archived = !item.archived
-        await item.save()
-        res.status(200).json({ item })
+
+        const wasArchived = item.archived
+        // archived in the filter so a double-click unarchive can't match twice and spam wishlist alerts
+        const updated = await Item.findOneAndUpdate(
+            { _id: item._id, owner: req.user.id, archived: wasArchived },
+            { $set: { archived: !wasArchived } },
+            { new: true }
+        )
+        if (!updated) return res.status(409).json({ message: 'Item archive state changed, try again' })
+
+        // SCRUM-237: only unarchive (true -> false) tells wishlisters it's back
+        if (wasArchived) {
+            try {
+                await notifyWishlistItemAvailable(updated._id)
+            } catch (error) {
+                console.error(`failed to send wishlist alerts after unarchive for ${updated._id}`, error)
+            }
+        }
+
+        res.status(200).json({ item: updated })
     }
     catch (error) {
         next(error)
