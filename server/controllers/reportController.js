@@ -1,6 +1,7 @@
 import joi from 'joi';
 import { Reservation, DamageReport, User, MembershipTier } from '../models/index.js';
 import { sendCsv, sendPdf } from '../services/reportExport.js';
+import { closeExpiredDecisions } from '../services/damageCase.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MONTH_REGEX_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -8,8 +9,9 @@ const MONTH_REGEX_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 // Reservations the lender confirmed. Pending, cancelled and rejected ones were never used.
 const USAGE_STATUSES = ['upcoming', 'active', 'completed'];
 
-// report -> resolution (admin decision) -> dispute -> resolution (final outcome)
+// report -> decision (admin) -> dispute (borrower) -> resolution (final outcome)
 const DAMAGE_STATUSES = ['pending-review', 'decided', 'disputed', 'resolved'];
+const STATUS_BY_STEP = { report: 'pending-review', decision: 'decided', dispute: 'disputed', resolution: 'resolved' };
 
 const usageReportSchema = joi.object({
     month: joi.string().pattern(MONTH_REGEX_PATTERN).messages({
@@ -142,17 +144,20 @@ async function buildUsageReport(value) {
 }
 
 function getResolutionStatus(entries) {
-    const latest = entries.at(-1).type;
-    if (latest === 'report') return 'pending-review';
-    if (latest === 'dispute') return 'disputed';
-    return entries.some(entry => entry.type === 'dispute') ? 'resolved' : 'decided';
+    return STATUS_BY_STEP[entries.at(-1).type];
 }
 
-// One case per reservation, built from all of its report, dispute and resolution entries
+// The case number used in /api/admin/damage-reports/:id is the id of the lender's report
+function getCaseNumber(entries) {
+    return entries.find(entry => entry.type === 'report')?._id ?? null;
+}
+
+// One case per reservation, built from all of its report, decision, dispute and resolution entries
 function toDamageCase(reservationId, entries, reservation) {
     const { item, borrower, lender, payment } = reservation ?? {};
-    const latestResolution = entries.findLast(entry => entry.type === 'resolution');
+    const latestRuling = entries.findLast(entry => ['decision', 'resolution'].includes(entry.type));
     return {
+        id: getCaseNumber(entries),
         reservation: reservationId,
         item: item ? { id: item._id, name: item.name, category: item.category } : null,
         borrower: borrower ?? null,
@@ -160,7 +165,7 @@ function toDamageCase(reservationId, entries, reservation) {
         depositAmount: payment?.depositAmount ?? null,
         status: getResolutionStatus(entries),
         disputed: entries.some(entry => entry.type === 'dispute'),
-        depositForfeit: latestResolution?.depositForfeit ?? null,
+        depositForfeit: latestRuling?.depositForfeit ?? null,
         openedAt: entries[0].createdAt,
         lastUpdatedAt: entries.at(-1).createdAt,
         history: entries.map(entry => ({
@@ -175,6 +180,9 @@ function toDamageCase(reservationId, entries, reservation) {
 }
 
 async function buildDamageReport(value) {
+    // decisions nobody disputed within 7 days get their resolution first, so they show as resolved
+    await closeExpiredDecisions();
+
     // Photos are left out on purpose, the admin opens them from the damage report itself
     const entries = await DamageReport.find({}).select('-report.photos').sort({ createdAt: 1 }).lean();
 
