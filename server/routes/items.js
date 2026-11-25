@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listItems, getItem, getItemCalendar } from '../controllers/itemController.js';
+import { listItems, getItem, getItemCalendar, getItemManual } from '../controllers/itemController.js';
 import { requireAuth } from '../middleware/auth.js'
 
 

@@ -121,9 +121,9 @@ export async function getItemCalendar(req, res, next) {
         ).lean();
 
         res.status(200).json({ reservations });
-    
-} catch (error) {
-    next(error);
+    } catch (error) {
+        next(error);
+    }
 }
 
 // GET /api/items/:id/manual — public like item details; signed because Cloudinary manuals are authenticated
