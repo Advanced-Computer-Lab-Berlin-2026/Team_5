@@ -1,5 +1,7 @@
 import { Router } from 'express';
-import { listItems, getItem, getItemManual } from '../controllers/itemController.js';
+import { listItems, getItem, getItemCalendar, getItemManual } from '../controllers/itemController.js';
+import { requireAuth } from '../middleware/auth.js'
+
 
 const router = Router();
 
@@ -7,5 +9,8 @@ const router = Router();
 router.get('/', listItems);
 router.get('/:id/manual', getItemManual);
 router.get('/:id', getItem);
+
+// SCRUM-341, any logged in user should be able to view the reservation calendar of an item
+router.get('/:id/calendar', requireAuth, getItemCalendar);
 
 export default router;

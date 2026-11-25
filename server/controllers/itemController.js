@@ -1,5 +1,6 @@
 import joi from 'joi';
 import { Item, User } from '../models/index.js';
+import { Reservation, BLOCKING_STATUSES } from '../models/index.js'
 import { getSignedManualUrl } from '../services/itemManualStorage.js';
 
 // only the fields the list card needs, I keep the full details for the item page
@@ -87,6 +88,39 @@ export async function getItem(req, res, next) {
         const owner = item.owner ? { name: item.owner.profile?.name, trustScore: item.owner.trustScore } : null;
 
         res.status(200).json({ item: { ...item, owner } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// GET /api/items/:id/calendar
+export async function getItemCalendar(req, res, next) {
+    try {
+
+        // firstly we check if item id is valid regex
+        if (!req.params.id.match(/^ITM-[0-9a-f]{8}$/)) {
+            return res.status(400).json({ message: 'Invalid item id' });
+        }
+
+        // then we check if item exists and is not flagged
+        const item = await Item.findOne(
+            { _id: req.params.id, flagged: { $ne: true } },
+            { flagged: 0, __v: 0 },
+            {lean: true,
+                // owner is name + trust score only, lean skips User toJSON so password/email/phone/wallet must never be read. populate's select asks User lookup for just name + suspended + trust score
+                populate: { path: 'owner', select: 'profile.name suspended trustScore' }
+            }
+        );
+        if (!item || item.owner?.suspended) return res.status(404).json({ message: 'Item not found' });
+
+        // then we check if there are any reservations for this item, and sort by startDate, only return start and end date
+        const reservations = await Reservation.find(
+            { item: req.params.id, status: { $in: BLOCKING_STATUSES } },
+            { startDate: 1, endDate: 1, _id: 0 },
+            { sort: { startDate: 1 } }
+        ).lean();
+
+        res.status(200).json({ reservations });
     } catch (error) {
         next(error);
     }
