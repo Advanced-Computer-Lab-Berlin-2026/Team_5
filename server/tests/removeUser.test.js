@@ -41,8 +41,7 @@ vi.mock('../models/RefreshSession.js', () => ({
 
 vi.mock('../models/Waitlist.js', () => ({
   Waitlist: {
-    deleteMany: vi.fn(),
-    updateMany: vi.fn()
+    deleteMany: vi.fn()
   }
 }));
 
@@ -97,7 +96,6 @@ beforeEach(() => {
   User.updateMany.mockResolvedValue({ modifiedCount: 2 });
 
   Waitlist.deleteMany.mockResolvedValue({ deletedCount: 1 });
-  Waitlist.updateMany.mockResolvedValue({ modifiedCount: 1 });
 
   PasswordReset.deleteMany.mockResolvedValue({ deletedCount: 1 });
 
@@ -142,10 +140,9 @@ describe('removeUser', () => {
       { session: mockSession }
     );
 
-    // Remove deleted user from other waitlists
-    expect(Waitlist.updateMany).toHaveBeenCalledWith(
-      { usernames: 'ahmed123' },
-      { $pull: { usernames: 'ahmed123' } },
+    // Remove the deleted user's waitlist entries
+    expect(Waitlist.deleteMany).toHaveBeenCalledWith(
+      { username: 'ahmed123' },
       { session: mockSession }
     );
 
@@ -211,12 +208,10 @@ describe('removeUser', () => {
 
     // No item references need cleaning
     expect(User.updateMany).not.toHaveBeenCalled();
-    expect(Waitlist.deleteMany).not.toHaveBeenCalled();
 
     // Other cleanup still happens
-    expect(Waitlist.updateMany).toHaveBeenCalledWith(
-      { usernames: 'ahmed123' },
-      { $pull: { usernames: 'ahmed123' } },
+    expect(Waitlist.deleteMany).toHaveBeenCalledWith(
+      { username: 'ahmed123' },
       { session: mockSession }
     );
 

@@ -20,3 +20,16 @@ export function uploadItemManual(buffer, itemId) {
 export function deleteItemManual(itemId) {
     return cloudinary.uploader.destroy(manualPublicId(itemId), { type: MANUAL_OPTIONS.type, resource_type: MANUAL_OPTIONS.resource_type, invalidate: true });
 }
+
+// SCRUM-243: authenticated manuals need a server-signed link — raw documents[].url won't open
+export function getSignedManualUrl(itemId, { download = false } = {}) {
+    const options = {
+        type: MANUAL_OPTIONS.type,
+        resource_type: MANUAL_OPTIONS.resource_type,
+        sign_url: true,
+        secure: true,
+        format: 'pdf'
+    };
+    if (download) options.flags = 'attachment:manual';
+    return cloudinary.url(manualPublicId(itemId), options);
+}
