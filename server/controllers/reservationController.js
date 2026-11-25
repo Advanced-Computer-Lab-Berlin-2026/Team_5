@@ -36,30 +36,51 @@ export async function getDeliveryStatus(req, res, next) {
     }
 }
 
+function parseReservationInput({ itemId, startDate, endDate, deliveryFlag, deliveryAddress }) {
+    if (!itemId || !startDate || !endDate || (deliveryFlag && !deliveryAddress)) {
+        return { error: 'Missing required fields' };
+    }
+
+    if (!/^ITM-[0-9a-f]{8}$/.test(itemId)) {
+        return { error: 'Invalid item id format' };
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return { error: 'Invalid date format' };
+    }
+
+    if (start >= end) {
+        return { error: 'Start date must be before end date' };
+    }
+
+    return { start, end };
+}
+
+function validateReservationItem(item, borrowerId, deliveryFlag, requestedDuration) {
+    if (item.owner.toString() === borrowerId) {
+        return 'Cannot reserve your own item';
+    }
+
+    if (deliveryFlag && !item.delivery.offered) {
+        return 'Item does not allow delivery';
+    }
+
+    const maxReservationDuration = item.borrowingRules.maxDurationDays || 30; // default to 30 days if not set
+
+    if (requestedDuration > maxReservationDuration) {
+        return `Reservation duration exceeds maximum allowed of ${maxReservationDuration} days`;
+    }
+}
+
 export async function createReservation(req, res, next) {
     try {
-        const { itemId, startDate, endDate, deliveryFlag, deliveryAddress } = req.body;
+        const { itemId, deliveryFlag, deliveryAddress } = req.body;
 
-        // Validate input
-        if (!itemId || !startDate || !endDate || (deliveryFlag && !deliveryAddress)) {
-            return res.status(400).json({ message: 'Missing required fields' });
-        }
-
-        // Validate itemid format
-        if (!/^ITM-[0-9a-f]{8}$/.test(itemId)) {
-            return res.status(400).json({ message: 'Invalid item id format' });
-        }
-
-        // validate startDate and endDate format
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-            return res.status(400).json({ message: 'Invalid date format' });
-        }
-
-        //validate that startDate is before endDate
-        if (start >= end) {
-            return res.status(400).json({ message: 'Start date must be before end date' });
+        const { start, end, error } = parseReservationInput(req.body);
+        if (error) {
+            return res.status(400).json({ message: error });
         }
 
         //load item and check if it exists and is not archived or flagged
@@ -68,21 +89,10 @@ export async function createReservation(req, res, next) {
             return res.status(404).json({ message: 'Item not found or unavailable' });
         }
 
-        if (item.owner.toString() === req.user.id) {
-            return res.status(400).json({ message: 'Cannot reserve your own item' });
-        }
-
-        // check if item allows delivery if deliveryFlag is true
-        if (deliveryFlag && !item.delivery.offered) {
-            return res.status(400).json({ message: 'Item does not allow delivery' });
-        }
-
-        // check if overlapping duration exceeds maxReservationDuration
-        const maxReservationDuration = item.borrowingRules.maxDurationDays || 30; // default to 30 days if not set
-        const requestedDuration = (end - start) / (1000 * 60 * 60 * 24);
-
-        if (requestedDuration > maxReservationDuration) {
-            return res.status(400).json({ message: `Reservation duration exceeds maximum allowed of ${maxReservationDuration} days` });
+        const durationDays = (end - start) / (1000 * 60 * 60 * 24);
+        const itemError = validateReservationItem(item, req.user.id, deliveryFlag, durationDays);
+        if (itemError) {
+            return res.status(400).json({ message: itemError });
         }
 
         const borrower = await User.findById(req.user.id);

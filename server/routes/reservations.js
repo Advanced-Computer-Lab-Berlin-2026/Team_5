@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { getDeliveryStatus, createReservation } from '../controllers/reservationController.js';
-import { getDeliveryStatus } from '../controllers/reservationController.js';
 import { listReservationMessages, sendReservationMessage } from '../controllers/reservationMessageController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
