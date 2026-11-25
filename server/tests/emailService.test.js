@@ -4,7 +4,7 @@ import { sendResetEmail } from '../services/emailService.js';
 
 vi.mock('nodemailer', () => ({ default: { createTransport: vi.fn() } }));
 vi.mock('../config/env.js', () => ({
-    env: { smtpPass: 'test-only-smtp-password' }
+    env: { notifySmtpUser: 'shareshed@gmail.com', notifySmtpPass: 'notify-password' }
 }));
 const sendMail = vi.fn();
 beforeEach(() => {
@@ -14,15 +14,15 @@ beforeEach(() => {
 });
 
 describe('sendResetEmail', () => {
-    it('uses Gmail SMTP and sends the OTP under the ACL Support name', async () => {
+    it('uses the notify gmail and sends the OTP under the ACL Support name', async () => {
         await sendResetEmail('recipient@example.com', '004281');
         const configuration = nodemailer.createTransport.mock.calls[0][0];
         expect(configuration).toMatchObject({
             host: 'smtp.gmail.com', port: 587, secure: false,
-            auth: { pass: 'test-only-smtp-password' }
+            auth: { user: 'shareshed@gmail.com', pass: 'notify-password' }
         });
         expect(sendMail).toHaveBeenCalledExactlyOnceWith({
-            from: { name: 'ACL Support', address: configuration.auth.user },
+            from: { name: 'ACL Support', address: 'shareshed@gmail.com' },
             to: 'recipient@example.com',
             subject: 'Your password reset code',
             text: 'Your reset code is 004281. It expires in 10 minutes. If you did not request this, ignore this email.'
