@@ -1,4 +1,4 @@
-import { Item, Notification, User } from '../models/index.js';
+import { Item, Notification, User, Waitlist } from '../models/index.js';
 import { sendNotificationEmail } from './emailService.js';
 import { env } from '../config/env.js';
 import { normalizeEmailPreferences } from '../utils/emailPreferences.js';
@@ -217,6 +217,32 @@ export async function notifyUpcomingReturn(reservation) {
     }
 }
 
+export async function notifyDeliveryStatus(reservation, status) {
+    if (!reservation?._id || !reservation.borrower) return;
+    if (!['out-for-delivery', 'delivered'].includes(status)) return;
+
+    try {
+        const itemId = asItemId(reservation.item);
+        const item = itemId
+            ? await Item.findById(itemId, { name: 1 }, { lean: true })
+            : null;
+        const name = item?.name ? `"${item.name}"` : 'item';
+        const subject = status === 'delivered' ? 'Item delivered' : 'Item out for delivery';
+        const message = status === 'delivered'
+            ? `Your ${name} has been delivered`
+            : `Your ${name} is out for delivery`;
+
+        await notifyOrLog(reservation.borrower, 'delivery status', {
+            type: 'delivery',
+            subject,
+            reservation: reservation._id,
+            message
+        });
+    } catch (error) {
+        console.error(`failed to send the delivery status for ${reservation?._id}`, error);
+    }
+}
+
 // findOne then create — fine for a single cron; overlapping replicas can still race without a unique index
 async function notifyReturnIfNew(username, details) {
     const already = await Notification.findOne(
@@ -249,5 +275,34 @@ export async function notifyWishlistItemAvailable(itemRef) {
         await Promise.all(wishers.map(({ _id }) => notifyOrLog(_id, 'wishlist alert', details, itemId)));
     } catch (error) {
         console.error(`failed to send the wishlist alerts for ${itemId}`, error);
+    }
+}
+
+export async function notifyWaitlistItemAvailable(itemRef) {
+    const itemId = asItemId(itemRef);
+    try {
+        if (!itemId) return;
+        const item = await Item.findById(itemId, { name: 1, owner: 1, archived: 1, flagged: 1 }, { lean: true });
+        if (!item || item.archived || item.flagged) return;
+
+        const now = new Date();
+        const waitlists = await Waitlist.find(
+            { item: item._id, startDate: { $lt: now }, endDate: { $gt: now } },
+            { username: 1 },
+            { lean: true }
+        );
+        const usernames = new Set(
+            waitlists.map(({ username }) => username).filter((username) => username !== item.owner)
+        );
+        const details = {
+            type: 'waitlist-available',
+            subject: 'An item on your waitlist is available',
+            message: `"${item.name}" on your waitlist is available to reserve now`
+        };
+        await Promise.all([...usernames].map((username) =>
+            notifyOrLog(username, 'waitlist alert', details, itemId)
+        ));
+    } catch (error) {
+        console.error(`failed to send the waitlist alerts for ${itemId}`, error);
     }
 }

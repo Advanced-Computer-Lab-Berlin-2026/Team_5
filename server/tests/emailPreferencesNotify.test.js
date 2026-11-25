@@ -32,6 +32,14 @@ describe('notify email preferences (SCRUM-519)', () => {
                 message: '"Drill" on your wishlist is available to reserve again',
                 subject: 'Wishlist item available'
             }
+        ],
+        [
+            'waitlist-available',
+            {
+                type: 'waitlist-available',
+                message: '"Drill" on your waitlist is available to reserve now',
+                subject: 'Waitlist item available'
+            }
         ]
     ])('skips email when reservations are off (%s)', async (type, payload) => {
         Notification.create.mockResolvedValue({ ...saved, type, username: 'yara' });
