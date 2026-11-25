@@ -201,6 +201,10 @@ describe('User model', () => {
             expect(doc.trustScore).toBe(50);
             expect(doc.membership.tier).toBe('Basic');
             expect(doc.verification.status).toBe('none');
+            // SCRUM-517: email categories default on so existing users keep getting mail
+            expect(doc.emailPreferences.reservations).toBe(true);
+            expect(doc.emailPreferences.promotions).toBe(true);
+            expect(doc.emailPreferences.communityNotices).toBe(true);
         });
     });
 
