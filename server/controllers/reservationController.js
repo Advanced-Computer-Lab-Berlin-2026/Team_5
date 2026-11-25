@@ -92,6 +92,8 @@ export async function updateDeliveryStatus(req, res, next) {
     } catch (error) {
         next(error);
     }
+}
+
 function parseReservationInput({ itemId, startDate, endDate, deliveryFlag, deliveryAddress }) {
     if (!itemId || !startDate || !endDate || (deliveryFlag && !deliveryAddress)) {
         return { error: 'Missing required fields' };
