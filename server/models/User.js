@@ -22,6 +22,13 @@ const userSchema = new mongoose.Schema(
       address: { type: String, default: "" },
     },
 
+    // SCRUM-517: email on/off by category; defaults true so existing users keep getting mail
+    emailPreferences: {
+      reservations: { type: Boolean, default: true },
+      promotions: { type: Boolean, default: true },
+      communityNotices: { type: Boolean, default: true },
+    },
+
     // ---- group: verified-lender request ----
     verification: {
       status: {

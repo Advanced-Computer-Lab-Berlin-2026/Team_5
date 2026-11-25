@@ -1,9 +1,24 @@
 import joi from 'joi';
 import { Item, User } from '../models/index.js';
 import { Reservation, BLOCKING_STATUSES } from '../models/index.js'
+import { getSignedManualUrl } from '../services/itemManualStorage.js';
 
 // only the fields the list card needs, I keep the full details for the item page
 const LIST_FIELDS = { name: 1, category: 1, photos: 1, depositAmount: 1 };
+
+// same visibility as the details page: not flagged, suspended owner looks missing
+async function findVisibleItem(id, projection) {
+    const item = await Item.findOne(
+        { _id: id, flagged: { $ne: true } },
+        projection,
+        {
+            lean: true,
+            populate: { path: 'owner', select: 'profile.name suspended trustScore' }
+        }
+    );
+    if (!item || item.owner?.suspended) return null;
+    return item;
+}
 
 const listItemsSchema = joi.object({
     // these run in order, number then integer then min then default. I can't swap them
@@ -62,26 +77,14 @@ export async function listItems(req, res, next) {
 }
 
 // GET /api/items/:id
+// flagged is hidden from everyone; archived still opens from a direct link for reservation history
 export async function getItem(req, res, next) {
     try {
-        const item = await Item.findOne(
-            // flagged is hidden from everyone, even from a direct link, so it looks like it doesn't exist
-            // archived isn't filtered, so it still opens from a direct link
-            // kept for reservation history (req 15). hiding it here too is a follow-up once that has its own endpoint, see SHARESHED-NOTES.md line 109
-            { _id: req.params.id, flagged: { $ne: true } },
-            { flagged: 0, __v: 0 },
-            {
-                lean: true,
-                // owner is name + trust score only, lean skips User toJSON so password/email/phone/wallet must never be read. populate's select asks User lookup for just name + suspended + trust score
-                populate: { path: 'owner', select: 'profile.name suspended trustScore' }
-            }
-        );
-        // a suspended lender's item 404s like it doesn't exist, same as in the list
-        if (!item || item.owner?.suspended) return res.status(404).json({ message: 'Item not found' });
+        const item = await findVisibleItem(req.params.id, { flagged: 0, __v: 0 });
+        if (!item) return res.status(404).json({ message: 'Item not found' });
 
         // owner is null if the user got deleted, so I don't crash on owner.profile
         // username is the login id and populate always reads _id (= username), so I rebuild owner as { name, trustScore } only
-        // trust score is the stored 0-100 number on User, SCRUM-390 is the one that recalculates it
         const owner = item.owner ? { name: item.owner.profile?.name, trustScore: item.owner.trustScore } : null;
 
         res.status(200).json({ item: { ...item, owner } });
@@ -123,4 +126,16 @@ export async function getItemCalendar(req, res, next) {
     next(error);
 }
 
+// GET /api/items/:id/manual — public like item details; signed because Cloudinary manuals are authenticated
+export async function getItemManual(req, res, next) {
+    try {
+        // owner:1 so populate can still check suspended; documents is what we need for "has manual"
+        const item = await findVisibleItem(req.params.id, { documents: 1, owner: 1 });
+        if (!item) return res.status(404).json({ message: 'Item not found' });
+        if (!item.documents?.length) return res.status(404).json({ message: 'Manual not found' });
+
+        res.redirect(getSignedManualUrl(item._id, { download: req.query.download === 'true' }));
+    } catch (error) {
+        next(error);
+    }
 }

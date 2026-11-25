@@ -28,13 +28,16 @@ Keep secrets in `.env` and out of Git. Update `.env.sample` with placeholders wh
 | `BACKEND_PORT` | HTTP listening port, for example `3000`. |
 | `JWT_SECRET` | Strong random secret used to sign and verify access JWTs. Keep it private and consistent across instances. |
 | `MONGODB_URI` | MongoDB connection URI. |
-| `SMTP_PASS` | Credentials for the sender configured in `server/services/emailService.js`. |
 | `NODE_ENV` | Use `local` locally and `production` for deployment over HTTPS. Only the exact value `production` enables Secure auth cookies. |
 | `CLOUDINARY_CLOUD_NAME` | Cloud name from the Cloudinary dashboard, used to store lender documents. |
 | `CLOUDINARY_API_KEY` | Cloudinary API key. |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret. Keep it private. |
+| `NOTIFY_SMTP_USER` | App Gmail address for password-reset and notification mail (optional for boot; required to actually send mail). |
+| `NOTIFY_SMTP_PASS` | App Gmail app password for the same. |
+| `RETURN_REMINDER_CRON` | Optional cron expression for the return-reminder job (default `0 9 * * *`, 09:00 Europe/Berlin). |
+| `ENABLE_JOBS` | Optional; set to `false` to disable in-process cron jobs. Jobs never start when `NODE_ENV=test`. |
 
-All eight values must be nonempty. Configuration is captured at module load;
+Required boot values must be nonempty. Configuration is captured at module load;
 restart the server after changing it.
 
 In the Cloudinary dashboard, enable **Settings → Security → Allow delivery of
@@ -121,10 +124,11 @@ Empty folders contain `.gitkeep` files so Git includes them. Remove these placeh
 
 ## Authentication and API usage
 
-All request bodies below are JSON. Responses use JSON, including errors with
-`{ message }`. Auth endpoints are mounted under `/api/auth`. Lender verification
-endpoints are mounted under `/api/lender-requests` (members) and
-`/api/admin/lender-requests` (admins).
+All request bodies below are JSON unless noted. Responses use JSON, including
+errors with `{ message }`. Auth endpoints are under `/api/auth`. Lender
+verification is under `/api/lender-requests` (members) and
+`/api/admin/lender-requests` (admins). Notifications, settings, reservation
+chat, and item manuals are documented in the same table.
 
 | Method and path | Request body | Successful behavior |
 | --- | --- | --- |
@@ -133,7 +137,7 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `POST /api/auth/login` | `username`, `password` | Sets both auth cookies and returns public user information. |
 | `POST /api/auth/refresh` | None; refresh cookie required | Consumes the existing refresh session and issues new access and refresh cookies. |
 | `POST /api/auth/logout` | None | Deletes the matching refresh session, clears both cookies, and succeeds even without a cookie. |
-| `POST /api/auth/forget-password` | `email` | Sends a six-digit code if the account exists; returns the same success message for unknown accounts. |
+| `POST /api/auth/forget-password` | `email` | Sends a six-digit code if the account exists; returns the same success message for unknown accounts. Uses `NOTIFY_SMTP_*`. |
 | `POST /api/auth/verify-reset-otp` | `email`, `otp` as a six-digit string | Exchanges the code for a reset token returned in JSON. |
 | `POST /api/auth/reset-password` | `resetToken`, `newPassword` | Changes the password, revokes all of the user's refresh sessions, and clears this browser's auth cookies. |
 | `GET /api/lender-requests` | None; login required | Returns the member's `verification`: status and uploaded documents. |
@@ -145,17 +149,46 @@ endpoints are mounted under `/api/lender-requests` (members) and
 | `GET /api/admin/lender-requests/:username/documents/:slot` | None; admin only; optional `?download=true` | Redirects to a signed Cloudinary link to view or download the document. |
 | `PATCH /api/admin/lender-requests/:username/decision` | `decision` (`accept` or `reject`); `reason` required when rejecting | Accept sets the role to `lender` and status `accepted`; reject sets status `rejected` and saves the reason in `verification.note`. |
 | `GET /api/items/:id/calendar` | None; login required | Returns `{ reservations: [{ startDate, endDate }] }` for the item, sorted by start date. Only `pending`, `upcoming` and `active` reservations are included, and only their dates (no borrower or other details). `400` for an invalid item id; `404` if the item is missing, flagged, or its lender is suspended. |
+| `POST /api/reservations` | `itemId` (`ITM-` id), `startDate`, `endDate` (ISO dates, start must be in the future and before end); optional `deliveryFlag` (boolean); `deliveryAddress` required when `deliveryFlag` is true; CSRF origin required | Creates a reservation for the signed-in member, lender or admin; returns `201` with `{ message, reservationId }`. Deposit is taken from the item and the payment method defaults to `wallet`; when delivery is requested the item's delivery fee is stored. `400` for missing or invalid fields, past dates, a duration over the item's `maxDurationDays` (default 30), reserving your own item, or delivery on an item that does not offer it. `403` if the borrower's trust score is below the item's minimum or the lender is suspended. `404` if the item is missing, archived or flagged. `409` if the dates overlap an existing reservation. |
+| `GET /api/notifications` | None; login required; optional `?page=` (default 1) and `?limit=` (default 10, max 50) | Returns the caller's in-app notifications newest first, with pagination. |
+| `PATCH /api/notifications/:id/read` | None; login required; CSRF origin required | Marks that notification as read for the caller only; another user's id is `404`. |
+| `GET /api/settings/email-preferences` | None; member or lender cookie | Returns `{ emailPreferences: { reservations, promotions, communityNotices } }` (missing fields default to on). |
+| `PATCH /api/settings/email-preferences` | One or more of `reservations`, `promotions`, `communityNotices` (booleans); CSRF origin required | Updates only the fields sent; returns the normalized preferences. Email category switches gate SMTP only; in-app notifications still save. |
+| `GET /api/reservations/:reservationId/messages` | None; login required; optional `?after=` ISO date | Lists chat messages for an `upcoming` or `active` reservation if the caller is borrower or lender. Outsiders get `404`. Wrong status gets `403`. |
+| `POST /api/reservations/:reservationId/messages` | `text` (1–1000 chars); CSRF origin required | Appends a message from the caller on an `upcoming` or `active` reservation they participate in; returns `201` with the new message. |
+| `GET /api/items/:id/manual` | None; public (no login); optional `?download=true` | If the item is visible (same rules as item details) and has a usage manual, redirects to a signed Cloudinary PDF URL. Missing item → `404` item; no manual → `404` manual. |
+| `POST /api/waitlist/:itemId` | `startDate`, `endDate` | Joins the waitlist when a pending, upcoming, or active reservation overlaps the requested dates; authenticated members, admins, and lenders. |
+| `GET /api/waitlist` | None | Returns the signed-in user's waitlist entries with item details populated; authenticated members, admins, and lenders. |
+| `DELETE /api/waitlist/WTL-...` | None | Removes the signed-in user's waitlist entry; authenticated members, admins, and lenders. |
+| `DELETE /api/waitlist/:itemId` | None | Removes all waitlist entries for the item; authenticated members, admins, and lenders. |
+| `GET /api/reservations/:reservationId/delivery` | None | Returns the reservation's delivery object to the borrower or an admin. |
+| `POST /api/reservations/:reservationId/delivery` | `status` (`preparing`, `out-for-delivery` or `delivered`) | Updates the reservation's delivery status for the lender or an admin. |
+| `GET /api/admin/reports/usage` | None; admin only; `?month=YYYY-MM` (default current month) or `?from=YYYY-MM-DD&to=YYYY-MM-DD`; optional `?item=` and `?category=` | Counts confirmed reservations (upcoming, active, completed) that start in the period, per item and per category, with days reserved and deposits. |
+| `GET /api/admin/reports/usage/export` | Same query as the usage report plus `?format=` `csv` or `pdf` | Downloads the usage report as a file. |
+| `GET /api/admin/reports/damage` | None; admin only; optional `?status=` `pending-review`, `decided`, `disputed` or `resolved` | Lists one case per reservation with its report, dispute and resolution history, status and forfeited deposit. |
+| `GET /api/admin/reports/damage/export` | `?format=` `csv` or `pdf`; optional `?status=` | Downloads the damage report as a file. |
+| `GET /api/admin/reports/membership-tiers` | None; admin only | Returns the number and percentage of members and lenders in each tier. |
+| `GET /api/lender/dashboard` | None; lender only | Returns listed items, times lent, distinct items lent, total deposits collected and the damage incident rate. |
 
 The password recovery URL is spelled `forget-password`, matching the current
 router. Reset codes expire after 10 minutes and allow at most five verification
 attempts per issued code. Successful verification exchanges the code once for
 a reset token valid for five minutes. Reset tokens can be used only once.
+Password-reset and notification emails share `NOTIFY_SMTP_USER` /
+`NOTIFY_SMTP_PASS`.
 
 Lender verification is stored in the user's `verification` field. Its status
 goes from `none` (uploading) to `pending` (submitted) to `accepted` or
-`rejected`; a rejected member can upload again and resubmit. Documents are
-stored privately in Cloudinary and are only opened through signed links
-created by the server.
+`rejected`; a rejected member can upload again and resubmit. Documents and
+item usage manuals are stored privately in Cloudinary and are only opened
+through signed links created by the server.
+
+A daily return-reminder job (Europe/Berlin) can create
+`upcoming-return-date` notifications for active loans due the next calendar
+day. Control it with `RETURN_REMINDER_CRON` and `ENABLE_JOBS`. Reservation
+confirm / cancel / reject / wishlist helpers live in
+`server/services/notificationService.js` for other tickets to call after their
+commits succeed.
 
 ### Cookie lifecycle
 
@@ -289,3 +322,4 @@ View results and download the report from the repository's **Actions** tab. Step
 Every PR must pass CI and receive at least one peer approval before merging into `main`. Repository administrators should configure an active branch ruleset targeting `main` that requires pull requests, the `acl-code-check` status check, and at least one approval. Enable dismissal of stale approvals when new commits are pushed so updated code is reviewed again.
 
 These requirements are enforced by GitHub repository settings, not by this README or the workflow alone. Confirm that the ruleset is active and supported by the repository's visibility and account plan. Automated checks support peer review; they do not replace it.
+
