@@ -84,6 +84,7 @@ export function AuthProvider({ children }) {
         const next = { ...published, role: await detectRole() };
         saveUser(next);
         setUser(next);
+        return next;
     }, []);
 
     const logout = useCallback(async () => {

@@ -1,18 +1,19 @@
 import { getWalletBalance } from '../api/wallet.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Card, Message, Spinner } from '../components';
+import { Card, Message, PageHeader, Spinner } from '../components';
+import styles from './WalletPage.module.css';
 
 export default function WalletPage() {
     const { data, error, loading } = useAsync(getWalletBalance);
 
     return (
         <>
-            <h1>Wallet</h1>
+            <PageHeader title="Wallet" />
             {loading && <Spinner />}
             <Message type="error">{error}</Message>
             {data && (
                 <Card title="Balance">
-                    <p>{data.balance} ₥</p>
+                    <p className={styles.balance}>{data.balance} <span>₥</span></p>
                 </Card>
             )}
         </>

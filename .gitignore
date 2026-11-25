@@ -3,4 +3,6 @@
 node_modules
 coverage
 dist
+client/test-results
+client/playwright-report
 .DS_Store

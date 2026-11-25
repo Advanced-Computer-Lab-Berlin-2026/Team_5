@@ -1,31 +1,14 @@
-.button {
-    display: inline-block;
-    padding: var(--space-2) var(--space-3);
-    border: var(--border);
-    font-weight: var(--font-weight-bold);
-    text-decoration: none;
-    text-align: center;
-    cursor: pointer;
-}
-
-.primary {
-    background: var(--color-inverse-background);
-    color: var(--color-inverse-text);
-}
-
-.secondary {
-    background: var(--color-background);
-    color: var(--color-text);
-}
-
-.button:hover {
-    background: var(--color-gray-700);
-    color: var(--color-inverse-text);
-}
-
-.button:disabled {
-    background: var(--color-disabled);
-    color: var(--color-text-muted);
-    border-color: var(--color-border-muted);
-    cursor: not-allowed;
-}
+.button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--control-height); padding: var(--space-2) var(--space-4); border: var(--border-width) solid transparent; border-radius: var(--radius-button); font-weight: var(--font-weight-bold); font-size: var(--font-size-small); text-decoration: none; text-align: center; line-height: 1.4; cursor: pointer; transition: background var(--duration-fast), border-color var(--duration-fast), color var(--duration-fast); }
+.primary { background: var(--color-amber); color: var(--color-black); }
+.primary:hover { background: var(--color-amber-hover); }
+.primary:active { background: var(--color-amber-pressed); }
+.secondary { background: var(--color-surface); color: var(--color-text); border-color: var(--color-text); }
+[data-theme='dark'] .secondary { background: transparent; }
+.secondary:hover { background: var(--color-text); color: var(--color-background); }
+.ghost { background: transparent; color: var(--color-text); }
+.ghost:hover { background: var(--color-surface-subtle); }
+.danger { background: var(--color-error-surface); color: var(--color-error); border-color: var(--color-error); }
+.danger:hover { text-decoration: underline; }
+.small { min-height: 2.5rem; padding: var(--space-2) var(--space-3); }
+.fullWidth { width: 100%; }
+.button:disabled, .button[aria-disabled='true'] { background: var(--color-disabled); color: var(--color-disabled-text); border-color: var(--color-border-muted); cursor: not-allowed; }
