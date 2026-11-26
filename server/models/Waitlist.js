@@ -7,11 +7,11 @@ const waitlistSchema = new mongoose.Schema(
     item: { type: String, ref: "Item", required: true },
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
-    usernames: [{ type: String, ref: "User" }],
+    username: { type: String, ref: "User", required: true },
   },
   { timestamps: true }
 );
 
-waitlistSchema.index({ item: 1, startDate: 1, endDate: 1 });
+waitlistSchema.index({ item: 1, startDate: 1, endDate: 1, username: 1 }, { unique: true });
 
 export const Waitlist = mongoose.model("Waitlist", waitlistSchema);

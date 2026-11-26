@@ -4,13 +4,21 @@ import app from '../app.js';
 import { Item, User } from '../models/index.js';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
+import { notifyWishlistItemAvailable, notifyWaitlistItemAvailable } from '../services/notificationService.js';
 
 vi.mock('../models/User.js', () => ({
     User: { findById: vi.fn() }
 }));
 
+vi.mock('../services/notificationService.js', () => ({
+    notifyWishlistItemAvailable: vi.fn(),
+    notifyWaitlistItemAvailable: vi.fn(),
+}));
+
 beforeEach(() => {
     vi.resetAllMocks();
+    notifyWishlistItemAvailable.mockResolvedValue(undefined);
+    notifyWaitlistItemAvailable.mockResolvedValue(undefined);
 });
 
 describe('PATCH /api/lender/items/:id/archive', () => {
@@ -37,11 +45,11 @@ describe('PATCH /api/lender/items/:id/archive', () => {
     it('item exists but belongs to another lender should return 403', async () => {
         User.findById.mockResolvedValue({ id: 'lender1', role: 'lender' });
         const lenderToken = jwt.sign({ id: 'lender1', role: 'lender' }, env.jwtSecret, { expiresIn: '15m' });
-        const mockItem = { _id: 'itemId', owner: 'lender2', archived: false, save: vi.fn() };
+        const mockItem = { _id: 'itemId', owner: 'lender2', archived: false };
         vi.spyOn(Item, 'findById').mockResolvedValue(mockItem);
+        const update = vi.spyOn(Item, 'findOneAndUpdate');
         const response = await request(app).patch('/api/lender/items/itemId/archive').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`);
-        expect(mockItem.save).not.toHaveBeenCalled()
-        expect(mockItem.archived).toBe(false)
+        expect(update).not.toHaveBeenCalled();
         expect(response.body.message).toBe('You do not have permission to archive this item')
         expect(response.status).toBe(403);
     });
@@ -49,23 +57,32 @@ describe('PATCH /api/lender/items/:id/archive', () => {
     it('item exists and belongs to lender should toggle archived status and return 200', async () => {
         User.findById.mockResolvedValue({ id: 'lender1', role: 'lender' });
         const lenderToken = jwt.sign({ id: 'lender1', role: 'lender' }, env.jwtSecret, { expiresIn: '15m' });
-        const mockItem = { _id: 'itemId', owner: 'lender1', archived: false, save: vi.fn() };
+        const mockItem = { _id: 'itemId', owner: 'lender1', archived: false };
         vi.spyOn(Item, 'findById').mockResolvedValue(mockItem);
+        vi.spyOn(Item, 'findOneAndUpdate').mockResolvedValue({ ...mockItem, archived: true });
         const response = await request(app).patch('/api/lender/items/itemId/archive').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`);
         expect(response.status).toBe(200);
         expect(response.body.item.archived).toBe(true);
-        expect(mockItem.save).toHaveBeenCalled();
+        expect(Item.findOneAndUpdate).toHaveBeenCalledWith(
+            { _id: 'itemId', owner: 'lender1', archived: false },
+            { $set: { archived: true } },
+            { new: true }
+        );
+        expect(notifyWishlistItemAvailable).not.toHaveBeenCalled();
+        expect(notifyWaitlistItemAvailable).not.toHaveBeenCalled();
     });
 
     it('item exists and belongs to lender should toggle archived status back to false and return 200', async () => {
         User.findById.mockResolvedValue({ id: 'lender1', role: 'lender' });
         const lenderToken = jwt.sign({ id: 'lender1', role: 'lender' }, env.jwtSecret, { expiresIn: '15m' });
-        const mockItem = { _id: 'itemId', owner: 'lender1', archived: true, save: vi.fn() };
+        const mockItem = { _id: 'itemId', owner: 'lender1', archived: true };
         vi.spyOn(Item, 'findById').mockResolvedValue(mockItem);
+        vi.spyOn(Item, 'findOneAndUpdate').mockResolvedValue({ ...mockItem, archived: false });
         const response = await request(app).patch('/api/lender/items/itemId/archive').set('Origin', 'http://localhost:3000').set('Cookie', `accessToken=${lenderToken}`);
         expect(response.status).toBe(200);
         expect(response.body.item.archived).toBe(false);
-        expect(mockItem.save).toHaveBeenCalled();
+        expect(notifyWishlistItemAvailable).toHaveBeenCalledWith('itemId');
+        expect(notifyWaitlistItemAvailable).toHaveBeenCalledWith('itemId');
     });
 
     it('should handle errors and return a 500 status', async () => {

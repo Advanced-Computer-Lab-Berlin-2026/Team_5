@@ -20,7 +20,7 @@ export async function deleteUserAccount(userId, session) {
         await Waitlist.deleteMany({ item: { $in: itemIds } }, { session });
     }
 
-    await Waitlist.updateMany({ usernames: userId }, { $pull: { usernames: userId } }, { session });
+    await Waitlist.deleteMany({ username: userId }, { session });
     await PasswordReset.deleteMany({ userId }, { session });
     await Item.deleteMany({ owner: userId }, { session });
     await RefreshSession.deleteMany({ userId }, { session });

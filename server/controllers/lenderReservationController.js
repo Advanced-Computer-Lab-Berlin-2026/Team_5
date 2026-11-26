@@ -7,6 +7,9 @@ import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js';
+import { recalculateTrustScore } from '../services/trustScoreService.js';
+import { rewardReferralIfEligible } from '../services/referralService.js';
+import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
 
 // Finds the reservation and checks that it belongs to this lender and has one of the allowed statuses.
 // Returns { reservation } or { status, message } for the error response.
@@ -113,6 +116,15 @@ async function uploadPhotos(files) {
     return uploaded;
 }
 
+// after commit so a failed notify never rolls back pickup/return, and prefs/email can run
+async function notifyAfterCommit(label, about, work) {
+    try {
+        await work();
+    } catch (error) {
+        console.error(`failed to ${label} for ${about}`, error);
+    }
+}
+
 // PATCH /api/lender/reservations/:id/pickup
 export async function markPickedUp(req, res, next) {
     try {
@@ -124,12 +136,12 @@ export async function markPickedUp(req, res, next) {
         reservation.handover.pickedUpAt = new Date();
         await reservation.save();
 
-        await Notification.create({
-            username: reservation.borrower,
-            reservation: reservation._id,
+        await notifyAfterCommit('notify pickup', reservation._id, () => notify(reservation.borrower, {
             type: 'other',
+            subject: 'Item picked up',
+            reservation: reservation._id,
             message: 'Your lender marked the item as picked up. Enjoy!',
-        });
+        }));
 
         res.status(200).json({ reservation });
     } catch (error) {
@@ -169,15 +181,24 @@ export async function markReturnedGood(req, res, next) {
                 method: 'wallet',
                 description: `Deposit returned for reservation ${reservation._id}`,
             }], { session });
-            await Notification.create([{
-                username: reservation.borrower,
-                reservation: reservation._id,
-                type: 'other',
-                message: `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`,
-            }], { session });
+            await recalculateTrustScore(reservation.borrower, session);
+            await recalculateTrustScore(reservation.lender, session);
+            await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
         });
 
         if (!updated) return res.status(409).json({ message: 'Only active reservations can be marked as returned' });
+
+        await notifyAfterCommit('notify good return', reservation._id, async () => {
+            await notify(reservation.borrower, {
+                type: 'other',
+                subject: 'Item returned',
+                reservation: reservation._id,
+                message: `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`,
+            });
+            // item is available again for wishlisters (358)
+            await notifyWishlistItemAvailable(reservation.item);
+        });
+
         res.status(200).json({ reservation: updated, refunded: refund });
     } catch (error) {
         next(error);
@@ -274,18 +295,27 @@ export async function reportDamage(req, res, next) {
                     message: value.message,
                 },
             }], { session });
-            await Notification.create([{
-                username: reservation.borrower,
-                reservation: reservation._id,
-                type: 'other',
-                message: 'Your lender reported the returned item as damaged. Your deposit is held until the report is resolved.',
-            }], { session });
+            await recalculateTrustScore(reservation.borrower, session);
+            await recalculateTrustScore(reservation.lender, session);
+            await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
         });
 
         if (!report) {
             await deletePhotos(uploaded);
             return res.status(409).json({ message: 'Only active reservations can be reported as damaged' });
         }
+
+        await notifyAfterCommit('notify damage return', reservation._id, async () => {
+            await notify(reservation.borrower, {
+                type: 'other',
+                subject: 'Damage reported',
+                reservation: reservation._id,
+                message: 'Your lender reported the returned item as damaged. Your deposit is held until the report is resolved.',
+            });
+            // item is available again for wishlisters (358)
+            await notifyWishlistItemAvailable(reservation.item);
+        });
+
         res.status(201).json({ report });
     } catch (error) {
         await deletePhotos(uploaded);

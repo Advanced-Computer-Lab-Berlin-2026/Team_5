@@ -1,8 +1,11 @@
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-    gap: var(--space-3);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+    gap: var(--space-4);
 }
+
+.row > input, .row > select { flex: 1 1 12rem; width: auto; }
+.row > * { min-width: 0; }
 
 .row {
     display: flex;

@@ -247,6 +247,24 @@ describe('User model', () => {
             expect(doc.trustScore).toBe(50);
             expect(doc.membership.tier).toBe('Basic');
             expect(doc.verification.status).toBe('none');
+            // SCRUM-517: email categories default on so existing users keep getting mail
+            expect(doc.emailPreferences.reservations).toBe(true);
+            expect(doc.emailPreferences.promotions).toBe(true);
+            expect(doc.emailPreferences.communityNotices).toBe(true);
+        });
+
+        // SCRUM-384: memberships last a year unless a renewal date is given
+        it('sets the renewal date to one year after the membership start date', async () => {
+            const doc = user({ membership: { startDate: new Date('2026-02-01T10:00:00.000Z') } });
+            expect(await validationErrors(doc)).toEqual({});
+            expect(doc.membership.renewalDate).toEqual(new Date('2027-02-01T10:00:00.000Z'));
+        });
+
+        it('keeps a renewal date that was given', async () => {
+            const renewalDate = new Date('2026-12-24T10:00:00.000Z');
+            const doc = user({ membership: { startDate: new Date('2026-02-01T10:00:00.000Z'), renewalDate } });
+            expect(await validationErrors(doc)).toEqual({});
+            expect(doc.membership.renewalDate).toEqual(renewalDate);
         });
     });
 

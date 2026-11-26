@@ -5,6 +5,8 @@ import { RefreshSession } from '../models/RefreshSession.js';
 import { Report } from '../models/Report.js';
 import { User } from '../models/User.js';
 import { deleteUserAccount } from '../services/userAccountService.js';
+import { Reservation, DamageReport, MembershipTier } from '../models/index.js';
+import { sendCsv, sendPdf } from '../services/reportExport.js';
 
 const submitReportSchema = joi.object({
     targetType: joi.string().valid('item', 'user').required(),
@@ -126,5 +128,311 @@ export async function reviewReport(req, res, next) {
         next(error);
     } finally {
         await session?.endSession();
+    }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MONTH_REGEX_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+// Reservations the lender confirmed. Pending, cancelled and rejected ones were never used.
+const USAGE_STATUSES = ['upcoming', 'active', 'completed'];
+
+// report -> resolution (admin decision) -> dispute -> resolution (final outcome)
+const DAMAGE_STATUSES = ['pending-review', 'decided', 'disputed', 'resolved'];
+
+const usageReportSchema = joi.object({
+    month: joi.string().pattern(MONTH_REGEX_PATTERN).messages({
+        'string.pattern.base': 'Month must use the YYYY-MM format'
+    }),
+    from: joi.date().iso(),
+    to: joi.date().iso().min(joi.ref('from')),
+    item: joi.string().trim(),
+    category: joi.string().trim()
+}).with('from', 'to').with('to', 'from').oxor('month', 'from');
+
+const damageReportSchema = joi.object({
+    status: joi.string().valid(...DAMAGE_STATUSES)
+});
+
+const exportFormat = { format: joi.string().valid('csv', 'pdf').required() };
+const usageExportSchema = usageReportSchema.keys(exportFormat);
+const damageExportSchema = damageReportSchema.keys(exportFormat);
+
+const USAGE_CATEGORY_COLUMNS = [
+    { label: 'Category', value: row => row.category },
+    { label: 'Items used', value: row => row.items },
+    { label: 'Reservations', value: row => row.reservations },
+    { label: 'Days reserved', value: row => row.daysReserved },
+    { label: 'Deposits', value: row => row.deposits }
+];
+
+const USAGE_ITEM_COLUMNS = [
+    { label: 'Item ID', value: row => row.itemId },
+    { label: 'Item', value: row => row.name },
+    { label: 'Category', value: row => row.category },
+    { label: 'Reservations', value: row => row.reservations },
+    { label: 'Days reserved', value: row => row.daysReserved },
+    { label: 'Deposits', value: row => row.deposits }
+];
+
+const DAMAGE_COLUMNS = [
+    { label: 'Reservation', value: row => row.reservation },
+    { label: 'Item', value: row => row.item?.name },
+    { label: 'Borrower', value: row => row.borrower },
+    { label: 'Lender', value: row => row.lender },
+    { label: 'Status', value: row => row.status },
+    { label: 'Disputed', value: row => (row.disputed ? 'Yes' : 'No') },
+    { label: 'Deposit', value: row => row.depositAmount },
+    { label: 'Forfeited', value: row => row.depositForfeit },
+    { label: 'Opened', value: row => toDateString(row.openedAt) },
+    { label: 'Last update', value: row => toDateString(row.lastUpdatedAt) }
+];
+
+function toDateString(date) {
+    return date ? new Date(date).toISOString().slice(0, 10) : '';
+}
+
+// Returns a percentage with one decimal, e.g. 12.5
+export function toPercent(part, whole) {
+    return whole ? Math.round((part / whole) * 1000) / 10 : 0;
+}
+
+// Either an explicit from/to range (both inclusive) or one month, the current month by default.
+// end is exclusive so the query can use $lt
+function getUsagePeriod(value) {
+    if (value.from) {
+        return {
+            start: value.from,
+            end: new Date(value.to.getTime() + DAY_MS),
+            label: `${toDateString(value.from)} to ${toDateString(value.to)}`
+        };
+    }
+
+    const month = value.month ?? new Date().toISOString().slice(0, 7);
+    const [year, monthNumber] = month.split('-').map(Number);
+    return {
+        start: new Date(Date.UTC(year, monthNumber - 1, 1)),
+        end: new Date(Date.UTC(year, monthNumber, 1)),
+        label: month
+    };
+}
+
+function groupByCategory(items) {
+    const categories = new Map();
+    for (const item of items) {
+        const entry = categories.get(item.category)
+            ?? { category: item.category, items: 0, reservations: 0, daysReserved: 0, deposits: 0 };
+        entry.items += 1;
+        entry.reservations += item.reservations;
+        entry.daysReserved += item.daysReserved;
+        entry.deposits += item.deposits;
+        categories.set(item.category, entry);
+    }
+    return [...categories.values()].sort((a, b) => b.reservations - a.reservations);
+}
+
+async function buildUsageReport(value) {
+    const period = getUsagePeriod(value);
+
+    const match = { startDate: { $gte: period.start, $lt: period.end }, status: { $in: USAGE_STATUSES } };
+    if (value.item) match.item = value.item;
+
+    const items = await Reservation.aggregate([
+        { $match: match },
+        { $lookup: { from: 'items', localField: 'item', foreignField: '_id', as: 'itemDoc' } },
+        { $unwind: '$itemDoc' },
+        ...(value.category ? [{ $match: { 'itemDoc.category': value.category } }] : []),
+        {
+            $group: {
+                _id: '$item',
+                name: { $first: '$itemDoc.name' },
+                category: { $first: '$itemDoc.category' },
+                reservations: { $sum: 1 },
+                daysReserved: { $sum: { $dateDiff: { startDate: '$startDate', endDate: '$endDate', unit: 'day' } } },
+                deposits: { $sum: '$payment.depositAmount' }
+            }
+        },
+        { $sort: { reservations: -1, name: 1 } },
+        { $project: { _id: 0, itemId: '$_id', name: 1, category: 1, reservations: 1, daysReserved: 1, deposits: 1 } }
+    ]);
+
+    const categories = groupByCategory(items);
+    return {
+        period: { label: period.label, start: period.start, end: period.end },
+        filters: { item: value.item ?? null, category: value.category ?? null },
+        totals: {
+            reservations: items.reduce((sum, item) => sum + item.reservations, 0),
+            items: items.length,
+            categories: categories.length
+        },
+        categories,
+        items
+    };
+}
+
+function getResolutionStatus(entries) {
+    const latest = entries.at(-1).type;
+    if (latest === 'report') return 'pending-review';
+    if (latest === 'dispute') return 'disputed';
+    return entries.some(entry => entry.type === 'dispute') ? 'resolved' : 'decided';
+}
+
+// One case per reservation, built from all of its report, dispute and resolution entries
+function toDamageCase(reservationId, entries, reservation) {
+    const { item, borrower, lender, payment } = reservation ?? {};
+    const latestResolution = entries.findLast(entry => entry.type === 'resolution');
+    return {
+        reservation: reservationId,
+        item: item ? { id: item._id, name: item.name, category: item.category } : null,
+        borrower: borrower ?? null,
+        lender: lender ?? null,
+        depositAmount: payment?.depositAmount ?? null,
+        status: getResolutionStatus(entries),
+        disputed: entries.some(entry => entry.type === 'dispute'),
+        depositForfeit: latestResolution?.depositForfeit ?? null,
+        openedAt: entries[0].createdAt,
+        lastUpdatedAt: entries.at(-1).createdAt,
+        history: entries.map(entry => ({
+            id: entry._id,
+            type: entry.type,
+            returnCondition: entry.returnCondition,
+            message: entry.report?.message,
+            depositForfeit: entry.depositForfeit,
+            date: entry.createdAt
+        }))
+    };
+}
+
+async function buildDamageReport(value) {
+    // Photos are left out on purpose, the admin opens them from the damage report itself
+    const entries = await DamageReport.find({}).select('-report.photos').sort({ createdAt: 1 }).lean();
+
+    const entriesByReservation = new Map();
+    for (const entry of entries) {
+        const list = entriesByReservation.get(entry.reservation) ?? [];
+        list.push(entry);
+        entriesByReservation.set(entry.reservation, list);
+    }
+
+    const reservations = await Reservation.find({ _id: { $in: [...entriesByReservation.keys()] } })
+        .select('item borrower lender payment.depositAmount')
+        .populate('item', 'name category')
+        .lean();
+    const reservationById = new Map(reservations.map(reservation => [reservation._id, reservation]));
+
+    const cases = [...entriesByReservation].map(([reservationId, list]) =>
+        toDamageCase(reservationId, list, reservationById.get(reservationId))
+    ).sort((a, b) => b.openedAt - a.openedAt);
+
+    const summary = Object.fromEntries(DAMAGE_STATUSES.map(status => [status, 0]));
+    for (const damageCase of cases) summary[damageCase.status] += 1;
+
+    return {
+        summary: { total: cases.length, ...summary },
+        filters: { status: value.status ?? null },
+        cases: value.status ? cases.filter(damageCase => damageCase.status === value.status) : cases
+    };
+}
+
+// GET /api/admin/reports/usage?month=YYYY-MM | from=YYYY-MM-DD&to=YYYY-MM-DD [&item=] [&category=]
+export async function getUsageReport(req, res, next) {
+    const { value, error } = usageReportSchema.validate(req.query ?? {});
+    if (error) return res.status(400).json({ message: error.message });
+
+    try {
+        const report = await buildUsageReport(value);
+        return res.status(200).json({ report });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// GET /api/admin/reports/usage/export?format=csv|pdf (+ the same filters as the usage report)
+export async function exportUsageReport(req, res, next) {
+    const { value, error } = usageExportSchema.validate(req.query ?? {});
+    if (error) return res.status(400).json({ message: error.message });
+
+    try {
+        const report = await buildUsageReport(value);
+        const filename = `usage-report-${report.period.label.replace(/ /g, '')}`;
+        if (value.format === 'csv') return sendCsv(res, filename, USAGE_ITEM_COLUMNS, report.items);
+
+        return sendPdf(res, filename, {
+            title: 'Usage report',
+            subtitle: `Period: ${report.period.label}  |  Reservations: ${report.totals.reservations}`,
+            tables: [
+                { heading: 'Per category', columns: USAGE_CATEGORY_COLUMNS, rows: report.categories },
+                { heading: 'Per item', columns: USAGE_ITEM_COLUMNS, rows: report.items }
+            ]
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// GET /api/admin/reports/damage [?status=pending-review|decided|disputed|resolved]
+export async function getDamageReport(req, res, next) {
+    const { value, error } = damageReportSchema.validate(req.query ?? {});
+    if (error) return res.status(400).json({ message: error.message });
+
+    try {
+        const report = await buildDamageReport(value);
+        return res.status(200).json({ report });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// GET /api/admin/reports/damage/export?format=csv|pdf [&status=]
+export async function exportDamageReport(req, res, next) {
+    const { value, error } = damageExportSchema.validate(req.query ?? {});
+    if (error) return res.status(400).json({ message: error.message });
+
+    try {
+        const report = await buildDamageReport(value);
+        const filename = `damage-report-${toDateString(new Date())}`;
+        if (value.format === 'csv') return sendCsv(res, filename, DAMAGE_COLUMNS, report.cases);
+
+        const { total, ...byStatus } = report.summary;
+        const counts = Object.entries(byStatus).map(([status, count]) => `${status}: ${count}`).join(', ');
+        return sendPdf(res, filename, {
+            title: 'Damage reports and disputes',
+            subtitle: `Total cases: ${total}  |  ${counts}`,
+            tables: [{ heading: 'Cases', columns: DAMAGE_COLUMNS, rows: report.cases }]
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// GET /api/admin/reports/membership-tiers
+export async function getTierDistribution(req, res, next) {
+    try {
+        const [tiers, counts] = await Promise.all([
+            MembershipTier.find({}).sort({ annual_fee: 1 }).lean(),
+            User.aggregate([
+                { $match: { role: { $in: ['member', 'lender'] } } },
+                { $group: { _id: { $ifNull: ['$membership.tier', 'Basic'] }, members: { $sum: 1 } } }
+            ])
+        ]);
+
+        const membersByTier = new Map(counts.map(count => [count._id, count.members]));
+        const totalMembers = counts.reduce((sum, count) => sum + count.members, 0);
+
+        const distribution = tiers.map(tier => ({
+            tier: tier.tier,
+            annualFee: tier.annual_fee,
+            depositDiscount: tier.deposit_discount,
+            members: membersByTier.get(tier.tier) ?? 0
+        }));
+        // Users can point to a tier that was removed from the tiers collection, still count them
+        for (const [tier, members] of membersByTier) {
+            if (!tiers.some(known => known.tier === tier)) distribution.push({ tier, annualFee: null, depositDiscount: null, members });
+        }
+        for (const entry of distribution) entry.percentage = toPercent(entry.members, totalMembers);
+
+        return res.status(200).json({ totalMembers, tiers: distribution });
+    } catch (error) {
+        next(error);
     }
 }

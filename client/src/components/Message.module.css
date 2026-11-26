@@ -1,20 +1,4 @@
-.message {
-    padding: var(--space-2) var(--space-3);
-    border: var(--border);
-}
-
-.error {
-    background: var(--color-inverse-background);
-    color: var(--color-inverse-text);
-}
-
-.success {
-    background: var(--color-surface);
-    border-style: dashed;
-}
-
-.info {
-    background: var(--color-background);
-    color: var(--color-text-muted);
-    border: var(--border-muted);
-}
+.message { padding: var(--space-3); border-inline-start: 3px solid var(--color-link); border-radius: var(--radius-control); font-size: var(--font-size-small); overflow-wrap: anywhere; }
+.error { background: var(--color-error-surface); color: var(--color-error); border-color: var(--color-error); }
+.success { background: var(--color-success-surface); color: var(--color-success); border-color: var(--color-success); }
+.info { background: var(--color-info-surface); color: var(--color-text); }
