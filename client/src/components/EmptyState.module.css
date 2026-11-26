@@ -1,0 +1,2 @@
+.empty { display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-6) var(--space-4); color: var(--color-text-muted); background: var(--color-surface); border: var(--border-muted); border-radius: var(--radius-card); text-align: center; }
+.empty h2 { color: var(--color-text); }

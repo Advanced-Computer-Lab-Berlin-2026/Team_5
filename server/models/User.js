@@ -58,6 +58,7 @@ const userSchema = new mongoose.Schema(
     membership: {
       tier: { type: String, ref: "MembershipTier", default: "Basic" },
       startDate: { type: Date, default: Date.now },
+      renewalDate: { type: Date }, // when the membership renews or ends; set to startDate + 1 year if missing
     },
 
     // ---- lists and links ----
@@ -82,6 +83,15 @@ userSchema.index({ "verification.status": 1 });
 // use the username as the _id
 userSchema.pre("validate", function () {
   if (!this._id) this._id = this.username;
+});
+
+// SCRUM-384: memberships last one year, so renew one year after the start date if no date was given
+userSchema.pre("validate", function () {
+  if (!this.membership.renewalDate && this.membership.startDate) {
+    const renewal = new Date(this.membership.startDate);
+    renewal.setUTCFullYear(renewal.getUTCFullYear() + 1);
+    this.membership.renewalDate = renewal;
+  }
 });
 
 // make a referral code if there is none

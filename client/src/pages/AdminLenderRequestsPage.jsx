@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { listLenderRequests } from '../api/admin.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Message, Row, Select, Spinner, Table } from '../components';
+import { Button, Message, PageHeader, Row, Select, Spinner, Table } from '../components';
 import { formatDateTime } from '../utils/format.js';
 
 const STATUSES = ['pending', 'accepted', 'rejected'].map((value) => ({ value, label: value }));
@@ -13,9 +13,9 @@ export default function AdminLenderRequestsPage() {
 
     return (
         <>
-            <h1>Admin: lender requests</h1>
+            <PageHeader title="Lender requests" />
             <Row>
-                <Select name="status" value={status} options={STATUSES} onChange={(event) => setStatus(event.target.value)} />
+                <Select name="status" aria-label="Request status" value={status} options={STATUSES} onChange={(event) => setStatus(event.target.value)} />
             </Row>
             {loading && <Spinner />}
             <Message type="error">{error}</Message>

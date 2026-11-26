@@ -1,98 +1,125 @@
-/*
-  The single source of truth for how the app looks.
-  Colors, fonts, sizes and spacing are defined here and nowhere else.
-  Every other stylesheet must use var(--...) instead of raw values.
-*/
-
-:root {
-    /* colors: black, white and gray only */
-    --color-black: #000000;
+@import './fonts.css';
+/* Shared design tokens. Components use semantic roles, never page-specific hex values. */
+:root, [data-theme='light'] {
+    font-family: 'Inter Variable', Inter, system-ui, sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    --color-black: #141414;
     --color-white: #ffffff;
-    --color-gray-100: #f2f2f2;
-    --color-gray-300: #cccccc;
-    --color-gray-500: #808080;
-    --color-gray-700: #404040;
-    --color-gray-900: #1a1a1a;
-
-    /* meaning of each color, so components say what they mean */
-    --color-background: var(--color-white);
+    --color-porcelain: #faf8f4;
+    --color-amber: #f3a348;
+    --color-amber-hover: #e99432;
+    --color-amber-pressed: #dc8526;
+    --color-blue: #356ae6;
+    --color-gray-100: #f0ede7;
+    --color-gray-300: #d9d6cf;
+    --color-gray-500: #626977;
+    --color-gray-700: #424242;
+    --color-gray-900: #242424;
+    --color-background: var(--color-porcelain);
     --color-text: var(--color-black);
     --color-text-muted: var(--color-gray-500);
-    --color-border: var(--color-black);
+    --color-border: #8b8b86;
     --color-border-muted: var(--color-gray-300);
-    --color-surface: var(--color-gray-100);
+    --color-surface: var(--color-white);
+    --color-surface-subtle: var(--color-gray-100);
     --color-inverse-background: var(--color-black);
     --color-inverse-text: var(--color-white);
-    --color-disabled: var(--color-gray-300);
-
-    /* font */
-    --font-family: 'Courier New', Courier, monospace;
-    --font-size-small: 0.8rem;
-    --font-size-base: 1rem;
+    --color-link: var(--color-blue);
+    --color-focus: var(--color-blue);
+    --color-disabled: #e2dfd8;
+    --color-disabled-text: #626262;
+    --color-selection: #e6edff;
+    --color-selection-text: #244eb3;
+    --color-error: #a92c2c;
+    --color-error-surface: #fff0ef;
+    --color-success: #256546;
+    --color-success-surface: #edf6ef;
+    --color-info-surface: #edf2fe;
+    --color-hero: var(--color-black);
+    --hero-gradient: radial-gradient(ellipse at 90% 0%, #59381d 0%, transparent 55%);
+    --font-family: 'Inter Variable', Inter, system-ui, sans-serif;
+    --font-size-small: 0.8125rem;
+    --font-size-base: 0.9375rem;
     --font-size-large: 1.25rem;
-    --font-size-title: 1.75rem;
+    --font-size-title: clamp(2rem, 4vw, 3rem);
+    --font-size-display: clamp(2.5rem, 5.2vw, 4.75rem);
     --font-weight-normal: 400;
-    --font-weight-bold: 700;
-    --line-height: 1.5;
-
-    /* spacing */
+    --font-weight-medium: 500;
+    --font-weight-bold: 650;
+    --line-height: 1.6;
     --space-1: 0.25rem;
     --space-2: 0.5rem;
     --space-3: 1rem;
     --space-4: 1.5rem;
     --space-5: 2rem;
-
-    /* shape */
+    --space-6: 3rem;
+    --space-7: 4.5rem;
     --border-width: 1px;
     --border: var(--border-width) solid var(--color-border);
     --border-muted: var(--border-width) solid var(--color-border-muted);
-    --content-width: 60rem;
+    --radius-button: 0;
+    --radius-control: 4px;
+    --radius-card: 12px;
+    --radius-media: 8px;
+    --content-width: 80rem;
+    --control-height: 2.875rem;
+    --shadow-card: 0 4px 20px rgb(20 20 20 / 3%);
+    --duration-fast: 160ms;
+    --duration-layout: 420ms;
+    --ease-layout: cubic-bezier(0.22, 1, 0.36, 1);
+    --gradient-entry-bridge: linear-gradient(180deg, #141414 0%, #242424 20%, #64635f 45%, #c9c6bf 74%, #faf8f4 100%);
 }
 
-/* base styles that apply to the whole page */
-*,
-*::before,
-*::after {
-    box-sizing: border-box;
+[data-theme='dark'] {
+    color-scheme: dark;
+    --color-background: var(--color-black);
+    --color-text: var(--color-white);
+    --color-text-muted: #b3b3b3;
+    --color-border: #8a8a8a;
+    --color-border-muted: #393939;
+    --color-surface: var(--color-gray-900);
+    --color-surface-subtle: #1b1b1b;
+    --color-inverse-background: var(--color-white);
+    --color-inverse-text: var(--color-black);
+    --color-link: #91b0ff;
+    --color-focus: #91b0ff;
+    --color-disabled: #353535;
+    --color-disabled-text: #a6a6a6;
+    --color-selection: #303b52;
+    --color-selection-text: #c3d3ff;
+    --color-error: #ffb6ae;
+    --color-error-surface: #381f1d;
+    --color-success: #a4dbb7;
+    --color-success-surface: #1d3024;
+    --color-info-surface: #252c3a;
+    --shadow-card: none;
+    --border: var(--border-width) solid var(--color-border);
+    --border-muted: var(--border-width) solid var(--color-border-muted);
 }
 
-body {
-    margin: 0;
-    background: var(--color-background);
-    color: var(--color-text);
-    font-family: var(--font-family);
-    font-size: var(--font-size-base);
-    line-height: var(--line-height);
-}
-
-/* form controls ignore the page font unless told to inherit it */
-button,
-input,
-select,
-textarea {
-    font: inherit;
-    color: inherit;
-}
-
-h1,
-h2,
-h3 {
-    margin: 0 0 var(--space-3);
-    font-weight: var(--font-weight-bold);
-}
-
-h1 {
-    font-size: var(--font-size-title);
-}
-
-h2 {
-    font-size: var(--font-size-large);
-}
-
-p {
-    margin: 0 0 var(--space-3);
-}
-
-a {
-    color: var(--color-text);
-}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--color-background); color: var(--color-text); font-family: var(--font-family); font-size: var(--font-size-base); line-height: var(--line-height); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 4px; }
+::selection { background: var(--color-selection); color: var(--color-selection-text); }
+h1, h2, h3, p { margin: 0; }
+h1, h2, h3 { font-family: var(--font-title, var(--font-family)); font-weight: var(--font-weight-bold); line-height: 1.2; letter-spacing: -0.035em; overflow-wrap: anywhere; }
+h1 { font-size: var(--font-size-title); }
+h2 { font-size: var(--font-size-large); }
+h3 { font-size: var(--font-size-base); }
+a { color: var(--color-link); text-underline-offset: 4px; }
+a:hover { text-decoration-thickness: 2px; }
+img { max-width: 100%; }
+small { font-size: var(--font-size-small); color: var(--color-text-muted); }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+form > * + * { margin-top: var(--space-3); }
+input[type='checkbox'] { accent-color: var(--color-blue); }
+.eyebrow { font-size: var(--font-size-small); font-weight: var(--font-weight-bold); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-text-muted); }
+.muted { color: var(--color-text-muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }

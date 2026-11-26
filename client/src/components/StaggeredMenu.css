@@ -1,0 +1,233 @@
+/* In-flow wrapper: only the toggle takes space in the header. The panel and its layers are fixed to the viewport. */
+.staggered-menu-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.sm-toggle {
+  position: relative;
+  z-index: 20; /* stays above the open panel so it can close it */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height, 2.875rem);
+  height: var(--control-height, 2.875rem);
+  padding: 0;
+  border: var(--border-muted, 1px solid #d9d6cf);
+  background: transparent;
+  color: var(--color-text, #141414);
+  cursor: pointer;
+  /* after closing, the button fades back in only once the panel has finished sliding out */
+  transition: opacity 0.2s ease 0.35s;
+}
+
+.sm-toggle:focus-visible {
+  outline: 3px solid var(--color-focus, #356ae6);
+  outline-offset: 3px;
+}
+
+.sm-burger {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 14px;
+}
+
+.sm-burger span {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: transform 0.3s ease, opacity 0.2s ease, top 0.3s ease;
+}
+
+.sm-burger span:nth-child(1) { top: 0; }
+.sm-burger span:nth-child(2) { top: 6px; }
+.sm-burger span:nth-child(3) { top: 12px; }
+
+.staggered-menu-wrapper[data-open] .sm-toggle {
+  opacity: 0;
+  pointer-events: none;
+  transition-delay: 0s;
+}
+
+/* close button at the top left of the open panel, styled like the toggle */
+.sm-close {
+  position: absolute;
+  top: 1.25rem;
+  left: 1.25rem;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height, 2.875rem);
+  height: var(--control-height, 2.875rem);
+  padding: 0;
+  border: var(--border-muted, 1px solid #d9d6cf);
+  background: transparent;
+  color: var(--color-text, #141414);
+  cursor: pointer;
+}
+
+.sm-close:focus-visible {
+  outline: 3px solid var(--color-focus, #356ae6);
+  outline-offset: 3px;
+}
+
+.sm-close .sm-burger span:nth-child(1) { top: 6px; transform: rotate(45deg); }
+.sm-close .sm-burger span:nth-child(2) { opacity: 0; }
+.sm-close .sm-burger span:nth-child(3) { top: 6px; transform: rotate(-45deg); }
+
+.staggered-menu-wrapper[data-open] .sm-burger span:nth-child(1) { top: 6px; transform: rotate(45deg); }
+.staggered-menu-wrapper[data-open] .sm-burger span:nth-child(2) { opacity: 0; }
+.staggered-menu-wrapper[data-open] .sm-burger span:nth-child(3) { top: 6px; transform: rotate(-45deg); }
+
+.staggered-menu-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: clamp(220px, 24vw, 300px);
+  height: 100dvh;
+  background: var(--color-background, #fff);
+  color: var(--color-text, #141414);
+  border-left: var(--border-muted, 1px solid #d9d6cf);
+  display: flex;
+  flex-direction: column;
+  padding: 6em 2em 2em 2em;
+  overflow-y: auto;
+  z-index: 10;
+  opacity: 0;
+}
+
+[data-position='left'] .staggered-menu-panel {
+  right: auto;
+  left: 0;
+  border-left: 0;
+  border-right: var(--border-muted, 1px solid #d9d6cf);
+}
+
+.sm-prelayers {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: clamp(220px, 24vw, 300px);
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+}
+
+[data-position='left'] .sm-prelayers {
+  right: auto;
+  left: 0;
+}
+
+.sm-prelayer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 100%;
+  opacity: 0;
+}
+
+.sm-panel-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.sm-panel-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted, #626977);
+  text-transform: capitalize;
+  overflow-wrap: anywhere;
+}
+
+.sm-panel-list {
+  --sm-item-size: clamp(1.75rem, 3.6vw, 2.4rem);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sm-panel-itemWrap:last-child:not(:first-child) {
+  margin-top: calc(var(--sm-item-size) + 0.5rem); /* one empty line above Log out */
+}
+
+.sm-panel-itemWrap {
+  position: relative;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.sm-panel-item {
+  position: relative;
+  display: inline-block;
+  padding: 0 1.4em 0 0;
+  border: 0;
+  background: none;
+  color: var(--color-text, #141414);
+  font: inherit;
+  font-weight: 600;
+  font-size: var(--sm-item-size);
+  line-height: 1;
+  letter-spacing: -2px;
+  text-align: left;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.25s;
+}
+
+.sm-panel-item:hover,
+.sm-panel-item:focus-visible {
+  color: var(--sm-accent, var(--color-amber, #f3a348));
+}
+
+.sm-panel-itemLabel {
+  display: inline-block;
+  will-change: transform;
+  transform-origin: 50% 100%;
+}
+
+.sm-panel-list[data-numbering] {
+  counter-reset: smItem;
+}
+
+.sm-panel-list[data-numbering] .sm-panel-item::after {
+  counter-increment: smItem;
+  content: counter(smItem, decimal-leading-zero);
+  position: absolute;
+  top: 0.1em;
+  right: 0.4em;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--sm-accent, var(--color-amber, #f3a348));
+  letter-spacing: 0;
+  pointer-events: none;
+  user-select: none;
+  opacity: var(--sm-num-opacity, 0);
+}
+
+@media (max-width: 1024px) {
+  .staggered-menu-panel,
+  .sm-prelayers {
+    width: clamp(240px, 46vw, 320px);
+  }
+}
+
+@media (max-width: 640px) {
+  .staggered-menu-panel,
+  .sm-prelayers {
+    width: min(100%, 20rem);
+  }
+}

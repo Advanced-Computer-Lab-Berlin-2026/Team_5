@@ -1,27 +1,33 @@
-.nav {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    border-bottom: var(--border);
+.header { overflow-x: clip; position: sticky; top: 0; z-index: 100; background: var(--color-background); transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out, visibility 0.3s; }
+.header[data-hidden] { transform: translateY(-100%); opacity: 0; visibility: hidden; }
+/* keyboard users tabbing into the header always get it back */
+.header[data-hidden]:has(:focus-visible) { transform: none; opacity: 1; visibility: visible; }
+@media (prefers-reduced-motion: reduce) { .header { transition: none; } }
+.nav { max-width: var(--content-width); margin: auto; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-5); min-height: 5rem; padding: var(--space-3) var(--space-5); }
+.brand { color: var(--color-text); font-size: 1.75rem; font-weight: 800; letter-spacing: -0.07em; text-decoration: none; }
+.brand { display: inline-flex; align-items: center; justify-self: start; }
+/* the logo is a transparent mask painted in the text color, so it follows light and dark mode */
+.logo { display: block; width: 3.5rem; height: 3.5rem; background-color: var(--color-text); -webkit-mask: url('../assets/logo-mark.png') center / contain no-repeat; mask: url('../assets/logo-mark.png') center / contain no-repeat; }
+.links { display: flex; align-items: stretch; justify-self: center; border: var(--border-muted); background: var(--nav-bg); --nav-bg: var(--color-background); --nav-text: var(--color-gray-500); --nav-text-hover: var(--color-black); --nav-hover-bg: var(--color-gray-100); }
+:global([data-theme='dark']) .links { --nav-bg: var(--color-background); --nav-text: #c9c9c9; --nav-text-hover: var(--color-white); --nav-hover-bg: var(--color-gray-700); }
+.link { position: relative; display: inline-flex; align-items: center; padding: var(--space-2) var(--space-4); min-height: 2.5rem; color: var(--nav-text); font-size: var(--font-size-small); font-weight: var(--font-weight-medium); text-decoration: none; background: transparent; border-bottom: 2px solid transparent; transition: background var(--duration-fast), color var(--duration-fast); }
+.link:hover { color: var(--nav-text-hover); }
+.active { color: var(--nav-text-hover); }
+.link::after { content: ''; position: absolute; left: var(--space-3); right: var(--space-3); bottom: 6px; height: 3px; border-radius: 2px; background: var(--color-amber); transform: scaleX(0); transform-origin: right center; transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); pointer-events: none; }
+/* drawn left to right on hover, kept on the current page */
+.link:hover::after, .active::after { transform: scaleX(1); transform-origin: left center; }
+@media (prefers-reduced-motion: reduce) { .link::after { transition: none; } }
+.account { justify-self: end; display: flex; gap: var(--space-2); align-items: center; }
+.identity { display: grid; margin-right: var(--space-2); font-size: var(--font-size-small); font-weight: var(--font-weight-medium); overflow-wrap: anywhere; }
+.identity small { font-weight: var(--font-weight-normal); text-transform: capitalize; }
+.toggle { display: none; border: var(--border-muted); background: transparent; color: var(--color-text); width: var(--control-height); height: var(--control-height); }
+@media (max-width: 1050px) {
+    .nav { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+    .brand { margin-right: auto; }
+    .toggle { display: inline-flex; justify-content: center; align-items: center; order: 2; }
+    .account { order: 1; }
+    .links { display: none; order: 3; flex-basis: 100%; flex-direction: column; justify-self: stretch; }
+    .links.open { display: flex; }
+    .link { padding: var(--space-3) var(--space-4); }
 }
-
-.link {
-    color: var(--color-text-muted);
-    text-decoration: none;
-}
-
-.link:hover {
-    color: var(--color-text);
-    text-decoration: underline;
-}
-
-.active {
-    color: var(--color-text);
-    font-weight: var(--font-weight-bold);
-}
-
-.spacer {
-    flex: 1;
-}
+@media (max-width: 640px) { .nav { padding: var(--space-3); } .identity { display: none; } .account { gap: var(--space-1); } }

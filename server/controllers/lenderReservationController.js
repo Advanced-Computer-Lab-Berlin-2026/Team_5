@@ -3,9 +3,12 @@ import joi from 'joi';
 import { Reservation } from '../models/Reservation.js';
 import { User } from '../models/User.js';
 import { Payment } from '../models/Payment.js';
+import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadPhotos, deletePhotos } from '../services/photoUpload.js';
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js';
+import { recalculateTrustScore } from '../services/trustScoreService.js';
+import { rewardReferralIfEligible } from '../services/referralService.js';
 import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
 
 // Finds the reservation and checks that it belongs to this lender and has one of the allowed statuses.
@@ -18,6 +21,85 @@ async function findLenderReservation(id, lenderId, allowedStatuses, action) {
         return { status: 409, message: `Only ${allowedStatuses.join(' or ')} reservations can ${action}` };
     }
     return { reservation };
+}
+
+// GET /api/lender/reservations
+export async function listIncomingReservations(req, res, next) {
+    try {
+        const reservations = await Reservation.find({ lender: req.user.id, status: 'pending' })
+            .sort({ createdAt: 1 })
+            .populate('item', 'name photos')
+            .populate('borrower', 'username profile.name')
+            .lean();
+
+        res.status(200).json({ reservations });
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function decideIncomingReservation(req, res, next, decision) {
+    let session;
+    try {
+        const { reservation, status, message } = await findLenderReservation(
+            req.params.id, req.user.id, ['pending'], `be ${decision}`
+        );
+        if (!reservation) return res.status(status).json({ message });
+
+        const approved = decision === 'approved';
+        const nextStatus = approved ? 'upcoming' : 'rejected';
+        const refund = reservation.payment.depositAmount;
+        let updated = null;
+
+        session = await mongoose.startSession();
+        await session.withTransaction(async () => {
+            updated = await Reservation.findOneAndUpdate(
+                { _id: reservation._id, lender: req.user.id, status: 'pending' },
+                { $set: { status: nextStatus } },
+                { new: true, session }
+            );
+            if (!updated) return;
+
+            if (!approved) {
+                await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
+                await Payment.create([{
+                    user: reservation.borrower,
+                    reservation: reservation._id,
+                    type: 'deposit-refund',
+                    amount: refund,
+                    direction: 'receive',
+                    method: 'wallet',
+                    description: `Deposit returned for rejected reservation ${reservation._id}`,
+                }], { session });
+            }
+
+            await Notification.create([{
+                username: reservation.borrower,
+                reservation: reservation._id,
+                type: 'other',
+                message: approved
+                    ? 'Your reservation request was approved.'
+                    : `Your reservation request was rejected. Your deposit of ${refund} was added to your wallet.`,
+            }], { session });
+        });
+
+        if (!updated) return res.status(409).json({ message: 'Only pending reservations can be approved or rejected' });
+        res.status(200).json(approved ? { reservation: updated } : { reservation: updated, refunded: refund });
+    } catch (error) {
+        next(error);
+    } finally {
+        await session?.endSession();
+    }
+}
+
+// PATCH /api/lender/reservations/:id/approve
+export async function approveReservation(req, res, next) {
+    return decideIncomingReservation(req, res, next, 'approved');
+}
+
+// PATCH /api/lender/reservations/:id/reject
+export async function rejectReservation(req, res, next) {
+    return decideIncomingReservation(req, res, next, 'rejected');
 }
 
 // after commit so a failed notify never rolls back pickup/return, and prefs/email can run
@@ -85,6 +167,9 @@ export async function markReturnedGood(req, res, next) {
                 method: 'wallet',
                 description: `Deposit returned for reservation ${reservation._id}`,
             }], { session });
+            await recalculateTrustScore(reservation.borrower, session);
+            await recalculateTrustScore(reservation.lender, session);
+            await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
         });
 
         if (!updated) return res.status(409).json({ message: 'Only active reservations can be marked as returned' });
@@ -96,7 +181,7 @@ export async function markReturnedGood(req, res, next) {
                 reservation: reservation._id,
                 message: `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`,
             });
-            // item is available again for wishlisters (357)
+            // item is available again for wishlisters (358)
             await notifyWishlistItemAvailable(reservation.item);
         });
 
@@ -196,6 +281,9 @@ export async function reportDamage(req, res, next) {
                     message: value.message,
                 },
             }], { session });
+            await recalculateTrustScore(reservation.borrower, session);
+            await recalculateTrustScore(reservation.lender, session);
+            await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
         });
 
         if (!report) {
