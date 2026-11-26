@@ -1,0 +1,69 @@
+.wrap { position: relative; width: 100%; min-width: 0; }
+
+.trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: var(--control-height);
+    padding: var(--space-2) var(--space-3);
+    border: var(--border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    border-radius: var(--radius-control);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.trigger:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.trigger[aria-expanded='true'] { border-color: var(--color-amber); }
+.trigger:disabled { background: var(--color-surface); color: var(--color-text-muted); cursor: not-allowed; }
+.trigger[aria-invalid='true'] { border-color: var(--color-error); }
+
+.value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.chevron { display: inline-flex; flex: none; transition: transform 200ms ease; }
+.chevron[data-open] { transform: rotate(180deg); }
+
+/* sharp, square list that drops from the box: a light row under the pointer, an amber bar on the chosen one */
+.panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 30;
+    box-sizing: border-box;
+    min-width: 100%;
+    max-height: 17rem;
+    margin: 0;
+    padding: var(--space-1) 0;
+    overflow-y: auto;
+    list-style: none;
+    border: var(--border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    box-shadow: 0 14px 30px -14px rgb(0 0 0 / 40%);
+    transform-origin: top;
+    animation: drop 140ms ease-out;
+}
+
+.option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-left: 3px solid transparent;
+    color: var(--color-text);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.option[data-highlight] { background: var(--color-surface-subtle); }
+.option[data-selected] { border-left-color: var(--color-amber); font-weight: var(--font-weight-bold); }
+.check { color: var(--color-amber-pressed); }
+
+@keyframes drop { from { opacity: 0; transform: translateY(-4px) scaleY(0.96); } }
+
+@media (prefers-reduced-motion: reduce) { .panel { animation: none; } .chevron { transition: none; } }

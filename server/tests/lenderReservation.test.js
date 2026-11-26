@@ -7,8 +7,10 @@ import { env } from '../config/env.js';
 import { User } from '../models/User.js';
 import { Reservation } from '../models/Reservation.js';
 import { Payment } from '../models/Payment.js';
+import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
+import { rewardReferralIfEligible } from '../services/referralService.js';
 import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
 
 vi.mock('../models/User.js', () => ({
@@ -18,6 +20,14 @@ vi.mock('../models/User.js', () => ({
 vi.mock('../services/itemPhotoStorage.js', () => ({
     uploadItemPhoto: vi.fn(),
     deleteItemPhoto: vi.fn(),
+}));
+
+vi.mock('../services/trustScoreService.js', () => ({
+    recalculateTrustScore: vi.fn(),
+}));
+
+vi.mock('../services/referralService.js', () => ({
+    rewardReferralIfEligible: vi.fn(),
 }));
 
 vi.mock('../services/notificationService.js', () => ({
@@ -42,6 +52,119 @@ beforeEach(() => {
     vi.resetAllMocks();
     notify.mockResolvedValue({});
     notifyWishlistItemAvailable.mockResolvedValue(undefined);
+});
+
+describe('GET /api/lender/reservations', () => {
+    it('lists only the signed-in lender pending reservations with item and borrower details', async () => {
+        const cookie = asLender();
+        const reservations = [mockReservation()];
+        const query = {
+            sort: vi.fn(),
+            populate: vi.fn(),
+            lean: vi.fn().mockResolvedValue(reservations),
+        };
+        query.sort.mockReturnValue(query);
+        query.populate.mockReturnValue(query);
+        vi.spyOn(Reservation, 'find').mockReturnValue(query);
+
+        const res = await request(app).get('/api/lender/reservations')
+            .set('Origin', ORIGIN).set('Cookie', cookie);
+
+        expect(res.status).toBe(200);
+        expect(res.body.reservations).toHaveLength(1);
+        expect(Reservation.find).toHaveBeenCalledWith({ lender: 'lender1', status: 'pending' });
+        expect(query.populate).toHaveBeenNthCalledWith(1, 'item', 'name photos');
+        expect(query.populate).toHaveBeenNthCalledWith(2, 'borrower', 'username profile.name');
+    });
+});
+
+describe('PATCH /api/lender/reservations/:id/approve', () => {
+    const url = '/api/lender/reservations/RES-1/approve';
+    const session = { withTransaction: vi.fn(), endSession: vi.fn() };
+    const setupSession = () => {
+        session.withTransaction.mockImplementation(async (fn) => fn());
+        vi.spyOn(mongoose, 'startSession').mockResolvedValue(session);
+    };
+
+    it('approves a pending request and notifies the borrower without refunding', async () => {
+        const cookie = asLender();
+        setupSession();
+        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ status: 'pending' }));
+        vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ _id: 'RES-1', status: 'upcoming' });
+        const pay = vi.spyOn(Payment, 'create').mockResolvedValue([{}]);
+        const notify = vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
+
+        const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
+
+        expect(res.status).toBe(200);
+        expect(res.body.reservation.status).toBe('upcoming');
+        expect(Reservation.findOneAndUpdate).toHaveBeenCalledWith(
+            { _id: 'RES-1', lender: 'lender1', status: 'pending' },
+            { $set: { status: 'upcoming' } },
+            { new: true, session }
+        );
+        expect(User.updateOne).not.toHaveBeenCalled();
+        expect(pay).not.toHaveBeenCalled();
+        expect(notify).toHaveBeenCalledWith([expect.objectContaining({ username: 'borrower1' })], { session });
+        expect(session.endSession).toHaveBeenCalled();
+    });
+
+    it('does not approve another lender reservation', async () => {
+        const cookie = asLender();
+        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ lender: 'lender2', status: 'pending' }));
+        const start = vi.spyOn(mongoose, 'startSession');
+
+        const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
+
+        expect(res.status).toBe(403);
+        expect(start).not.toHaveBeenCalled();
+    });
+});
+
+describe('PATCH /api/lender/reservations/:id/reject', () => {
+    const url = '/api/lender/reservations/RES-1/reject';
+    const session = { withTransaction: vi.fn(), endSession: vi.fn() };
+    const setupSession = () => {
+        session.withTransaction.mockImplementation(async (fn) => fn());
+        vi.spyOn(mongoose, 'startSession').mockResolvedValue(session);
+    };
+
+    it('rejects a pending request and refunds its deposit to the borrower wallet', async () => {
+        const cookie = asLender();
+        setupSession();
+        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ status: 'pending' }));
+        vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ _id: 'RES-1', status: 'rejected' });
+        User.updateOne.mockResolvedValue({});
+        const pay = vi.spyOn(Payment, 'create').mockResolvedValue([{}]);
+        const notify = vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
+
+        const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
+
+        expect(res.status).toBe(200);
+        expect(res.body.reservation.status).toBe('rejected');
+        expect(res.body.refunded).toBe(100);
+        expect(User.updateOne).toHaveBeenCalledWith({ _id: 'borrower1' }, { $inc: { wallet: 100 } }, { session });
+        expect(pay).toHaveBeenCalledWith([expect.objectContaining({
+            type: 'deposit-refund', amount: 100, direction: 'receive', method: 'wallet',
+        })], { session });
+        expect(notify).toHaveBeenCalledWith([expect.objectContaining({ username: 'borrower1' })], { session });
+        expect(session.endSession).toHaveBeenCalled();
+    });
+
+    it('does not refund when a concurrent decision already changed the request', async () => {
+        const cookie = asLender();
+        setupSession();
+        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ status: 'pending' }));
+        vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue(null);
+        const pay = vi.spyOn(Payment, 'create').mockResolvedValue([{}]);
+
+        const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
+
+        expect(res.status).toBe(409);
+        expect(User.updateOne).not.toHaveBeenCalled();
+        expect(pay).not.toHaveBeenCalled();
+        expect(session.endSession).toHaveBeenCalled();
+    });
 });
 
 describe('PATCH /api/lender/reservations/:id/pickup', () => {
@@ -371,6 +494,7 @@ describe('POST /api/lender/reservations/:id/damage', () => {
         expect(notifyWishlistItemAvailable).toHaveBeenCalledWith('ITM-1');
         expect(User.updateOne).not.toHaveBeenCalled();
         expect(pay).not.toHaveBeenCalled();
+        expect(rewardReferralIfEligible).toHaveBeenCalledExactlyOnceWith('borrower1', 'RES-1', session);
         expect(session.endSession).toHaveBeenCalled();
     });
 
@@ -386,6 +510,7 @@ describe('POST /api/lender/reservations/:id/damage', () => {
             .attach('photos', Buffer.from('img'), 'a.jpg');
         expect(res.status).toBe(409);
         expect(create).not.toHaveBeenCalled();
+        expect(rewardReferralIfEligible).not.toHaveBeenCalled();
         expect(deleteItemPhoto).toHaveBeenCalledWith('d1');
     });
 

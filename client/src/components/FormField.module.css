@@ -13,3 +13,30 @@
     color: var(--color-text-muted);
     font-size: var(--font-size-small);
 }
+
+.picker {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.fileName {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-small);
+}
+
+/* the real input stays in the page (so forms and tests still work) but is not shown */
+.nativeInput {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    opacity: 0;
+    pointer-events: none;
+}
