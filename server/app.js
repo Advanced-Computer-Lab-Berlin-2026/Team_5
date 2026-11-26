@@ -32,6 +32,8 @@ import stripeRouter from './routes/stripe.js';
 import { handleStripeWebhook } from './controllers/stripeWebhookController.js';
 import lenderDashboardRoutes from './routes/lenderDashboard.js';
 import reportRoutes from './routes/reports.js';
+import adminDamageReportRoutes from './routes/adminDamageReports.js';
+import damageReportRoutes from './routes/damageReports.js';
 import membershipTierRoutes from './routes/membershipTiers.js';
 import membershipRoutes from './routes/membership.js';
 
@@ -81,6 +83,10 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/admin/reports', reportRoutes);
 app.use('/api/lender/dashboard', lenderDashboardRoutes);
+app.use('/api/admin/damage-reports', adminDamageReportRoutes);
+app.use('/api/damage-reports', damageReportRoutes);
+
+
 app.use('/api/membership-tiers', membershipTierRoutes);
 app.use('/api/membership', membershipRoutes);
 

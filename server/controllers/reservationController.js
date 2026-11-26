@@ -7,6 +7,7 @@ import { notifyDeliveryStatus } from '../services/notificationService.js';
 import { cancelReservationWithRefund } from '../services/reservationCancellationService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { requestExtension } from '../services/extensionService.js';
+import { applyDiscount, getDepositDiscountPercent, hasReachedReservationLimit } from '../services/membershipService.js';
 
 const RESERVATION_ID_PATTERN = /^RES-[0-9a-f]{8}$/;
 const DELIVERY_STATUSES = ['preparing', 'out-for-delivery', 'delivered'];
@@ -248,13 +249,26 @@ export async function createReservation(req, res, next) {
             return res.status(400).json({ message: 'Start date cannot be in the past' });
         }
 
+        // SCRUM-495 / 496: the borrower's own tier or an accepted household member's tier lowers the deposit
+        const discountPercent = await getDepositDiscountPercent(borrower);
+        const depositAmount = applyDiscount(item.depositAmount || 0, discountPercent);
+
         let conflict = false;
+        let limit = null;
         let reservation;
 
         const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
                 conflict = false;
+                limit = null;
+
+                // SCRUM-497: the tier decides how many reservations can be open at once
+                const limitCheck = await hasReachedReservationLimit(borrower, session);
+                if (limitCheck.reached) {
+                    limit = limitCheck;
+                    return;
+                }
 
                 // write to item and reservation in a transaction to ensure consistency
                 await Item.updateOne({ _id: itemId }, { $set: { updatedAt: new Date() } }, { session });
@@ -271,8 +285,9 @@ export async function createReservation(req, res, next) {
                     item: itemId,
                     borrower: req.user.id,
                     lender: item.owner,
-                    payment: {
-                        depositAmount: item.depositAmount || 0,
+                    payment:{
+                        depositAmount,         
+                        discountPercent,    
                         method: 'wallet',
                         depositCollected: false,
                     },
@@ -287,11 +302,22 @@ export async function createReservation(req, res, next) {
             await session.endSession();
         }
 
+        if (limit) {
+            return res.status(403).json({
+                message: `Your ${limit.tier} membership allows up to ${limit.limit} open reservations at a time`
+            });
+        }
+
         if (conflict) {
             return res.status(409).json({ message: 'Item is already reserved for the selected dates' });
         }
 
-        return res.status(201).json({ message: 'Reservation created successfully', reservationId: reservation._id });
+        return res.status(201).json({
+            message: 'Reservation created successfully',
+            reservationId: reservation._id,
+            depositAmount,
+            discountPercent
+        });
     } catch (error) {
         next(error);
     }

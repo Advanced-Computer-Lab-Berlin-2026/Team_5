@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     notify, notifyWishlistItemAvailable, notifyWaitlistItemAvailable, notifyReservationCancelled, notifyReservationConfirmed, notifyReservationRejected,
-    notifyUpcomingReturn, notifyDeliveryStatus, notifyInApp
+    notifyUpcomingReturn, notifyDeliveryStatus, notifyMembershipRenewal
 } from '../services/notificationService.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { env } from '../config/env.js';
@@ -715,5 +715,47 @@ describe('notifyUpcomingReturn', () => {
             'failed to send the return reminder for undefined',
             expect.any(TypeError)
         );
+    });
+});
+
+
+describe('notifyMembershipRenewal', () => {
+    const user = { _id: 'tata', membership: { tier: 'Plus', renewalDate: new Date('2026-12-03T10:00:00Z') } };
+    const message = 'Your Plus membership ends on 3 Dec 2026. Renew it before then to keep your benefits';
+
+    it('saves a renewal-reminder notification that names the tier and the berlin date', async () => {
+        await notifyMembershipRenewal(user);
+
+        expect(Notification.create).toHaveBeenCalledExactlyOnceWith({ username: 'tata', type: 'renewal-reminder', message, reservation: undefined });
+    });
+
+    it('emails it with the reservations switch and its own subject', async () => {
+        Notification.create.mockResolvedValue({ _id: 'NOT-1', username: 'tata', type: 'renewal-reminder', message });
+        User.findById.mockResolvedValue({ profile: { email: 'tata@example.com' } });
+
+        await notifyMembershipRenewal(user);
+        await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledWith('tata@example.com', 'Your membership is about to expire', message));
+    });
+
+    it('does not send the same reminder twice', async () => {
+        Notification.findOne.mockResolvedValue({ _id: 'NOT-old' });
+
+        await notifyMembershipRenewal(user);
+
+        expect(Notification.findOne).toHaveBeenCalledWith({ username: 'tata', type: 'renewal-reminder', message }, { _id: 1 }, { lean: true });
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    it('skips and logs when the renewal date is missing', async () => {
+        await notifyMembershipRenewal({ _id: 'tata', membership: { tier: 'Plus' } });
+
+        expect(Notification.create).not.toHaveBeenCalled();
+        expect(console.error).toHaveBeenCalledWith('renewal reminder skipped for tata, renewalDate is missing');
+    });
+
+    it('never throws when saving fails', async () => {
+        Notification.create.mockRejectedValue(new Error('db down'));
+
+        await expect(notifyMembershipRenewal(user)).resolves.toBeUndefined();
     });
 });

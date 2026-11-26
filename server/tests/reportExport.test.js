@@ -21,6 +21,10 @@ vi.mock('../models/DamageReport.js', () => ({
     DamageReport: { find: vi.fn() }
 }));
 
+vi.mock('../services/damageCase.js', () => ({
+    closeExpiredDecisions: vi.fn()
+}));
+
 const ADMIN_ID = 'admin1';
 const USAGE_URL = '/api/admin/reports/usage/export';
 const DAMAGE_URL = '/api/admin/reports/damage/export';
@@ -33,7 +37,7 @@ const usageRows = [
 
 const damageEntries = [
     { _id: 'DMG-1', reservation: 'RES-C', type: 'report', report: {}, createdAt: new Date('2026-09-13T10:00:00Z') },
-    { _id: 'DMG-2', reservation: 'RES-C', type: 'resolution', depositForfeit: 50, report: {}, createdAt: new Date('2026-09-15T10:00:00Z') }
+    { _id: 'DMG-2', reservation: 'RES-C', type: 'decision', depositForfeit: 50, report: {}, createdAt: new Date('2026-09-15T10:00:00Z') }
 ];
 
 const damageReservations = [

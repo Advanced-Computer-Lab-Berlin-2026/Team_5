@@ -35,6 +35,7 @@ Keep secrets in `.env` and out of Git. Update `.env.sample` with placeholders wh
 | `NOTIFY_SMTP_USER` | App Gmail address for password-reset and notification mail (optional for boot; required to actually send mail). |
 | `NOTIFY_SMTP_PASS` | App Gmail app password for the same. |
 | `RETURN_REMINDER_CRON` | Optional cron expression for the return-reminder job (default `0 9 * * *`, 09:00 Europe/Berlin). |
+| `RENEWAL_REMINDER_CRON` | Optional cron expression for the membership renewal-reminder job (default `0 9 * * *`, 09:00 Europe/Berlin). |
 | `ENABLE_JOBS` | Optional; set to `false` to disable in-process cron jobs. Jobs never start when `NODE_ENV=test`. |
 
 Required boot values must be nonempty. Configuration is captured at module load;
@@ -167,7 +168,7 @@ chat, and item manuals are documented in the same table.
 | `GET /api/admin/lender-requests/:username/documents/:slot` | None; admin only; optional `?download=true` | Redirects to a signed Cloudinary link to view or download the document. |
 | `PATCH /api/admin/lender-requests/:username/decision` | `decision` (`accept` or `reject`); `reason` required when rejecting | Accept sets the role to `lender` and status `accepted`; reject sets status `rejected` and saves the reason in `verification.note`. |
 | `GET /api/items/:id/calendar` | None; login required | Returns `{ reservations: [{ startDate, endDate }] }` for the item, sorted by start date. Only `pending`, `upcoming` and `active` reservations are included, and only their dates (no borrower or other details). `400` for an invalid item id; `404` if the item is missing, flagged, or its lender is suspended. |
-| `POST /api/reservations` | `itemId` (`ITM-` id), `startDate`, `endDate` (ISO dates, start must be in the future and before end); optional `deliveryFlag` (boolean); `deliveryAddress` required when `deliveryFlag` is true; CSRF origin required | Creates a reservation for the signed-in member, lender or admin; returns `201` with `{ message, reservationId }`. Deposit is taken from the item and the payment method defaults to `wallet`; when delivery is requested the item's delivery fee is stored. `400` for missing or invalid fields, past dates, a duration over the item's `maxDurationDays` (default 30), reserving your own item, or delivery on an item that does not offer it. `403` if the borrower's trust score is below the item's minimum or the lender is suspended. `404` if the item is missing, archived or flagged. `409` if the dates overlap an existing reservation. |
+| `POST /api/reservations` | `itemId` (`ITM-` id), `startDate`, `endDate` (ISO dates, start must be in the future and before end); optional `deliveryFlag` (boolean); `deliveryAddress` required when `deliveryFlag` is true; CSRF origin required | Creates a reservation for the signed-in member, lender or admin; returns `201` with `{ message, reservationId }`. Deposit is taken from the item, reduced by the best membership discount (the borrower's own tier or an accepted household member's tier, see Membership below), and the payment method defaults to `wallet`; the reply also has `depositAmount` and `discountPercent`; when delivery is requested the item's delivery fee is stored. `400` for missing or invalid fields, past dates, a duration over the item's `maxDurationDays` (default 30), reserving your own item, or delivery on an item that does not offer it. `403` if the borrower's trust score is below the item's minimum or the lender is suspended. `404` if the item is missing, archived or flagged. `409` if the dates overlap an existing reservation. `403` also when the borrower already has as many open (pending, upcoming or active) reservations as their tier allows. |
 | `GET /api/notifications` | None; login required; optional `?page=` (default 1) and `?limit=` (default 10, max 50) | Returns the caller's in-app notifications newest first, with pagination. |
 | `PATCH /api/notifications/:id/read` | None; login required; CSRF origin required | Marks that notification as read for the caller only; another user's id is `404`. |
 | `GET /api/settings/email-preferences` | None; member or lender cookie | Returns `{ emailPreferences: { reservations, promotions, communityNotices } }` (missing fields default to on). |
@@ -217,6 +218,25 @@ over "cancel at the end of the period" because the ticket says cancelling
 returns the user to Basic, it needs no extra stored state or scheduled job to
 downgrade later, and the deposit discount at reservation time (S88) then only
 has to read `membership.tier` with no "cancelled but still active" case.
+
+**Deposit discount (S88).** When a reservation is made, the borrower's deposit is
+reduced by the best `deposit_discount` (percent, stored in the `MembershipTier`
+collection) among their own tier and the tiers of their accepted household
+members. Household members never need their own subscription, and the
+subscriber's discount reaches them through an accepted household link in either
+direction. The reduced amount is stored in `payment.depositAmount` (so refunds
+match what was held) and the percentage in `payment.discountPercent`. A paid tier
+only counts until its `renewalDate`; after that the user is treated as Basic.
+
+**Open reservations by tier (S88).** Pending, upcoming and active reservations
+count. Basic can have 2 at a time, Plus 3 and Premium 5 (only the Premium number
+comes from the ticket; the others are in `MAX_CONCURRENT_RESERVATIONS` in
+`server/services/membershipService.js`).
+
+**Renewal reminder (S108).** A daily job (09:00 Europe/Berlin, see
+`RENEWAL_REMINDER_CRON`) finds Plus and Premium members whose `renewalDate` is 7
+days away and saves a `renewal-reminder` notification, with an email unless they
+turned off the reservations switch. It never sends the same reminder twice.
 
 A daily return-reminder job (Europe/Berlin) can create
 `upcoming-return-date` notifications for active loans due the next calendar
