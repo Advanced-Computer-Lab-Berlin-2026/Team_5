@@ -3,9 +3,10 @@ import joi from 'joi';
 import { Reservation } from '../models/Reservation.js';
 import { Item } from '../models/Item.js';
 import { User } from '../models/User.js';
-import { Payment } from '../models/Payment.js';
-import { Notification } from '../models/Notification.js';
 import { notifyDeliveryStatus } from '../services/notificationService.js';
+import { cancelReservationWithRefund } from '../services/reservationCancellationService.js';
+import { CheckoutError } from '../utils/CheckoutError.js';
+import { requestExtension } from '../services/extensionService.js';
 import { applyDiscount, getDepositDiscountPercent, hasReachedReservationLimit } from '../services/membershipService.js';
 
 const RESERVATION_ID_PATTERN = /^RES-[0-9a-f]{8}$/;
@@ -43,23 +44,6 @@ function buildReservationFilter(userId, query) {
     return filter;
 }
 
-function getCancellationPolicy(item) {
-    return item?.cancellation ?? { freeDays: 0, forfeitPercent: 0 };
-}
-
-function calculateCancellationRefund(reservation, item) {
-    const deposit = reservation.payment?.depositAmount ?? 0;
-    const { freeDays, forfeitPercent } = getCancellationPolicy(item);
-    const daysUntilStart = (new Date(reservation.startDate).getTime() - Date.now()) / 86400000;
-
-    if (freeDays <= 0 || forfeitPercent <= 0 || daysUntilStart >= freeDays) {
-        return { refundAmount: deposit, forfeitAmount: 0 };
-    }
-
-    const forfeitAmount = Math.round((deposit * forfeitPercent) / 100);
-    return { refundAmount: Math.max(0, deposit - forfeitAmount), forfeitAmount };
-}
-
 // GET /api/reservations
 export async function getMyReservations(req, res, next) {
     try {
@@ -78,70 +62,25 @@ export async function getMyReservations(req, res, next) {
     }
 }
 
-// PATCH /api/reservations/:reservationId/cancel
+// POST keeps the checkout contract. PATCH keeps the existing borrower-only API.
 export async function cancelReservation(req, res, next) {
-    let session;
+    const borrowerOnly = req.method === 'PATCH';
+    const { reservationId } = req.params;
+    if (borrowerOnly && !RESERVATION_ID_PATTERN.test(reservationId)) {
+        return res.status(400).json({ message: 'Invalid reservation id' });
+    }
+
     try {
-        const { reservationId } = req.params;
-        if (!RESERVATION_ID_PATTERN.test(reservationId)) {
-            return res.status(400).json({ message: 'Invalid reservation id' });
+        const result = await cancelReservationWithRefund(reservationId, req.user.id, { borrowerOnly });
+        if (borrowerOnly) {
+            return res.status(200).json({ reservation: result.reservation, refunded: result.refundAmount });
         }
-
-        const reservation = await Reservation.findById(reservationId);
-        if (!reservation) return res.status(404).json({ message: 'Reservation not found' });
-        if (reservation.borrower !== req.user.id) {
-            return res.status(403).json({ message: 'You can only cancel your own reservations' });
-        }
-        if (!['pending', 'upcoming'].includes(reservation.status)) {
-            return res.status(409).json({ message: 'Only pending or upcoming reservations can be cancelled' });
-        }
-        if (new Date() >= new Date(reservation.startDate)) {
-            return res.status(409).json({ message: 'Cannot cancel a reservation on or after the pickup date' });
-        }
-
-        const item = await Item.findById(reservation.item).lean();
-        const { refundAmount } = calculateCancellationRefund(reservation, item);
-        let updated = null;
-
-        session = await mongoose.startSession();
-        await session.withTransaction(async () => {
-            updated = await Reservation.findOneAndUpdate(
-                { _id: reservation._id, status: { $in: ['pending', 'upcoming'] } },
-                { $set: { status: 'cancelled' } },
-                { new: true, session }
-            );
-            if (!updated) return;
-
-            if (refundAmount > 0) {
-                await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refundAmount } }, { session });
-                await Payment.create([{
-                    user: reservation.borrower,
-                    reservation: reservation._id,
-                    type: 'deposit-refund',
-                    amount: refundAmount,
-                    direction: 'receive',
-                    method: 'wallet',
-                    description: `Deposit refund for cancelled reservation ${reservation._id}`
-                }], { session });
-            }
-
-            await Notification.create([{
-                username: reservation.lender,
-                reservation: reservation._id,
-                type: 'rejected',
-                message: `Reservation ${reservation._id} was cancelled by the borrower.`
-            }], { session });
-        });
-
-        if (!updated) {
-            return res.status(409).json({ message: 'Only pending or upcoming reservations can be cancelled' });
-        }
-
-        return res.status(200).json({ reservation: updated, refunded: refundAmount });
+        return res.status(200).json(result);
     } catch (error) {
-        next(error);
-    } finally {
-        await session?.endSession();
+        if (error instanceof CheckoutError) {
+            return res.status(error.statusCode).json({ error: error.code, message: error.message });
+        }
+        return next(error);
     }
 }
 
@@ -262,9 +201,10 @@ function validateReservationItem(item, borrowerId, deliveryFlag, requestedDurati
 
 export async function createReservation(req, res, next) {
     try {
-        const { itemId, deliveryFlag, deliveryAddress } = req.body;
+        const body = req.body ?? {};
+        const { itemId, deliveryFlag, deliveryAddress } = body;
 
-        const { start, end, error } = parseReservationInput(req.body);
+        const { start, end, error } = parseReservationInput(body);
         if (error) {
             return res.status(400).json({ message: error });
         }
@@ -345,10 +285,11 @@ export async function createReservation(req, res, next) {
                     item: itemId,
                     borrower: req.user.id,
                     lender: item.owner,
-                    payment: {
-                        depositAmount,
-                        discountPercent,
-                        method: 'wallet', // default to wallet, can be changed later
+                    payment:{
+                        depositAmount,         
+                        discountPercent,    
+                        method: 'wallet',
+                        depositCollected: false,
                     },
                     startDate: start,
                     endDate: end,
@@ -379,5 +320,26 @@ export async function createReservation(req, res, next) {
         });
     } catch (error) {
         next(error);
+    }
+}
+
+export async function requestReservationExtension(req, res, next) {
+    try {
+        const result = await requestExtension(
+            req.params.reservationId,
+            req.user.id,
+            req.body?.requestedEndDate
+        );
+
+        return res.status(201).json(result);
+    } catch (error) {
+        if (error instanceof CheckoutError) {
+            return res.status(error.statusCode).json({
+                error: error.code,
+                message: error.message
+            });
+        }
+
+        return next(error);
     }
 }

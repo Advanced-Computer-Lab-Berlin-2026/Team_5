@@ -10,6 +10,9 @@ import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js';
 import { recalculateTrustScore } from '../services/trustScoreService.js';
 import { rewardReferralIfEligible } from '../services/referralService.js';
 import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
+import { decideExtension, getPendingExtensions } from '../services/extensionService.js';
+import { CheckoutError } from '../utils/CheckoutError.js';
+import { chargeLateFeeForReturn } from '../services/lateFeeService.js';
 
 // Finds the reservation and checks that it belongs to this lender and has one of the allowed statuses.
 // Returns { reservation } or { status, message } for the error response.
@@ -48,7 +51,7 @@ async function decideIncomingReservation(req, res, next, decision) {
 
         const approved = decision === 'approved';
         const nextStatus = approved ? 'upcoming' : 'rejected';
-        const refund = reservation.payment.depositAmount;
+        const refund = reservation.payment.depositCollected === false ? 0 : reservation.payment.depositAmount;
         let updated = null;
 
         session = await mongoose.startSession();
@@ -60,7 +63,7 @@ async function decideIncomingReservation(req, res, next, decision) {
             );
             if (!updated) return;
 
-            if (!approved) {
+            if (!approved && refund > 0) {
                 await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
                 await Payment.create([{
                     user: reservation.borrower,
@@ -73,13 +76,16 @@ async function decideIncomingReservation(req, res, next, decision) {
                 }], { session });
             }
 
+            const rejectionMessage = refund > 0
+                ? `Your reservation request was rejected. Your deposit of ${refund} was added to your wallet.`
+                : 'Your reservation request was rejected.';
             await Notification.create([{
                 username: reservation.borrower,
                 reservation: reservation._id,
                 type: 'other',
                 message: approved
                     ? 'Your reservation request was approved.'
-                    : `Your reservation request was rejected. Your deposit of ${refund} was added to your wallet.`,
+                    : rejectionMessage,
             }], { session });
         });
 
@@ -143,7 +149,7 @@ export async function markReturnedGood(req, res, next) {
         const { reservation, status, message } = await findLenderReservation(req.params.id, req.user.id, ['active'], 'be marked as returned');
         if (!reservation) return res.status(status).json({ message });
 
-        const refund = reservation.payment.depositAmount;
+        const refund = reservation.payment.depositCollected === false ? 0 : reservation.payment.depositAmount;
         let updated = null;
 
         session = await mongoose.startSession();
@@ -156,17 +162,21 @@ export async function markReturnedGood(req, res, next) {
             );
             if (!updated) return;
 
-            await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
-            // create() needs an array when options like { session } are passed
-            await Payment.create([{
-                user: reservation.borrower,
-                reservation: reservation._id,
-                type: 'deposit-refund',
-                amount: refund,
-                direction: 'receive',
-                method: 'wallet',
-                description: `Deposit returned for reservation ${reservation._id}`,
-            }], { session });
+            if (refund > 0) {
+                await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
+            }
+            await chargeLateFeeForReturn(updated, session);
+            if (refund > 0) {
+                await Payment.create([{
+                    user: reservation.borrower,
+                    reservation: reservation._id,
+                    type: 'deposit-refund',
+                    amount: refund,
+                    direction: 'receive',
+                    method: 'wallet',
+                    description: `Deposit returned for reservation ${reservation._id}`,
+                }], { session });
+            }
             await recalculateTrustScore(reservation.borrower, session);
             await recalculateTrustScore(reservation.lender, session);
             await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
@@ -179,7 +189,9 @@ export async function markReturnedGood(req, res, next) {
                 type: 'other',
                 subject: 'Item returned',
                 reservation: reservation._id,
-                message: `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`,
+                message: refund > 0
+                    ? `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`
+                    : 'The item was returned in good condition.',
             });
             // item is available again for wishlisters (358)
             await notifyWishlistItemAvailable(reservation.item);
@@ -187,6 +199,7 @@ export async function markReturnedGood(req, res, next) {
 
         res.status(200).json({ reservation: updated, refunded: refund });
     } catch (error) {
+        if (error instanceof CheckoutError) {return res.status(error.statusCode).json({error: error.code,message: error.message}); }
         next(error);
     } finally {
         await session?.endSession();
@@ -271,7 +284,7 @@ export async function reportDamage(req, res, next) {
                 { new: true, session }
             );
             if (!updated) return;
-
+            await chargeLateFeeForReturn(updated, session);
             [report] = await DamageReport.create([{
                 reservation: reservation._id,
                 type: 'report',
@@ -305,8 +318,40 @@ export async function reportDamage(req, res, next) {
         res.status(201).json({ report });
     } catch (error) {
         await deletePhotos(uploaded);
+        if (error instanceof CheckoutError) {return res.status(error.statusCode).json({error: error.code,message: error.message });}
         next(error);
     } finally {
         await session?.endSession();
+    }
+}
+
+export async function listPendingExtensionRequests(req, res, next) {
+    try {
+        const requests = await getPendingExtensions(req.user.id);
+        return res.status(200).json({ requests });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+export async function decideReservationExtension(req, res, next) {
+    try {
+        const result = await decideExtension(
+            req.params.id,
+            req.params.requestId,
+            req.user.id,
+            req.body?.decision
+        );
+
+        return res.status(200).json(result);
+    } catch (error) {
+        if (error instanceof CheckoutError) {
+            return res.status(error.statusCode).json({
+                error: error.code,
+                message: error.message
+            });
+        }
+
+        return next(error);
     }
 }

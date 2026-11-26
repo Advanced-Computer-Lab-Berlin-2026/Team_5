@@ -12,11 +12,19 @@ import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
 import { rewardReferralIfEligible } from '../services/referralService.js';
 import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
-
+import { chargeLateFeeForReturn } from '../services/lateFeeService.js';
+import { decideExtension, getPendingExtensions, requestExtension } from '../services/extensionService.js';
 vi.mock('../models/User.js', () => ({
     User: { findById: vi.fn(), updateOne: vi.fn() }
 }));
-
+vi.mock('../services/lateFeeService.js', () => ({
+    chargeLateFeeForReturn: vi.fn()
+}));
+vi.mock('../services/extensionService.js', () => ({
+    decideExtension: vi.fn(),
+    getPendingExtensions: vi.fn(),
+    requestExtension: vi.fn(),
+}));
 vi.mock('../services/itemPhotoStorage.js', () => ({
     uploadItemPhoto: vi.fn(),
     deleteItemPhoto: vi.fn(),
@@ -50,8 +58,6 @@ const mockReservation = (overrides = {}) => ({
 beforeEach(() => {
     vi.restoreAllMocks();
     vi.resetAllMocks();
-    notify.mockResolvedValue({});
-    notifyWishlistItemAvailable.mockResolvedValue(undefined);
 });
 
 describe('GET /api/lender/reservations', () => {
@@ -165,6 +171,27 @@ describe('PATCH /api/lender/reservations/:id/reject', () => {
         expect(pay).not.toHaveBeenCalled();
         expect(session.endSession).toHaveBeenCalled();
     });
+
+    it('rejects a direct reservation without crediting its uncollected deposit', async () => {
+        const cookie = asLender();
+        setupSession();
+        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({
+            status: 'pending', payment: { depositAmount: 100, method: 'wallet', depositCollected: false }
+        }));
+        vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ _id: 'RES-1', status: 'rejected' });
+        const pay = vi.spyOn(Payment, 'create');
+        const notification = vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
+
+        const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
+
+        expect(res.status).toBe(200);
+        expect(res.body.refunded).toBe(0);
+        expect(User.updateOne).not.toHaveBeenCalled();
+        expect(pay).not.toHaveBeenCalled();
+        expect(notification).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({
+            message: 'Your reservation request was rejected.'
+        })], { session });
+    });
 });
 
 describe('PATCH /api/lender/reservations/:id/pickup', () => {
@@ -261,6 +288,9 @@ describe('PATCH /api/lender/reservations/:id/return', () => {
         expect(res.body.reservation.handover.returnCondition).toBe('good');
         expect(res.body.refunded).toBe(100);
         expect(User.updateOne).toHaveBeenCalledWith({ _id: 'borrower1' }, { $inc: { wallet: 100 } }, { session });
+        expect(chargeLateFeeForReturn).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ _id: 'RES-1', status: 'completed' }), session
+        );
         expect(pay).toHaveBeenCalledWith([expect.objectContaining({ type: 'deposit-refund', amount: 100, direction: 'receive' })], { session });
         expect(notify).toHaveBeenCalledWith('borrower1', expect.objectContaining({
             message: expect.stringContaining('deposit of 100'),
@@ -269,7 +299,26 @@ describe('PATCH /api/lender/reservations/:id/return', () => {
         expect(session.endSession).toHaveBeenCalled();
     });
 
-    it('409 and no refund if already completed by a parallel request', async () => {
+    it('keeps late-fee handling for direct returns without refunding the uncollected deposit', async () => {
+        const cookie = asLender();
+        setupSession();
+        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({
+            status: 'active', payment: { depositAmount: 100, method: 'wallet', depositCollected: false }
+        }));
+        const returned = { _id: 'RES-1', status: 'completed' };
+        vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue(returned);
+        const pay = vi.spyOn(Payment, 'create');
+
+        const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
+
+        expect(res.status).toBe(200);
+        expect(res.body.refunded).toBe(0);
+        expect(chargeLateFeeForReturn).toHaveBeenCalledExactlyOnceWith(returned, session);
+        expect(User.updateOne).not.toHaveBeenCalled();
+        expect(pay).not.toHaveBeenCalled();
+    });
+
+    it('409 and no refund or late fee if already completed by a parallel request', async () => {
         const cookie = asLender();
         setupSession();
         vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ status: 'active' }));
@@ -277,18 +326,63 @@ describe('PATCH /api/lender/reservations/:id/return', () => {
         const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
         expect(res.status).toBe(409);
         expect(User.updateOne).not.toHaveBeenCalled();
+        expect(chargeLateFeeForReturn).not.toHaveBeenCalled();
     });
 
-    it('500 when the transaction fails', async () => {
+    it('500 and no post-return notices when the transaction aborts after late-fee handling', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
         const cookie = asLender();
-        session.withTransaction.mockRejectedValue(new Error('db down'));
-        vi.spyOn(mongoose, 'startSession').mockResolvedValue(session);
-        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ status: 'active' }));
+        setupSession();
+        session.withTransaction.mockImplementation(async (callback) => {
+            await callback();
+            throw new Error('Commit failed');
+        });
+        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({
+            status: 'active', payment: { depositAmount: 0, method: 'wallet' }
+        }));
+        const returned = mockReservation({ status: 'completed' });
+        vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue(returned);
         const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
         expect(res.status).toBe(500);
         expect(res.body.message).toBe('Server Error');
+        expect(chargeLateFeeForReturn).toHaveBeenCalledExactlyOnceWith(returned, session);
+        expect(notify).not.toHaveBeenCalled();
+        expect(notifyWishlistItemAvailable).not.toHaveBeenCalled();
         expect(session.endSession).toHaveBeenCalled();
+    });
+});
+
+describe('reservation extension routes', () => {
+    const endDate = '2030-07-10';
+
+    it('passes a member request to the extension service', async () => {
+        User.findById.mockResolvedValue({ _id: 'borrower1', role: 'member' });
+        requestExtension.mockResolvedValue({ requestId: 'EXT-1', status: 'requested' });
+
+        const res = await request(app).post('/api/reservations/RES-1/extensions')
+            .set('Origin', ORIGIN).set('Cookie', `accessToken=${token('borrower1', 'member')}`)
+            .send({ requestedEndDate: endDate });
+
+        expect(res.status).toBe(201);
+        expect(res.body).toEqual({ requestId: 'EXT-1', status: 'requested' });
+        expect(requestExtension).toHaveBeenCalledExactlyOnceWith('RES-1', 'borrower1', endDate);
+    });
+
+    it('lists lender requests and passes a decision to the extension service', async () => {
+        const cookie = asLender();
+        getPendingExtensions.mockResolvedValue([{ requestId: 'EXT-1', status: 'requested' }]);
+        decideExtension.mockResolvedValue({ requestId: 'EXT-1', status: 'accepted' });
+
+        const list = await request(app).get('/api/lender/reservations/extensions/pending').set('Cookie', cookie);
+        expect(list.status).toBe(200);
+        expect(list.body).toEqual({ requests: [{ requestId: 'EXT-1', status: 'requested' }] });
+        expect(getPendingExtensions).toHaveBeenCalledExactlyOnceWith('lender1');
+
+        const decision = await request(app).patch('/api/lender/reservations/RES-1/extensions/EXT-1')
+            .set('Origin', ORIGIN).set('Cookie', cookie).send({ decision: 'accept' });
+        expect(decision.status).toBe(200);
+        expect(decision.body).toEqual({ requestId: 'EXT-1', status: 'accepted' });
+        expect(decideExtension).toHaveBeenCalledExactlyOnceWith('RES-1', 'EXT-1', 'lender1', 'accept');
     });
 });
 
@@ -437,6 +531,9 @@ describe('POST /api/lender/reservations/:id/damage', () => {
         expect(create).toHaveBeenCalledWith([expect.objectContaining({
             report: { photos: [{ url: 'https://img/r1.jpg' }], message: 'Lens scratched' },
         })], { session });
+        expect(chargeLateFeeForReturn).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ _id: 'RES-1', status: 'completed' }), session
+        );
         expect(notify).toHaveBeenCalledWith('borrower1', expect.objectContaining({
             message: expect.stringContaining('damaged'),
         }));
@@ -510,6 +607,7 @@ describe('POST /api/lender/reservations/:id/damage', () => {
             .attach('photos', Buffer.from('img'), 'a.jpg');
         expect(res.status).toBe(409);
         expect(create).not.toHaveBeenCalled();
+        expect(chargeLateFeeForReturn).not.toHaveBeenCalled();
         expect(rewardReferralIfEligible).not.toHaveBeenCalled();
         expect(deleteItemPhoto).toHaveBeenCalledWith('d1');
     });

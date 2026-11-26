@@ -57,6 +57,13 @@ if(!CLOUDINARY_API_SECRET){
   process.exit(1);
 }
 
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+
+if (!STRIPE_SECRET_KEY || !STRIPE_SECRET_KEY.startsWith("sk_test_")) {
+  console.error("Error: Valid STRIPE_SECRET_KEY is not defined in the .env file.");
+  process.exit(1);
+}
+
 // reset + notification mail share these. without them, notify still saves in-app and skips SMTP;
 // forgot-password throws when it tries to send
 const NOTIFY_SMTP_USER = process.env.NOTIFY_SMTP_USER;
@@ -71,5 +78,7 @@ export const env = {
   cloudinaryApiKey: CLOUDINARY_API_KEY,
   cloudinaryApiSecret: CLOUDINARY_API_SECRET,
   notifySmtpUser: NOTIFY_SMTP_USER,
-  notifySmtpPass: NOTIFY_SMTP_PASS
+  notifySmtpPass: NOTIFY_SMTP_PASS,
+  stripeSecretKey: STRIPE_SECRET_KEY,
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET
 };

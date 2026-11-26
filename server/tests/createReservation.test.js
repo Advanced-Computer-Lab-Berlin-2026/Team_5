@@ -221,6 +221,12 @@ describe('POST /api/reservations', () => {
         const response = await post();
         expect(response.status).toBe(201);
         expect(response.body.reservationId).toBe('RES-12345678');
+        expect(Reservation.mock.calls[0][0].payment).toEqual({
+            depositAmount: 100,
+            discountPercent: 0,
+            method: 'wallet',
+            depositCollected: false
+        });
 
         // third argument is the session, either passed directly or as { session }
         const options = Item.updateOne.mock.calls[0][2];
@@ -247,7 +253,7 @@ describe('POST /api/reservations', () => {
         const response = await post();
 
         expect(response.status).toBe(201);
-        expect(Reservation.mock.calls[0][0].payment).toEqual({ depositAmount: 100, discountPercent: 0, method: 'wallet' });
+        expect(Reservation.mock.calls[0][0].payment).toEqual({ depositAmount: 100, discountPercent: 0, method: 'wallet', depositCollected: false});
         expect(response.body).toMatchObject({ depositAmount: 100, discountPercent: 0 });
     });
 

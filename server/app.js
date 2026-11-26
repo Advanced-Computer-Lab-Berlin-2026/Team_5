@@ -28,6 +28,8 @@ import settingsRoutes from './routes/settings.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
+import stripeRouter from './routes/stripe.js';
+import { handleStripeWebhook } from './controllers/stripeWebhookController.js';
 import lenderDashboardRoutes from './routes/lenderDashboard.js';
 import reportRoutes from './routes/reports.js';
 import adminDamageReportRoutes from './routes/adminDamageReports.js';
@@ -41,6 +43,7 @@ const app = express();
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 app.use(cookieParser());
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }),handleStripeWebhook);
 // Covers current and future API routers before they can process a mutation.
 app.use('/api', csrfProtection);
 app.use(express.json());
@@ -72,11 +75,12 @@ app.use('/api/wallet', walletRoutes)
 app.use('/api/notices', noticeRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
-app.use('/api/referrals', referralRoutes)
-app.use('/api/reviews', reviewRoutes)
-app.use('/api/notifications', notificationRoutes)
-app.use('/api/settings', settingsRoutes)
-app.use('/api/waitlist', waitlistRoutes)
+app.use('/api/stripe', stripeRouter);
+app.use('/api/referrals', referralRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/admin/reports', reportRoutes);
 app.use('/api/lender/dashboard', lenderDashboardRoutes);
 app.use('/api/admin/damage-reports', adminDamageReportRoutes);
