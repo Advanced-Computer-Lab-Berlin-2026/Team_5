@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true }, // already a bcrypt hash
     role: { type: String, enum: ["member", "lender", "admin"], default: "member" },
     trustScore: { type: Number, default: 50, min: 0, max: 100 },
-    wallet: { type: Number, default: 0, min: 0 }, // in Martinies ₥ :p
+    wallet: { type: Number, default: 0 }, // in Martinies ₥ :p  can be negative: money still owed after a damage case
     suspended: { type: Boolean, default: false },
 
     // ---- group: profile ----

@@ -10,9 +10,14 @@ import { Payment } from '../models/Payment.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
 import { closeExpiredDecisions } from '../services/damageCase.js';
+import { notify } from '../services/notificationService.js';
 
 vi.mock('../models/User.js', () => ({
     User: { findById: vi.fn(), updateOne: vi.fn() }
+}));
+
+vi.mock('../services/notificationService.js', () => ({
+    notify: vi.fn(),
 }));
 
 vi.mock('../services/itemPhotoStorage.js', () => ({
@@ -59,9 +64,10 @@ function mockCase(steps, { reservation = mockReservation(), expired = [] } = {})
     vi.spyOn(Reservation, 'findById').mockReturnValue({ populate: vi.fn().mockResolvedValue(reservation) });
 }
 
-// create() returns an array when it was given one, like Mongoose does
+// create() returns an array when it was given one, like Mongoose does (with timestamps)
+const NOW = new Date('2026-11-26T10:00:00Z');
 const mockCreate = () => vi.spyOn(DamageReport, 'create').mockImplementation(async (docs) => (
-    Array.isArray(docs) ? docs.map((doc) => ({ _id: 'DMG-new', ...doc })) : { _id: 'DMG-new', ...docs }
+    Array.isArray(docs) ? docs.map((doc) => ({ _id: 'DMG-new', createdAt: NOW, ...doc })) : { _id: 'DMG-new', createdAt: NOW, ...docs }
 ));
 
 const duplicateError = () => Object.assign(new Error('duplicate key'), { code: 11000 });
@@ -73,7 +79,8 @@ beforeEach(() => {
     session = { withTransaction: vi.fn(async (fn) => fn()), endSession: vi.fn() };
     vi.spyOn(mongoose, 'startSession').mockResolvedValue(session);
     vi.spyOn(Payment, 'create').mockResolvedValue([{}]);
-    User.updateOne.mockResolvedValue({ modifiedCount: 1 });
+    User.updateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
+    notify.mockResolvedValue({});
 });
 
 describe('GET /api/admin/damage-reports/:id', () => {
@@ -138,10 +145,67 @@ describe('POST /api/admin/damage-reports/:id/decision', () => {
         expect(res.body.message).toBe('The forfeit cannot be more than the deposit');
     });
 
+    it('400 when the forfeit has more than 2 decimals', async () => {
+        mockCase([step('report')]);
+        const res = await decide({ depositForfeit: 33.3333, message: 'a third' });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toBe('"depositForfeit" must have no more than 2 decimal places');
+        expect(User.updateOne).not.toHaveBeenCalled();
+    });
+
+    it('accepts an amount with 2 decimals and refunds the exact rest', async () => {
+        mockCase([step('report')]);
+        mockCreate();
+        const res = await decide({ depositForfeit: 33.33, message: 'small scratch' });
+        expect(res.status).toBe(201);
+        expect(res.body).toMatchObject({ toLender: 33.33, toBorrower: 1966.67 });
+    });
+
     it('409 when the case already has a decision', async () => {
         mockCase([step('report'), step('decision', { depositForfeit: 500 })]);
         const res = await decide({ depositForfeit: 500, message: 'again' });
         expect(res.status).toBe(409);
+    });
+
+    it('notifies the borrower (with the dispute deadline) and the lender after the decision', async () => {
+        mockCase([step('report')]);
+        mockCreate();
+
+        await decide({ depositForfeit: 500, message: 'Crack confirmed' });
+
+        expect(notify).toHaveBeenCalledTimes(2);
+        expect(notify).toHaveBeenCalledWith('borrower1', expect.objectContaining({
+            reservation: 'RES-1',
+            message: expect.stringMatching(/₥500 .*₥1500 .*dispute this until 3 Dec 2026/),
+        }));
+        expect(notify).toHaveBeenCalledWith('lender1', expect.objectContaining({
+            reservation: 'RES-1',
+            message: expect.stringContaining('₥500 of the deposit was added to your wallet'),
+        }));
+    });
+
+    it('still answers 201 when a notification fails, the decision is already saved', async () => {
+        mockCase([step('report')]);
+        mockCreate();
+        notify.mockRejectedValue(new Error('mail down'));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const res = await decide({ depositForfeit: 500, message: 'Crack confirmed' });
+
+        expect(res.status).toBe(201);
+    });
+
+    it('404 and no Payment when the account was deleted', async () => {
+        mockCase([step('report')]);
+        mockCreate();
+        User.updateOne.mockResolvedValue({ matchedCount: 0, modifiedCount: 0 });
+
+        const res = await decide({ depositForfeit: 500, message: 'Crack confirmed' });
+
+        expect(res.status).toBe(404);
+        expect(res.body.message).toBe('User lender1 not found');
+        expect(Payment.create).not.toHaveBeenCalled();
+        expect(notify).not.toHaveBeenCalled();
     });
 
     it('201 saves the decision and moves the money in one transaction', async () => {
@@ -201,7 +265,7 @@ describe('POST /api/admin/damage-reports/:id/resolution', () => {
 
         expect(res.status).toBe(201);
         expect(res.body.difference).toBe(200);
-        expect(User.updateOne).toHaveBeenCalledWith({ _id: 'borrower1', wallet: { $gte: 200 } }, { $inc: { wallet: -200 } }, { session });
+        expect(User.updateOne).toHaveBeenCalledWith({ _id: 'borrower1' }, { $inc: { wallet: -200 } }, { session });
         expect(User.updateOne).toHaveBeenCalledWith({ _id: 'lender1' }, { $inc: { wallet: 200 } }, { session });
     });
 
@@ -213,7 +277,7 @@ describe('POST /api/admin/damage-reports/:id/resolution', () => {
 
         expect(res.status).toBe(201);
         expect(res.body.difference).toBe(-200);
-        expect(User.updateOne).toHaveBeenCalledWith({ _id: 'lender1', wallet: { $gte: 200 } }, { $inc: { wallet: -200 } }, { session });
+        expect(User.updateOne).toHaveBeenCalledWith({ _id: 'lender1' }, { $inc: { wallet: -200 } }, { session });
         expect(User.updateOne).toHaveBeenCalledWith({ _id: 'borrower1' }, { $inc: { wallet: 200 } }, { session });
     });
 
@@ -228,15 +292,61 @@ describe('POST /api/admin/damage-reports/:id/resolution', () => {
         expect(User.updateOne).not.toHaveBeenCalled();
     });
 
-    it('409 when the person who has to pay does not have enough', async () => {
+    it('goes through even if the payer spent their wallet: no balance check, the wallet may go negative', async () => {
         disputedCase();
         mockCreate();
-        User.updateOne.mockResolvedValue({ modifiedCount: 0 });
 
         const res = await resolve({ depositForfeit: 700, message: 'worse' });
 
-        expect(res.status).toBe(409);
-        expect(res.body.message).toBe("borrower1 doesn't have enough money in their wallet");
+        expect(res.status).toBe(201);
+        // no { wallet: { $gte } } filter, so an empty wallet becomes -200 instead of a stuck case
+        expect(User.updateOne).toHaveBeenCalledWith({ _id: 'borrower1' }, { $inc: { wallet: -200 } }, { session });
+        expect(Payment.create).toHaveBeenCalledWith([expect.objectContaining({ user: 'borrower1', amount: 200, direction: 'deduct' })], { session });
+    });
+
+    it('rounds the difference to cents', async () => {
+        mockCase([step('report'), step('decision', { depositForfeit: 0.01 }), step('dispute')]);
+        mockCreate();
+
+        const res = await resolve({ depositForfeit: 33.33, message: 'a bit worse' });
+
+        expect(res.body.difference).toBe(33.32);
+    });
+
+    it('notifies both sides of the final amount and what moved', async () => {
+        disputedCase();
+        mockCreate();
+
+        await resolve({ depositForfeit: 300, message: 'partly there at pickup' });
+
+        expect(notify).toHaveBeenCalledWith('borrower1', expect.objectContaining({
+            message: expect.stringMatching(/final amount .* ₥300\. ₥200 was given back to your wallet/),
+        }));
+        expect(notify).toHaveBeenCalledWith('lender1', expect.objectContaining({
+            message: expect.stringContaining('₥200 was taken from your wallet and given back to the borrower'),
+        }));
+    });
+
+    it('notifies both sides when the decision stands', async () => {
+        disputedCase();
+        mockCreate();
+
+        await resolve({ depositForfeit: 500, message: 'decision stands' });
+
+        expect(notify).toHaveBeenCalledTimes(2);
+        expect(notify).toHaveBeenCalledWith('borrower1', expect.objectContaining({ message: expect.stringContaining('Nothing changes in your wallet') }));
+    });
+
+    it('404 and no Payment when the payer\'s account was deleted', async () => {
+        disputedCase();
+        mockCreate();
+        User.updateOne.mockResolvedValue({ matchedCount: 0, modifiedCount: 0 });
+
+        const res = await resolve({ depositForfeit: 700, message: 'worse' });
+
+        expect(res.status).toBe(404);
+        expect(res.body.message).toBe('User borrower1 not found');
+        expect(Payment.create).not.toHaveBeenCalled();
     });
 });
 

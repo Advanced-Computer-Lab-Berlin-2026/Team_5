@@ -69,25 +69,33 @@ export async function loadCase(caseNumber) {
     };
 }
 
+// The account was deleted: throw, so the transaction rolls back and no Payment says the money moved.
+function throwIfNoUser(result, username) {
+    if (result.matchedCount === 0) {
+        const error = new Error(`User ${username} not found`);
+        error.status = 404;
+        throw error;
+    }
+}
+
 // payment = { type, reservation, session }: the Payment type ('deposit-forfeit' | 'deposit-refund'), the reservation id and the transaction
 export async function addMoney(username, amount, { type, reservation, session }) {
     if (amount === 0) return;
-    await User.updateOne({ _id: username }, { $inc: { wallet: amount } }, { session });
+    const result = await User.updateOne({ _id: username }, { $inc: { wallet: amount } }, { session });
+    throwIfNoUser(result, username);
     // create() needs an array when options like { session } are passed
     await Payment.create([{
         user: username, reservation, type, amount, direction: 'receive', method: 'wallet',
     }], { session });
 }
 
-// Takes money from a wallet. Throws a 409 error if the wallet doesn't have enough.
+// Takes money from a wallet. The wallet may go below 0: the negative balance is what they still owe.
+// Otherwise a payer who already spent their wallet would leave the case stuck as disputed forever.
+// Anything that spends wallet money later must check wallet >= price, so a debt can't be spent.
 export async function takeMoney(username, amount, { type, reservation, session }) {
     if (amount === 0) return;
-    const result = await User.updateOne({ _id: username, wallet: { $gte: amount } }, { $inc: { wallet: -amount } }, { session });
-    if (result.modifiedCount === 0) {
-        const error = new Error(`${username} doesn't have enough money in their wallet`);
-        error.status = 409;
-        throw error;
-    }
+    const result = await User.updateOne({ _id: username }, { $inc: { wallet: -amount } }, { session });
+    throwIfNoUser(result, username);
     await Payment.create([{
         user: username, reservation, type, amount, direction: 'deduct', method: 'wallet',
     }], { session });
