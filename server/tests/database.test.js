@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Reservation, BLOCKING_STATUSES, Category, MembershipTier, PromoCode, User } from '../models/index.js';
+import { Reservation, BLOCKING_STATUSES, Category, MembershipTier, PromoCode, PromoCodeUsage, SupportTicket, User } from '../models/index.js';
 
 // These tests check the schemas directly, so no database connection is needed.
 // Only models with custom logic (validators, hooks, statics) are tested here.
@@ -178,6 +178,7 @@ describe('PromoCode model', () => {
             expect(doc.code).toBe('SAVE10');
             expect(doc._id).toBe('SAVE10');
             expect(doc.active).toBe(true);
+            expect(doc.minimumDeposit).toBe(0);
         });
     });
 
@@ -188,6 +189,51 @@ describe('PromoCode model', () => {
             expect(low.discountPercent).toBeDefined();
             expect(high.discountPercent).toBeDefined();
         });
+
+        it('rejects a non-positive use limit', async () => {
+            const errors = await validationErrors(new PromoCode({ code: 'LIMITED', discountPercent: 10, maxUses: 0 }));
+            expect(errors.maxUses).toBeDefined();
+        });
+    });
+});
+
+describe('PromoCodeUsage model', () => {
+    it('requires original deposit, discount, and final deposit amounts', async () => {
+        const doc = new PromoCodeUsage({
+            transaction: 'PAY-1',
+            code: 'SAVE10',
+            user: 'alice',
+            reservation: 'RES-1',
+        });
+        const errors = await validationErrors(doc);
+        expect(errors.originalDeposit).toBeDefined();
+        expect(errors.discountAmount).toBeDefined();
+        expect(errors.finalDeposit).toBeDefined();
+    });
+
+    it('accepts a complete redemption record', async () => {
+        const doc = new PromoCodeUsage({
+            transaction: 'PAY-1',
+            code: 'SAVE10',
+            user: 'alice',
+            reservation: 'RES-1',
+            originalDeposit: 100,
+            discountAmount: 10,
+            finalDeposit: 90,
+        });
+        expect(await validationErrors(doc)).toEqual({});
+    });
+});
+
+describe('SupportTicket model', () => {
+    it('defaults new support tickets to in-progress', async () => {
+        const doc = new SupportTicket({
+            user: 'alice',
+            subject: 'Need help',
+            messages: [{ sender: 'alice', userType: 'member', text: 'Please help.' }],
+        });
+        expect(await validationErrors(doc)).toEqual({});
+        expect(doc.status).toBe('in-progress');
     });
 });
 
@@ -201,6 +247,24 @@ describe('User model', () => {
             expect(doc.trustScore).toBe(50);
             expect(doc.membership.tier).toBe('Basic');
             expect(doc.verification.status).toBe('none');
+            // SCRUM-517: email categories default on so existing users keep getting mail
+            expect(doc.emailPreferences.reservations).toBe(true);
+            expect(doc.emailPreferences.promotions).toBe(true);
+            expect(doc.emailPreferences.communityNotices).toBe(true);
+        });
+
+        // SCRUM-384: memberships last a year unless a renewal date is given
+        it('sets the renewal date to one year after the membership start date', async () => {
+            const doc = user({ membership: { startDate: new Date('2026-02-01T10:00:00.000Z') } });
+            expect(await validationErrors(doc)).toEqual({});
+            expect(doc.membership.renewalDate).toEqual(new Date('2027-02-01T10:00:00.000Z'));
+        });
+
+        it('keeps a renewal date that was given', async () => {
+            const renewalDate = new Date('2026-12-24T10:00:00.000Z');
+            const doc = user({ membership: { startDate: new Date('2026-02-01T10:00:00.000Z'), renewalDate } });
+            expect(await validationErrors(doc)).toEqual({});
+            expect(doc.membership.renewalDate).toEqual(renewalDate);
         });
     });
 

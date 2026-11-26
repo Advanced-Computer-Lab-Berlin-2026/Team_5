@@ -1,0 +1,6 @@
+/* the stack spans the page width instead of the component's default side padding */
+.stack > div { padding-inline: 0; }
+.notice { display: flex; flex-direction: column; gap: var(--space-3); height: auto; min-height: 15rem; padding: var(--space-6); border: var(--border-muted); border-radius: var(--radius-card); background: var(--color-surface); color: var(--color-text); box-shadow: 0 -10px 30px -18px rgb(0 0 0 / 35%), 0 20px 40px -24px rgb(0 0 0 / 35%); }
+.notice h2 { font-size: var(--font-size-title); }
+.body { white-space: pre-line; overflow-wrap: anywhere; }
+.notice small { margin-top: auto; color: var(--color-text-muted); }

@@ -1,8 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminLayout, Layout, ProtectedRoute } from './components';
-import LoginPage from './pages/LoginPage.jsx';
-import RegisterPage from './pages/RegisterPage.jsx';
-import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
+import EntryPage from './pages/EntryPage.jsx';
 import ChangePasswordPage from './pages/ChangePasswordPage.jsx';
 import CatalogPage from './pages/CatalogPage.jsx';
 import ItemDetailPage from './pages/ItemDetailPage.jsx';
@@ -20,17 +18,21 @@ import AdminLenderRequestsPage from './pages/AdminLenderRequestsPage.jsx';
 import AdminLenderRequestPage from './pages/AdminLenderRequestPage.jsx';
 import AdminCategoriesPage from './pages/AdminCategoriesPage.jsx';
 import AdminCreateAdminPage from './pages/AdminCreateAdminPage.jsx';
+import Cursor from './components/Cursor.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 
 export default function App() {
     return (
+        <>
+        <Cursor />
         <Routes>
             <Route element={<Layout />}>
                 {/* anyone can browse; a login is only asked for when saving to the wishlist */}
-                <Route path="/" element={<Navigate to="/items" replace />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/" element={<EntryPage />} />
+                <Route path="/login" element={<EntryPage />} />
+                <Route path="/register" element={<EntryPage />} />
+                {/* resetting a password happens on the login card now, so the old address opens it there */}
+                <Route path="/forgot-password" element={<Navigate to="/login" replace state={{ forgot: true }} />} />
                 <Route path="/items" element={<CatalogPage />} />
                 <Route path="/items/:id" element={<ItemDetailPage />} />
 
@@ -71,5 +73,6 @@ export default function App() {
                 <Route path="*" element={<NotFoundPage />} />
             </Route>
         </Routes>
+        </>
     );
 }

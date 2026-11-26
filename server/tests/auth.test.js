@@ -8,11 +8,11 @@ import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
-// Create a Mock model for User where this model has these 2 functions, findone and Create. (because i call them in my auth.js)
 vi.mock('../models/User.js', () => ({
     User: {
         findById: vi.fn(),
         findOne: vi.fn(),
+        find: vi.fn(),
         create: vi.fn()
     }
 }));
@@ -33,6 +33,7 @@ beforeEach( () => {
     
     // create the actual mock return values for the Model mock created above
     User.findOne.mockResolvedValue(null);
+    User.find.mockResolvedValue([]);
     User.findById.mockResolvedValue(null);
     RefreshSession.findOneAndDelete.mockResolvedValue(null);
     User.create.mockResolvedValue({_id: 'member123'});
@@ -250,6 +251,36 @@ describe('POST /api/auth/login', () => {
         expect(session.tokenHash).toBe(crypto.createHash('sha256').update(refreshToken).digest('hex'));
         expect(session.expiresAt.getTime()).toBeGreaterThan(Date.now() + 604790000);
         expect(session.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 604800000);
+    });
+
+    it('accepts a case-insensitive username with literal punctuation', async () => {
+        const user = {
+            _id: 'Marty.Best',
+            username: 'Marty.Best',
+            role: 'member',
+            profile: { name: 'Martin', email: 'martin@example.com' },
+            password: await bcrypt.hash('malakshDa3wa?', 10)
+        };
+        User.find.mockResolvedValue([user]);
+
+        const response = await request(app)
+            .post('/api/auth/login').set('Origin', 'http://localhost:3000')
+            .send({ username: 'mArTy.bEsT', password: 'malakshDa3wa?' });
+
+        expect(User.find).toHaveBeenCalledWith({ username: /^mArTy\.bEsT$/i }, null, { limit: 2 });
+        expect(response.status).toBe(200);
+        expect(response.body.user.username).toBe('Marty.Best');
+    });
+
+    it('rejects ambiguous case-insensitive matches', async () => {
+        User.find.mockResolvedValue([{ username: 'Marty.Best' }, { username: 'marty.best' }]);
+
+        const response = await request(app)
+            .post('/api/auth/login').set('Origin', 'http://localhost:3000')
+            .send({ username: 'MARTY.BEST', password: 'malakshDa3wa?' });
+
+        expect(response.status).toBe(401);
+        expect(RefreshSession.create).not.toHaveBeenCalled();
     });
 
     it('Returns 403 for suspended user login', async () => {

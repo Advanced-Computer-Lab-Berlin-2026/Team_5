@@ -51,5 +51,9 @@ const itemSchema = new mongoose.Schema(
 itemSchema.index({ name: "text" });
 itemSchema.index({ category: 1, archived: 1 });
 itemSchema.index({ owner: 1 });
+// The catalog filters on archived (and category) and sorts by newest first
+itemSchema.index({ archived: 1, createdAt: -1, _id: 1 });
+itemSchema.index({ category: 1, archived: 1, createdAt: -1, _id: 1 });
+
 
 export const Item = mongoose.model("Item", itemSchema);

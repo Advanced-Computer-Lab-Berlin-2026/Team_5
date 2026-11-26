@@ -7,6 +7,9 @@ import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js';
+import { recalculateTrustScore } from '../services/trustScoreService.js';
+import { rewardReferralIfEligible } from '../services/referralService.js';
+import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
 import { decideExtension, getPendingExtensions } from '../services/extensionService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { chargeLateFeeForReturn } from '../services/lateFeeService.js';
@@ -25,6 +28,85 @@ async function findLenderReservation(id, lenderId, allowedStatuses, action) {
 
 const deletePhotos = (files) => Promise.allSettled(files.map((file) => deleteItemPhoto(file.public_id)));
 
+// GET /api/lender/reservations
+export async function listIncomingReservations(req, res, next) {
+    try {
+        const reservations = await Reservation.find({ lender: req.user.id, status: 'pending' })
+            .sort({ createdAt: 1 })
+            .populate('item', 'name photos')
+            .populate('borrower', 'username profile.name')
+            .lean();
+
+        res.status(200).json({ reservations });
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function decideIncomingReservation(req, res, next, decision) {
+    let session;
+    try {
+        const { reservation, status, message } = await findLenderReservation(
+            req.params.id, req.user.id, ['pending'], `be ${decision}`
+        );
+        if (!reservation) return res.status(status).json({ message });
+
+        const approved = decision === 'approved';
+        const nextStatus = approved ? 'upcoming' : 'rejected';
+        const refund = reservation.payment.depositAmount;
+        let updated = null;
+
+        session = await mongoose.startSession();
+        await session.withTransaction(async () => {
+            updated = await Reservation.findOneAndUpdate(
+                { _id: reservation._id, lender: req.user.id, status: 'pending' },
+                { $set: { status: nextStatus } },
+                { new: true, session }
+            );
+            if (!updated) return;
+
+            if (!approved) {
+                await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
+                await Payment.create([{
+                    user: reservation.borrower,
+                    reservation: reservation._id,
+                    type: 'deposit-refund',
+                    amount: refund,
+                    direction: 'receive',
+                    method: 'wallet',
+                    description: `Deposit returned for rejected reservation ${reservation._id}`,
+                }], { session });
+            }
+
+            await Notification.create([{
+                username: reservation.borrower,
+                reservation: reservation._id,
+                type: 'other',
+                message: approved
+                    ? 'Your reservation request was approved.'
+                    : `Your reservation request was rejected. Your deposit of ${refund} was added to your wallet.`,
+            }], { session });
+        });
+
+        if (!updated) return res.status(409).json({ message: 'Only pending reservations can be approved or rejected' });
+        res.status(200).json(approved ? { reservation: updated } : { reservation: updated, refunded: refund });
+    } catch (error) {
+        next(error);
+    } finally {
+        await session?.endSession();
+    }
+}
+
+// PATCH /api/lender/reservations/:id/approve
+export async function approveReservation(req, res, next) {
+    return decideIncomingReservation(req, res, next, 'approved');
+}
+
+// PATCH /api/lender/reservations/:id/reject
+export async function rejectReservation(req, res, next) {
+    return decideIncomingReservation(req, res, next, 'rejected');
+}
+
 // Uploads all files. If one fails, removes the ones that did upload and throws.
 async function uploadPhotos(files) {
     const results = await Promise.allSettled(files.map((file) => uploadItemPhoto(file.buffer)));
@@ -35,6 +117,15 @@ async function uploadPhotos(files) {
         throw failed.reason;
     }
     return uploaded;
+}
+
+// after commit so a failed notify never rolls back pickup/return, and prefs/email can run
+async function notifyAfterCommit(label, about, work) {
+    try {
+        await work();
+    } catch (error) {
+        console.error(`failed to ${label} for ${about}`, error);
+    }
 }
 
 // PATCH /api/lender/reservations/:id/pickup
@@ -48,12 +139,12 @@ export async function markPickedUp(req, res, next) {
         reservation.handover.pickedUpAt = new Date();
         await reservation.save();
 
-        await Notification.create({
-            username: reservation.borrower,
-            reservation: reservation._id,
+        await notifyAfterCommit('notify pickup', reservation._id, () => notify(reservation.borrower, {
             type: 'other',
+            subject: 'Item picked up',
+            reservation: reservation._id,
             message: 'Your lender marked the item as picked up. Enjoy!',
-        });
+        }));
 
         res.status(200).json({ reservation });
     } catch (error) {
@@ -94,15 +185,24 @@ export async function markReturnedGood(req, res, next) {
                 method: 'wallet',
                 description: `Deposit returned for reservation ${reservation._id}`,
             }], { session });
-            await Notification.create([{
-                username: reservation.borrower,
-                reservation: reservation._id,
-                type: 'other',
-                message: `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`,
-            }], { session });
+            await recalculateTrustScore(reservation.borrower, session);
+            await recalculateTrustScore(reservation.lender, session);
+            await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
         });
 
         if (!updated) return res.status(409).json({ message: 'Only active reservations can be marked as returned' });
+
+        await notifyAfterCommit('notify good return', reservation._id, async () => {
+            await notify(reservation.borrower, {
+                type: 'other',
+                subject: 'Item returned',
+                reservation: reservation._id,
+                message: `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`,
+            });
+            // item is available again for wishlisters (358)
+            await notifyWishlistItemAvailable(reservation.item);
+        });
+
         res.status(200).json({ reservation: updated, refunded: refund });
     } catch (error) {
         if (error instanceof CheckoutError) {return res.status(error.statusCode).json({error: error.code,message: error.message}); }
@@ -200,18 +300,27 @@ export async function reportDamage(req, res, next) {
                     message: value.message,
                 },
             }], { session });
-            await Notification.create([{
-                username: reservation.borrower,
-                reservation: reservation._id,
-                type: 'other',
-                message: 'Your lender reported the returned item as damaged. Your deposit is held until the report is resolved.',
-            }], { session });
+            await recalculateTrustScore(reservation.borrower, session);
+            await recalculateTrustScore(reservation.lender, session);
+            await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
         });
 
         if (!report) {
             await deletePhotos(uploaded);
             return res.status(409).json({ message: 'Only active reservations can be reported as damaged' });
         }
+
+        await notifyAfterCommit('notify damage return', reservation._id, async () => {
+            await notify(reservation.borrower, {
+                type: 'other',
+                subject: 'Damage reported',
+                reservation: reservation._id,
+                message: 'Your lender reported the returned item as damaged. Your deposit is held until the report is resolved.',
+            });
+            // item is available again for wishlisters (358)
+            await notifyWishlistItemAvailable(reservation.item);
+        });
+
         res.status(201).json({ report });
     } catch (error) {
         await deletePhotos(uploaded);

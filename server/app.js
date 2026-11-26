@@ -10,19 +10,33 @@ import adminRoutes from './routes/admin.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { csrfProtection } from './middleware/authSecurity.js';
 import wishlistRoutes from './routes/wishlist.js';
+import borrowListRoutes from './routes/borrowList.js';
 import walletRoutes from './routes/wallet.js';
 import noticeRoutes from './routes/notices.js';
 import profileRoutes from './routes/profile.js';
 import householdRoutes from './routes/household.js';
+import waitlistRoutes from './routes/waitlist.js';
 import alternativesRoutes from './routes/alternatives.js';
 import reservationRoutes from './routes/reservations.js';
+import memberReportRoutes from './routes/memberReports.js';
+import promoCodeRoutes from './routes/promoCodes.js';
+import supportTicketRoutes from './routes/supportTickets.js';
+import referralRoutes from './routes/referrals.js';
+import reviewRoutes from './routes/reviews.js';
+import notificationRoutes from './routes/notifications.js';
+import settingsRoutes from './routes/settings.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
 import stripeRouter from './routes/stripe.js';
 import { handleStripeWebhook } from './controllers/stripeWebhookController.js';
+import lenderDashboardRoutes from './routes/lenderDashboard.js';
+import reportRoutes from './routes/reports.js';
+import membershipTierRoutes from './routes/membershipTiers.js';
+import membershipRoutes from './routes/membership.js';
 
 const app = express();
+
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
@@ -49,13 +63,16 @@ app.use('/api/lender/reservations', lenderReservations)
 app.use('/api/items', itemRoutes)
 app.use('/api/alternatives', alternativesRoutes)
 app.use('/api/reservations', reservationRoutes)
+app.use('/api/reports', memberReportRoutes)
+app.use('/api/promo-codes', promoCodeRoutes)
+app.use('/api/support-tickets', supportTicketRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/wishlist', wishlistRoutes)
+app.use('/api/borrow-list', borrowListRoutes)
 app.use('/api/wallet', walletRoutes)
 app.use('/api/notices', noticeRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/household', householdRoutes)
-app.use('/api/stripe', stripeRouter);
 
 
 // Keep These at the end for fallback errors

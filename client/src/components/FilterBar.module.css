@@ -1,0 +1,17 @@
+.trigger { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--control-height); padding: var(--space-2) var(--space-4); border: var(--border); background: var(--color-surface); color: var(--color-text); font-size: var(--font-size-small); font-weight: var(--font-weight-bold); cursor: pointer; }
+.trigger svg { transition: transform var(--duration-fast); }
+.trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
+.badge { color: var(--color-link); }
+.wrap { display: grid; grid-template-rows: 0fr; margin-top: calc(var(--space-4) * -1); }
+.wrap[data-open] { grid-template-rows: 1fr; margin-top: calc(var(--space-2) * -1); }
+/* the padding keeps focus outlines from being clipped by overflow */
+.inner { contain: layout; min-height: 0; overflow: hidden; padding: 4px; margin: -4px; }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-2); opacity: 0; transform: translateY(-8px); transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+/* the whole row fades in as one piece, so all the chips appear at the same moment */
+.wrap[data-open] .row { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .wrap, .row { transition: none; } }
+.chip { transition: background var(--duration-fast, 160ms); min-height: var(--control-height); padding: var(--space-2) var(--space-4); border: var(--border); border-radius: 0; background: var(--color-surface); color: var(--color-text); font-size: var(--font-size-small); font-weight: var(--font-weight-bold); cursor: pointer; }
+.chip:hover:not(:disabled) { background: var(--color-surface-subtle); }
+.active:hover:not(:disabled) { background: var(--color-inverse-background); }
+.chip:disabled { cursor: default; opacity: 0.6; }
+.active { background: var(--color-inverse-background); border-color: var(--color-inverse-background); color: var(--color-inverse-text); }

@@ -21,6 +21,9 @@
       "tier": "Basic",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [],
@@ -89,6 +92,9 @@
       "tier": "Plus",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [
@@ -125,6 +131,9 @@
       "tier": "Basic",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [
@@ -164,6 +173,9 @@
       "tier": "Basic",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [
@@ -235,6 +247,9 @@
       "tier": "Premium",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [],
@@ -303,6 +318,9 @@
       "tier": "Premium",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [],
@@ -337,6 +355,9 @@
       "tier": "Plus",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [
@@ -403,6 +424,9 @@
       "tier": "Basic",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [
@@ -493,6 +517,9 @@
       "tier": "Plus",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [],
@@ -571,6 +598,9 @@
       "tier": "Plus",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [],
@@ -627,6 +657,9 @@
       "tier": "Basic",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [],
@@ -683,6 +716,9 @@
       "tier": "Basic",
       "startDate": {
         "$date": "2026-02-01T10:00:00.000Z"
+      },
+      "renewalDate": {
+        "$date": "2027-02-01T10:00:00.000Z"
       }
     },
     "wishlist": [

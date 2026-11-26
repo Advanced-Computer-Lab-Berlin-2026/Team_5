@@ -80,13 +80,23 @@ export async function registerUser(req, res, next){
     }
 }
 
+async function findLoginUser(username) {
+    const exactMatch = await User.findOne({ username });
+    if (exactMatch) return exactMatch;
+
+    // Legacy accounts can share a username that differs only in case.
+    const literalUsername = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const matches = await User.find({ username: new RegExp(`^${literalUsername}$`, 'i') }, null, { limit: 2 });
+    return matches.length === 1 ? matches[0] : null;
+}
+
 //POST /api/auth/login
 export async function login(req, res, next) {
     try{
         const { value, error } = loginSchema.validate(req.body);
         if (error) return res.status(400).json({ message: error.message });
 
-        const user = await User.findOne({ username: value.username })
+        const user = await findLoginUser(value.username);
         if (!user) return res.status(401).json({ message: "Username or Password is incorrect!"});
         
         const passwordMatches = await bcrypt.compare(value.password, user.password);
