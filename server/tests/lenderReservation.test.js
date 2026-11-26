@@ -9,6 +9,7 @@ import { Reservation } from '../models/Reservation.js';
 import { Payment } from '../models/Payment.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
+import { rewardReferralIfEligible } from '../services/referralService.js';
 import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
 
 vi.mock('../models/User.js', () => ({
@@ -379,6 +380,7 @@ describe('POST /api/lender/reservations/:id/damage', () => {
         expect(notifyWishlistItemAvailable).toHaveBeenCalledWith('ITM-1');
         expect(User.updateOne).not.toHaveBeenCalled();
         expect(pay).not.toHaveBeenCalled();
+        expect(rewardReferralIfEligible).toHaveBeenCalledExactlyOnceWith('borrower1', 'RES-1', session);
         expect(session.endSession).toHaveBeenCalled();
     });
 
@@ -394,6 +396,7 @@ describe('POST /api/lender/reservations/:id/damage', () => {
             .attach('photos', Buffer.from('img'), 'a.jpg');
         expect(res.status).toBe(409);
         expect(create).not.toHaveBeenCalled();
+        expect(rewardReferralIfEligible).not.toHaveBeenCalled();
         expect(deleteItemPhoto).toHaveBeenCalledWith('d1');
     });
 

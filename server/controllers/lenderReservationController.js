@@ -217,6 +217,7 @@ export async function reportDamage(req, res, next) {
             }], { session });
             await recalculateTrustScore(reservation.borrower, session);
             await recalculateTrustScore(reservation.lender, session);
+            await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
         });
 
         if (!report) {

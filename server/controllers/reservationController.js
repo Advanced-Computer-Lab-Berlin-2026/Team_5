@@ -17,7 +17,7 @@ const listMyReservationsSchema = joi.object({
     status: joi.string().valid('pending', 'upcoming', 'active', 'completed', 'cancelled', 'rejected'),
     view: joi.string().valid('upcoming', 'past'),
     from: joi.date().iso(),
-    to: joi.date().iso().min(joi.ref('from'))
+    to: joi.date().iso().when('from', { is: joi.exist(), then: joi.date().min(joi.ref('from')) })
 });
 
 function canViewDelivery(user, reservation) {

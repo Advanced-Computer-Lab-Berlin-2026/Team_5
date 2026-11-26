@@ -98,10 +98,33 @@ describe('GET /api/reservations', () => {
         });
     });
 
-    it('returns 400 for invalid status or invalid date range', async () => {
+    it.each([
+        ['from', 'endDate', '$gte'],
+        ['to', 'startDate', '$lte']
+    ])('filters by %s alone', async (parameter, field, operator) => {
+        mockFindReservations([]);
+        const date = '2026-12-05T00:00:00.000Z';
+
         const res = await request(app)
             .get('/api/reservations')
-            .query({ status: 'invalid-status' })
+            .query({ [parameter]: date })
+            .set('Origin', ORIGIN);
+
+        expect(res.status).toBe(200);
+        expect(Reservation.find).toHaveBeenCalledWith({
+            borrower: 'member1',
+            [field]: { [operator]: new Date(date) }
+        });
+    });
+
+    it.each([
+        { status: 'invalid-status' },
+        { from: '2026-12-10', to: '2026-12-01' },
+        { to: 'invalid-date' }
+    ])('returns 400 for invalid filters: %j', async (query) => {
+        const res = await request(app)
+            .get('/api/reservations')
+            .query(query)
             .set('Origin', ORIGIN);
 
         expect(res.status).toBe(400);
