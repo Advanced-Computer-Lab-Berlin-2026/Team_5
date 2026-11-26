@@ -28,6 +28,8 @@ import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
 import lenderDashboardRoutes from './routes/lenderDashboard.js';
 import reportRoutes from './routes/reports.js';
+import membershipTierRoutes from './routes/membershipTiers.js';
+import membershipRoutes from './routes/membership.js';
 
 const app = express();
 
@@ -71,6 +73,8 @@ app.use('/api/membership', membershipRoutes)
 app.use('/api/waitlist', waitlistRoutes)
 app.use('/api/admin/reports', reportRoutes);
 app.use('/api/lender/dashboard', lenderDashboardRoutes);
+app.use('/api/membership-tiers', membershipTierRoutes);
+app.use('/api/membership', membershipRoutes);
 
 
 // Keep These at the end for fallback errors

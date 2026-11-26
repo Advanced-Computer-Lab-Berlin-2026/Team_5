@@ -8,7 +8,7 @@ import { Item } from "../models/Item.js";
 import { Reservation } from "../models/Reservation.js";
 
 vi.mock('../models/User.js', () => ({
-    User: { findById: vi.fn(), updateOne: vi.fn() }
+    User: { findById: vi.fn(), updateOne: vi.fn(), exists: vi.fn() }
 }));
 
 vi.mock('../models/Item.js', () => ({
@@ -36,6 +36,8 @@ function daysFromNow(days) {
 
 const START = daysFromNow(3);
 const END = daysFromNow(6);
+const NEW_START = daysFromNow(10);
+const NEW_END = daysFromNow(12);
 
 function fakeItem(owner = { _id: 'martinies', suspended: false }) {
     return { _id: ITEM_ID, owner };
@@ -60,8 +62,13 @@ function addItem(body = { startDate: START, endDate: END }, itemId = ITEM_ID) {
     return asMember(request(app).post(`${BASE_URL}/${itemId}`)).send(body);
 }
 
+function updateDates(body = { startDate: NEW_START, endDate: NEW_END }, itemId = ITEM_ID) {
+    return asMember(request(app).patch(`${BASE_URL}/${itemId}`)).send(body);
+}
+
 beforeEach(() => {
     vi.resetAllMocks();
+    User.exists.mockResolvedValue({ _id: USER_ID });
 
     borrowListUser = {
         _id: USER_ID,
@@ -207,6 +214,103 @@ describe('POST /api/borrow-list/:itemId', () => {
         User.updateOne.mockRejectedValue(new Error('Database unavailable'));
 
         const response = await addItem();
+
+        expect(response.status).toBe(500);
+        expect(response.body).toEqual({ message: 'Server Error' });
+    });
+});
+
+describe('PATCH /api/borrow-list/:itemId', () => {
+    it('returns 401 when not logged in', async () => {
+        const response = await request(app).patch(`${BASE_URL}/${ITEM_ID}`).set('Origin', ORIGIN);
+
+        expect(response.status).toBe(401);
+    });
+
+    it('returns 403 when the user is an admin', async () => {
+        const response = await asMember(request(app).patch(`${BASE_URL}/${ITEM_ID}`), 'admin')
+            .send({ startDate: NEW_START, endDate: NEW_END });
+
+        expect(response.status).toBe(403);
+        expect(User.updateOne).not.toHaveBeenCalled();
+    });
+
+    it('returns 200 and the new dates', async () => {
+        const response = await updateDates();
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({
+            message: 'Borrow list dates updated',
+            entry: { item: ITEM_ID, startDate: `${NEW_START}T00:00:00.000Z`, endDate: `${NEW_END}T00:00:00.000Z` }
+        });
+    });
+
+    it('updates only the matching entry', async () => {
+        await updateDates();
+
+        expect(User.updateOne).toHaveBeenCalledTimes(1);
+        expect(User.updateOne).toHaveBeenCalledWith(
+            { _id: USER_ID, 'borrow_list.item': ITEM_ID },
+            { $set: { 'borrow_list.$.startDate': new Date(NEW_START), 'borrow_list.$.endDate': new Date(NEW_END) } }
+        );
+    });
+
+    it('checks the item is free for the new dates', async () => {
+        await updateDates();
+
+        expect(Reservation.findOverlap).toHaveBeenCalledWith(ITEM_ID, new Date(NEW_START), new Date(NEW_END));
+    });
+
+    it('returns 404 when the item is not in the borrow list', async () => {
+        User.exists.mockResolvedValue(null);
+
+        const response = await updateDates();
+
+        expect(response.status).toBe(404);
+        expect(response.body).toEqual({ message: 'Item not in borrow list' });
+        expect(Reservation.findOverlap).not.toHaveBeenCalled();
+        expect(User.updateOne).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 when the entry disappears before the update runs', async () => {
+        User.updateOne.mockResolvedValue({ matchedCount: 0, modifiedCount: 0 });
+
+        const response = await updateDates();
+
+        expect(response.status).toBe(404);
+    });
+
+    it('returns 409 when the item is reserved for the new dates', async () => {
+        Reservation.findOverlap.mockResolvedValue({ _id: 'RES-00000001' });
+
+        const response = await updateDates();
+
+        expect(response.status).toBe(409);
+        expect(response.body).toEqual({ message: 'Item is not available for these dates' });
+        expect(User.updateOne).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['an invalid item id', { startDate: NEW_START, endDate: NEW_END }, 'drill'],
+        ['an empty body', {}, ITEM_ID],
+        ['no end date', { startDate: NEW_START }, ITEM_ID],
+        ['an end date before the start date', { startDate: NEW_END, endDate: NEW_START }, ITEM_ID],
+        ['the same start and end date', { startDate: NEW_START, endDate: NEW_START }, ITEM_ID],
+        ['a start date in the past', { startDate: daysFromNow(-1), endDate: NEW_END }, ITEM_ID],
+        ['a date that is not a date', { startDate: 'soon', endDate: NEW_END }, ITEM_ID],
+        ['an unknown field', { startDate: NEW_START, endDate: NEW_END, quantity: 2 }, ITEM_ID]
+    ])('returns 400 for %s', async (_case, body, itemId) => {
+        const response = await updateDates(body, itemId);
+
+        expect(response.status).toBe(400);
+        expect(User.exists).not.toHaveBeenCalled();
+        expect(User.updateOne).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 when the database fails', async () => {
+        User.updateOne.mockRejectedValue(new Error('Database unavailable'));
+
+        const response = await updateDates();
 
         expect(response.status).toBe(500);
         expect(response.body).toEqual({ message: 'Server Error' });
