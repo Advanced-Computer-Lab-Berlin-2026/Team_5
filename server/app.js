@@ -10,6 +10,7 @@ import adminRoutes from './routes/admin.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { csrfProtection } from './middleware/authSecurity.js';
 import wishlistRoutes from './routes/wishlist.js';
+import borrowListRoutes from './routes/borrowList.js';
 import walletRoutes from './routes/wallet.js';
 import noticeRoutes from './routes/notices.js';
 import profileRoutes from './routes/profile.js';
@@ -57,6 +58,7 @@ app.use('/api/alternatives', alternativesRoutes)
 app.use('/api/reservations', reservationRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/wishlist', wishlistRoutes)
+app.use('/api/borrow-list', borrowListRoutes)
 app.use('/api/wallet', walletRoutes)
 app.use('/api/notices', noticeRoutes)
 app.use('/api/profile', profileRoutes)

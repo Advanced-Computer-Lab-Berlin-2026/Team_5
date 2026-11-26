@@ -1,0 +1,34 @@
+/* one small card that flips between log in and register; both sides share the same size */
+.card { --auth-card-height: 21rem; }
+@media (max-width: 760px) { .card { --auth-card-height: 44rem; } }
+.face { display: flex; flex-direction: column; gap: var(--space-3); width: 100%; height: 100%; padding: var(--space-4) var(--space-5); overflow: auto; border-radius: var(--radius-card); text-align: start;
+  /* the card is amber, so everything inside uses dark-on-light colors */
+  background: var(--color-amber); color: #141414;
+  --color-text: #141414; --color-text-muted: #4d3a1d; --color-background: var(--color-amber); --color-surface: #fffaf1; --color-border: #6b4a1c; --color-border-muted: rgb(20 20 20 / 28%);
+  --color-link: #141414; --color-focus: #141414; --color-error: #8a1f1f; --color-error-surface: #fff0ef; }
+.face button[type='submit'] { background: #141414; color: #fff; }
+.face button[type='submit']:hover:not(:disabled) { background: #000; }
+.face a { text-decoration-thickness: 1.5px; }
+.face h2 { font-size: clamp(1.5rem, 2.4vw, 1.875rem); }
+/* log in: username and password side by side, which keeps the whole card short */
+.loginFace fieldset { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
+.loginFace fieldset > div { margin-bottom: 0; min-width: 0; }
+@media (max-width: 760px) { .loginFace fieldset { grid-template-columns: minmax(0, 1fr); } }
+.footer { display: flex; justify-content: flex-end; margin-top: auto; padding-top: var(--space-2); }
+/* the card turns off text selection, which stops typing in Safari, so turn it back on for the fields */
+.face input { user-select: text; -webkit-user-select: text; }
+.flip { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-height); padding: 0 var(--space-2); border: 0; background: transparent; color: var(--color-text-muted); font-size: var(--font-size-small); font-weight: var(--font-weight-medium); cursor: pointer; transition: color var(--duration-fast); }
+.flip:hover, .flip:focus-visible { color: var(--color-text); }
+/* the login and reset views slide in from opposite sides as the card swaps between them */
+.view { display: flex; flex-direction: column; gap: var(--space-3); flex: 1; min-height: 0; animation: viewIn 320ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.fromRight { --from: 28px; }
+.fromLeft { --from: -28px; }
+@keyframes viewIn { from { opacity: 0; transform: translateX(var(--from)); } }
+@media (prefers-reduced-motion: reduce) { .view { animation: none; } }
+.faceHead { display: flex; align-items: center; gap: var(--space-2); margin-left: calc(var(--space-2) * -1); }
+.back { display: inline-flex; align-items: center; justify-content: center; padding: var(--space-1); border: 0; background: transparent; color: inherit; cursor: pointer; transition: transform var(--duration-fast); }
+.back:hover, .back:focus-visible { transform: translateX(-3px); }
+.guestSection { color: var(--color-text); }
+.themeBridge { display: block; }
+.catalog { max-width: var(--content-width); width: 100%; margin: auto; padding: 0 var(--space-5) var(--space-7); display: grid; gap: var(--space-4); }
+@media (max-width: 760px) { .auth { padding: var(--space-4); } .catalog { padding: 0 var(--space-3) var(--space-6); } }
