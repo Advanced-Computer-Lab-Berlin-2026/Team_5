@@ -172,6 +172,8 @@ chat, and item manuals are documented in the same table.
 | `GET /api/admin/reports/damage` | None; admin only; optional `?status=` `pending-review`, `decided`, `disputed` or `resolved` | Lists one case per reservation with its report, dispute and resolution history, status and forfeited deposit. |
 | `GET /api/admin/reports/damage/export` | `?format=` `csv` or `pdf`; optional `?status=` | Downloads the damage report as a file. |
 | `GET /api/admin/reports/membership-tiers` | None; admin only | Returns the number and percentage of members and lenders in each tier. |
+| `POST /api/membership/subscribe` | `tier` (`Plus` or `Premium`, case-sensitive); member or lender; CSRF origin required | Subscribes the signed-in user to the tier: sets `membership.tier`, `membership.startDate` (now) and `membership.renewalDate` (one year later). Returns `200` with `{ message, membership, tier }` where `tier` holds the tier's `annual_fee` and `deposit_discount`. Switching from one paid tier to the other is allowed and restarts the dates. `400` for a missing, unknown or `Basic` tier (Basic is the default and is reached by cancelling); `404` if the tier is missing from the database; `409` if the user is already on that tier; `403` for admins. The fee is not charged here, payment is a separate ticket (S85). |
+| `POST /api/membership/cancel` | None; member or lender; CSRF origin required | Cancels the paid subscription and returns the user to `Basic`, with `membership.startDate` set to now and `membership.renewalDate` set to `null`. Returns `200` with `{ message, membership }`. `409` if the user is already on Basic (nothing to cancel); `403` for admins. |
 | `GET /api/membership-tiers` | None; member or lender | Lists every membership tier, cheapest first, as `{ tiers: [{ tier, annual_fee, deposit_discount }] }`. `deposit_discount` is a percentage. |
 | `GET /api/membership` | None; member or lender | Returns the caller's own `{ membership: { tier, startDate, renewalDate } }`. `renewalDate` defaults to one year after `startDate`; accounts made before the field existed get the same value calculated on the fly. |
 | `GET /api/lender/dashboard` | None; lender only | Returns listed items, times lent, distinct items lent, total deposits collected and the damage incident rate. |
@@ -188,6 +190,19 @@ goes from `none` (uploading) to `pending` (submitted) to `accepted` or
 `rejected`; a rejected member can upload again and resubmit. Documents and
 item usage manuals are stored privately in Cloudinary and are only opened
 through signed links created by the server.
+
+Membership is stored in the user's `membership` field (`tier`, `startDate`,
+`renewalDate`). Everyone starts on `Basic`, which is free and never renews
+(`renewalDate` is `null`). `Plus` and `Premium` last one year from the day the
+user subscribes.
+
+**Cancelling takes effect immediately (decision for S87).** When a member
+cancels, they go back to `Basic` right away and lose the tier's deposit
+discount from that moment; the fee already paid is not refunded. We chose this
+over "cancel at the end of the period" because the ticket says cancelling
+returns the user to Basic, it needs no extra stored state or scheduled job to
+downgrade later, and the deposit discount at reservation time (S88) then only
+has to read `membership.tier` with no "cancelled but still active" case.
 
 A daily return-reminder job (Europe/Berlin) can create
 `upcoming-return-date` notifications for active loans due the next calendar
