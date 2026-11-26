@@ -58,6 +58,8 @@ const userSchema = new mongoose.Schema(
     membership: {
       tier: { type: String, ref: "MembershipTier", default: "Basic" },
       startDate: { type: Date, default: Date.now },
+      // SCRUM-382: one year after startDate for paid tiers; null on Basic (it never renews)
+      renewalDate: { type: Date, default: null },
     },
 
     // ---- lists and links ----

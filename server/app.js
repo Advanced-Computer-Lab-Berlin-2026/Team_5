@@ -22,6 +22,7 @@ import referralRoutes from './routes/referrals.js';
 import reviewRoutes from './routes/reviews.js';
 import notificationRoutes from './routes/notifications.js';
 import settingsRoutes from './routes/settings.js';
+import membershipRoutes from './routes/membership.js';
 // Define route imports
 import lenderRequestRoutes from './routes/lenderRequestRoutes.js';
 import adminLenderRequestRoutes from './routes/adminLenderRequestRoutes.js';
@@ -66,6 +67,7 @@ app.use('/api/referrals', referralRoutes)
 app.use('/api/reviews', reviewRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/settings', settingsRoutes)
+app.use('/api/membership', membershipRoutes)
 app.use('/api/waitlist', waitlistRoutes)
 app.use('/api/admin/reports', reportRoutes);
 app.use('/api/lender/dashboard', lenderDashboardRoutes);
