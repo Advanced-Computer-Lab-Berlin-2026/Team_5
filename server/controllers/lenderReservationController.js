@@ -5,7 +5,7 @@ import { User } from '../models/User.js';
 import { Payment } from '../models/Payment.js';
 import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
-import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
+import { uploadPhotos, deletePhotos } from '../services/photoUpload.js';
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js';
 import { recalculateTrustScore } from '../services/trustScoreService.js';
 import { rewardReferralIfEligible } from '../services/referralService.js';
@@ -22,8 +22,6 @@ async function findLenderReservation(id, lenderId, allowedStatuses, action) {
     }
     return { reservation };
 }
-
-const deletePhotos = (files) => Promise.allSettled(files.map((file) => deleteItemPhoto(file.public_id)));
 
 // GET /api/lender/reservations
 export async function listIncomingReservations(req, res, next) {
@@ -102,18 +100,6 @@ export async function approveReservation(req, res, next) {
 // PATCH /api/lender/reservations/:id/reject
 export async function rejectReservation(req, res, next) {
     return decideIncomingReservation(req, res, next, 'rejected');
-}
-
-// Uploads all files. If one fails, removes the ones that did upload and throws.
-async function uploadPhotos(files) {
-    const results = await Promise.allSettled(files.map((file) => uploadItemPhoto(file.buffer)));
-    const uploaded = results.filter((result) => result.status === 'fulfilled').map((result) => result.value);
-    const failed = results.find((result) => result.status === 'rejected');
-    if (failed) {
-        await deletePhotos(uploaded);
-        throw failed.reason;
-    }
-    return uploaded;
 }
 
 // after commit so a failed notify never rolls back pickup/return, and prefs/email can run

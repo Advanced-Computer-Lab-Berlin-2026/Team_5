@@ -284,10 +284,14 @@ describe('User model', () => {
     });
 
     describe('field validation', () => {
-        it('rejects a trust score outside 0-100 and a negative wallet', async () => {
-            const errors = await validationErrors(user({ trustScore: 101, wallet: -1 }));
+        it('rejects a trust score outside 0-100', async () => {
+            const errors = await validationErrors(user({ trustScore: 101 }));
             expect(errors.trustScore).toBeDefined();
-            expect(errors.wallet).toBeDefined();
+        });
+
+        it('allows a negative wallet: money still owed after a damage case', async () => {
+            const errors = await validationErrors(user({ wallet: -200 }));
+            expect(errors.wallet).toBeUndefined();
         });
     });
 
