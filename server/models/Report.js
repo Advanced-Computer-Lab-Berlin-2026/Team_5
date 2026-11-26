@@ -15,4 +15,15 @@ const reportSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+reportSchema.pre('validate', function () {
+  const hasItem = Boolean(this.targetItem);
+  const hasUser = Boolean(this.targetUser);
+  if (this.targetType === 'item' && (!hasItem || hasUser)) {
+    this.invalidate('targetItem', 'Item reports must reference exactly one item');
+  }
+  if (this.targetType === 'user' && (!hasUser || hasItem)) {
+    this.invalidate('targetUser', 'User reports must reference exactly one user');
+  }
+});
+
 export const Report = mongoose.model("Report", reportSchema);

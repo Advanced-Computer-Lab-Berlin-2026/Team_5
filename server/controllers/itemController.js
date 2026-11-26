@@ -26,8 +26,11 @@ const listItemsSchema = joi.object({
     limit: joi.number().integer().min(1).max(50).default(10),
     category: joi.string().trim(),
     // no archived param, archived items never show in the list, search or filter (SCRUM-298). passing it is a 400 like any unknown param
-    search: joi.string().trim().max(100)
-});
+    search: joi.string().trim().max(100),
+    startDate: joi.date().iso(),
+    endDate: joi.date().iso().greater(joi.ref('startDate'))
+}).and('startDate', 'endDate');
+
 
 // GET /api/items
 export async function listItems(req, res, next) {
@@ -36,7 +39,8 @@ export async function listItems(req, res, next) {
         if (error) return res.status(400).json({ message: error.message });
 
         // flagged items are hidden here too, same as the details page
-        // "available" here just means not archived and not flagged. checking reservations and dates is sprint 2 (E11, SCRUM-419)
+        // "available" means not archived and not flagged, and with startDate/endDate also not booked for those dates
+
         const filter = { archived: false, flagged: { $ne: true } };
         // exact match, categories come from a dropdown. also keeps the category + archived index usable
         // an unknown category just gives an empty list, the ticket doesn't ask for an error
@@ -50,6 +54,17 @@ export async function listItems(req, res, next) {
         // suspended lenders' items act like they don't exist. I filter them in the query, not after, so total and totalPages stay right
         const suspendedOwners = await User.distinct('_id', { suspended: true });
         if (suspendedOwners.length) filter.owner = { $nin: suspendedOwners };
+        
+        // Same overlap rule as Reservation.findOverlap, so an item shown as available can really be reserved
+        if (value.startDate) {
+            const bookedItems = await Reservation.distinct('item', {
+                status: { $in: BLOCKING_STATUSES },
+                startDate: { $lt: value.endDate },
+                endDate: { $gt: value.startDate }
+            });
+            if (bookedItems.length) filter._id = { $nin: bookedItems };
+        }
+
 
         const [items, total] = await Promise.all([
             Item.find(filter, LIST_FIELDS, {

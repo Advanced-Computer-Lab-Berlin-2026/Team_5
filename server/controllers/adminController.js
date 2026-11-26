@@ -2,8 +2,7 @@ import { User } from '../models/User.js';
 import { RefreshSession } from '../models/RefreshSession.js';
 import { Category } from '../models/Category.js';
 import { Item } from '../models/Item.js';
-import { Waitlist } from '../models/Waitlist.js';
-import { PasswordReset } from '../models/PasswordReset.js';
+import { deleteUserAccount } from '../services/userAccountService.js';
 import mongoose from 'mongoose';
 import joi from 'joi';
 import bcrypt from 'bcrypt';
@@ -116,65 +115,7 @@ async function removeUser(req, res) {
 
     try {
     await session.withTransaction(async () => {
-
-        // 1. Get the IDs of all items owned by this user
-        const ownedItems = await Item.find(
-            { owner: userId },
-            '_id',
-            { session }
-        );
-
-        const itemIds = ownedItems.map(item => item._id);
-
-        // 2. Remove deleted items from other users' wishlists
-        if (itemIds.length > 0) {
-            await User.updateMany(
-                { _id: { $ne: userId } },
-                {
-                    $pull: {
-                        wishlist: { $in: itemIds }
-                    }
-                },
-                { session }
-            );
-
-            // 3. Delete waitlists for deleted items
-            await Waitlist.deleteMany(
-                { item: { $in: itemIds } },
-                { session }
-            );
-        }
-
-        // 4. Remove the deleted user's waitlist entries
-        await Waitlist.deleteMany(
-            { username: userId },
-            { session }
-        );
-
-        // 5. Delete password-reset tokens
-        await PasswordReset.deleteMany(
-            { userId },
-            { session }
-        );
-
-        // 6. Delete the user's actual item listings
-        await Item.deleteMany(
-            { owner: userId },
-            { session }
-        );
-
-        // 7. Delete refresh sessions
-        await RefreshSession.deleteMany(
-            { userId },
-            { session }
-        );
-
-        // 8. Delete the user
-        await User.findByIdAndDelete(
-            userId,
-            { session }
-        );
-
+        await deleteUserAccount(userId, session);
     });
     } finally {
         await session.endSession();

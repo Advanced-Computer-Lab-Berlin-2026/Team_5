@@ -5,6 +5,7 @@ import { User } from "../models/User.js";
 import { Item } from "../models/Item.js";
 import { requireAuth } from "../middleware/auth.js";
 import { Reservation } from "../models/Reservation.js";
+import { getDepositDiscountPercent, hasReachedReservationLimit } from "../services/membershipService.js";
 import mongoose from "mongoose";
 
 vi.mock('../models/User.js', () => ({
@@ -20,6 +21,13 @@ vi.mock('../models/Reservation.js', () => {
     Reservation.findOverlap = vi.fn();
     return { Reservation };
 });
+
+// the membership lookups have their own tests (membershipService.test.js); keep the pure helpers real
+vi.mock('../services/membershipService.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    getDepositDiscountPercent: vi.fn(),
+    hasReachedReservationLimit: vi.fn()
+}));
 
 // replace only requireAuth, keep the other exports of the file
 vi.mock('../middleware/auth.js', async (importOriginal) => ({
@@ -86,6 +94,10 @@ beforeEach(() => {
     User.findById.mockResolvedValueOnce({ _id: 'lender123', role: 'lender', suspended: false });
 
     Reservation.findOverlap.mockResolvedValue(null);
+
+    // baseline: no membership discount and no reservation limit reached
+    getDepositDiscountPercent.mockResolvedValue(0);
+    hasReachedReservationLimit.mockResolvedValue({ reached: false, limit: 2, tier: 'Basic' });
 
     Reservation.mockImplementation(function () {
         this._id = 'RES-12345678';
@@ -229,5 +241,53 @@ describe('POST /api/reservations', () => {
             address: deliveryAddress,
             fee: 30
         });
+    });
+    // ---- SCRUM-382 family: S88 membership discount and reservation limit ----
+    it('stores the full deposit and a 0% discount for a Basic member', async () => {
+        const response = await post();
+
+        expect(response.status).toBe(201);
+        expect(Reservation.mock.calls[0][0].payment).toEqual({ depositAmount: 100, discountPercent: 0, method: 'wallet' });
+        expect(response.body).toMatchObject({ depositAmount: 100, discountPercent: 0 });
+    });
+
+    it('lowers the deposit by the membership discount', async () => {
+        getDepositDiscountPercent.mockResolvedValue(10);
+
+        const response = await post();
+
+        expect(response.status).toBe(201);
+        expect(Reservation.mock.calls[0][0].payment.depositAmount).toBe(90);
+        expect(Reservation.mock.calls[0][0].payment.discountPercent).toBe(10);
+        expect(response.body).toMatchObject({ depositAmount: 90, discountPercent: 10 });
+        // the borrower document is what the discount is worked out from
+        expect(getDepositDiscountPercent.mock.calls[0][0]).toMatchObject({ _id: 'member123' });
+    });
+
+    it('rounds the discounted deposit to 2 decimals', async () => {
+        getDepositDiscountPercent.mockResolvedValue(25);
+        Item.findOne.mockResolvedValue(makeItem({ depositAmount: 33.33 }));
+
+        const response = await post();
+
+        expect(response.body.depositAmount).toBe(25);
+    });
+
+    it('returns 403 and creates nothing when the tier limit is reached', async () => {
+        hasReachedReservationLimit.mockResolvedValue({ reached: true, limit: 2, tier: 'Basic' });
+
+        const response = await post();
+
+        expect(response.status).toBe(403);
+        expect(response.body.message).toBe('Your Basic membership allows up to 2 open reservations at a time');
+        expect(Reservation).not.toHaveBeenCalled();
+        expect(Item.updateOne).not.toHaveBeenCalled();
+        expect(session.endSession).toHaveBeenCalled();
+    });
+
+    it('checks the limit inside the transaction session', async () => {
+        await post();
+
+        expect(hasReachedReservationLimit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ _id: 'member123' }), session);
     });
 });

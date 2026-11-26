@@ -45,7 +45,8 @@ const reservationSchema = new mongoose.Schema(
 
     // ---- group: payment ----
     payment: {
-      depositAmount: { type: Number, required: true, min: 0 },
+      depositAmount: { type: Number, required: true, min: 0 }, // already reduced by the membership discount
+      discountPercent: { type: Number, default: 0, min: 0, max: 100 }, // SCRUM-495: the membership discount that was applied
       method: { type: String, enum: ["wallet", "card"], required: true },
       stripePaymentIntentId: { type: String },
       lateFee: { type: Number, default: 0, min: 0 },
@@ -80,6 +81,8 @@ const reservationSchema = new mongoose.Schema(
 reservationSchema.index({ item: 1, startDate: 1, endDate: 1 });
 reservationSchema.index({ borrower: 1, status: 1 });
 reservationSchema.index({ lender: 1, status: 1 });
+reservationSchema.index({ status: 1, startDate: 1, endDate: 1, item: 1 });
+
 
 // Only approved bookings block dates. Several people can have a pending request for the same dates; once the lender approves one
 // (it becomes "upcoming"), those dates are taken. The approve step must therefore re-check for overlaps when it runs.

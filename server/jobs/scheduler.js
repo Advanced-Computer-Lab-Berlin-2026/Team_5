@@ -1,8 +1,10 @@
 import cron from 'node-cron';
 import { env } from '../config/env.js';
 import { runReturnReminderJob } from './returnReminderJob.js';
+import { runRenewalReminderJob } from './renewalReminderJob.js';
 
 export const DEFAULT_RETURN_REMINDER_CRON = '0 9 * * *';
+export const DEFAULT_RENEWAL_REMINDER_CRON = '0 9 * * *';
 const BERLIN = 'Europe/Berlin';
 
 // SCRUM-469: in-process runner; vitest sets NODE_ENV=test so we never leave a live timer hanging
@@ -14,19 +16,30 @@ export function shouldStartJobs({ nodeEnv = env.nodeEnv, enableJobs = process.en
 export function startScheduler({
     schedule = cron.schedule,
     expression = process.env.RETURN_REMINDER_CRON || DEFAULT_RETURN_REMINDER_CRON,
-    runJob = runReturnReminderJob
+    runJob = runReturnReminderJob,
+    renewalExpression = process.env.RENEWAL_REMINDER_CRON || DEFAULT_RENEWAL_REMINDER_CRON,
+    runRenewalJob = runRenewalReminderJob
 } = {}) {
     if (!shouldStartJobs()) return null;
 
     // bad RETURN_REMINDER_CRON would throw here — don't take down the api after listen
     try {
-        return schedule(
+        const returnTask = schedule(
             expression,
             () => {
                 runJob().catch((error) => console.error('return reminder job failed', error));
             },
             { timezone: BERLIN }
         );
+        // SCRUM-387: membership renewal reminders run on their own schedule
+        schedule(
+            renewalExpression,
+            () => {
+                runRenewalJob().catch((error) => console.error('renewal reminder job failed', error));
+            },
+            { timezone: BERLIN }
+        );
+        return returnTask;
     } catch (error) {
         console.error('return reminder scheduler failed to start', error);
         return null;

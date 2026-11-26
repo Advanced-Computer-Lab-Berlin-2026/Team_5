@@ -6,6 +6,7 @@ import { env } from "../config/env.js";
 import { User } from "../models/User.js";
 import { Reservation } from "../models/Reservation.js";
 import { DamageReport } from "../models/DamageReport.js";
+import { closeExpiredDecisions } from "../services/damageCase.js";
 
 vi.mock('../models/User.js', () => ({
     User: { findById: vi.fn() }
@@ -18,6 +19,10 @@ vi.mock('../models/Reservation.js', () => ({
 
 vi.mock('../models/DamageReport.js', () => ({
     DamageReport: { find: vi.fn() }
+}));
+
+vi.mock('../services/damageCase.js', () => ({
+    closeExpiredDecisions: vi.fn()
 }));
 
 const ADMIN_ID = 'admin1';
@@ -60,11 +65,12 @@ function fakeEntry(id, reservation, type, day) {
 
 const damageEntries = [
     fakeEntry('DMG-1', 'RES-A', 'report', 10),
-    fakeEntry('DMG-2', 'RES-A', 'dispute', 11),
-    { ...fakeEntry('DMG-3', 'RES-A', 'resolution', 14), depositForfeit: 300 },
-    fakeEntry('DMG-4', 'RES-B', 'report', 12),
-    fakeEntry('DMG-5', 'RES-C', 'report', 13),
-    { ...fakeEntry('DMG-6', 'RES-C', 'resolution', 15), depositForfeit: 50 }
+    { ...fakeEntry('DMG-2', 'RES-A', 'decision', 11), depositForfeit: 500 },
+    fakeEntry('DMG-3', 'RES-A', 'dispute', 12),
+    { ...fakeEntry('DMG-4', 'RES-A', 'resolution', 14), depositForfeit: 300 },
+    fakeEntry('DMG-5', 'RES-B', 'report', 12),
+    fakeEntry('DMG-6', 'RES-C', 'report', 13),
+    { ...fakeEntry('DMG-7', 'RES-C', 'decision', 15), depositForfeit: 50 }
 ];
 
 const reservations = [
@@ -122,6 +128,7 @@ describe('GET /api/admin/reports/damage', () => {
 
         const damageCase = findCase(response, 'RES-A');
         expect(damageCase).toMatchObject({
+            id: 'DMG-1',
             item: { id: 'ITM-5', name: 'Camera', category: 'Electronics' },
             borrower: 'elBary',
             lender: 'shikselbeks',
@@ -131,7 +138,7 @@ describe('GET /api/admin/reports/damage', () => {
             openedAt: '2026-09-10T10:00:00.000Z',
             lastUpdatedAt: '2026-09-14T10:00:00.000Z'
         });
-        expect(damageCase.history.map((step) => step.type)).toEqual(['report', 'dispute', 'resolution']);
+        expect(damageCase.history.map((step) => step.type)).toEqual(['report', 'decision', 'dispute', 'resolution']);
         expect(damageCase.history[0]).toMatchObject({ id: 'DMG-1', message: 'report message', returnCondition: 'report condition' });
     });
 
@@ -146,6 +153,13 @@ describe('GET /api/admin/reports/damage', () => {
             depositAmount: null,
             depositForfeit: null
         });
+    });
+
+    it('saves the resolutions of undisputed decisions before building the list', async () => {
+        await asAdmin(request(app).get(BASE_URL));
+
+        expect(closeExpiredDecisions).toHaveBeenCalledWith();
+        expect(closeExpiredDecisions.mock.invocationCallOrder[0]).toBeLessThan(DamageReport.find.mock.invocationCallOrder[0]);
     });
 
     it('loads only the reservations that have damage reports, without the photos', async () => {
@@ -182,10 +196,10 @@ describe('GET /api/admin/reports/damage', () => {
 describe('Resolution status', () => {
     it.each([
         [['report'], 'pending-review', false],
-        [['report', 'resolution'], 'decided', false],
-        [['report', 'resolution', 'dispute'], 'disputed', true],
-        [['report', 'dispute'], 'disputed', true],
-        [['report', 'resolution', 'dispute', 'resolution'], 'resolved', true]
+        [['report', 'decision'], 'decided', false],
+        [['report', 'decision', 'dispute'], 'disputed', true],
+        [['report', 'decision', 'dispute', 'resolution'], 'resolved', true],
+        [['report', 'decision', 'resolution'], 'resolved', false]
     ])('marks %j as %s', async (types, status, disputed) => {
         DamageReport.find.mockReturnValue(fakeQuery(types.map((type, index) => fakeEntry(`DMG-${index}`, 'RES-A', type, index + 1))));
 
@@ -194,10 +208,22 @@ describe('Resolution status', () => {
         expect(findCase(response, 'RES-A')).toMatchObject({ status, disputed });
     });
 
-    it('uses the forfeit of the latest resolution', async () => {
+    it('uses the forfeit of the decision while there is no resolution', async () => {
         DamageReport.find.mockReturnValue(fakeQuery([
             fakeEntry('DMG-1', 'RES-A', 'report', 1),
-            { ...fakeEntry('DMG-2', 'RES-A', 'resolution', 2), depositForfeit: 500 },
+            { ...fakeEntry('DMG-2', 'RES-A', 'decision', 2), depositForfeit: 500 },
+            fakeEntry('DMG-3', 'RES-A', 'dispute', 3)
+        ]));
+
+        const response = await asAdmin(request(app).get(BASE_URL));
+
+        expect(findCase(response, 'RES-A').depositForfeit).toBe(500);
+    });
+
+    it('uses the forfeit of the resolution once there is one', async () => {
+        DamageReport.find.mockReturnValue(fakeQuery([
+            fakeEntry('DMG-1', 'RES-A', 'report', 1),
+            { ...fakeEntry('DMG-2', 'RES-A', 'decision', 2), depositForfeit: 500 },
             fakeEntry('DMG-3', 'RES-A', 'dispute', 3),
             { ...fakeEntry('DMG-4', 'RES-A', 'resolution', 4), depositForfeit: 200 }
         ]));
@@ -223,5 +249,6 @@ describe('Filtering by status', () => {
 
         expect(response.status).toBe(400);
         expect(DamageReport.find).not.toHaveBeenCalled();
+        expect(closeExpiredDecisions).not.toHaveBeenCalled();
     });
 });

@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_RETURN_REMINDER_CRON, shouldStartJobs, startScheduler } from '../jobs/scheduler.js';
+import { DEFAULT_RENEWAL_REMINDER_CRON, DEFAULT_RETURN_REMINDER_CRON, shouldStartJobs, startScheduler } from '../jobs/scheduler.js';
 
 vi.mock('../config/env.js', () => ({ env: { nodeEnv: 'development' } }));
 vi.mock('../jobs/returnReminderJob.js', () => ({
     runReturnReminderJob: vi.fn()
+}));
+vi.mock('../jobs/renewalReminderJob.js', () => ({
+    runRenewalReminderJob: vi.fn()
 }));
 
 beforeEach(async () => {
     vi.resetAllMocks();
     delete process.env.ENABLE_JOBS;
     delete process.env.RETURN_REMINDER_CRON;
+    delete process.env.RENEWAL_REMINDER_CRON;
     const { env } = await import('../config/env.js');
     env.nodeEnv = 'development';
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -95,5 +99,47 @@ describe('startScheduler', () => {
             'return reminder scheduler failed to start',
             expect.any(Error)
         );
+    });
+
+    // SCRUM-387
+    it('also registers the membership renewal reminder at 09:00 berlin by default', () => {
+        const schedule = vi.fn(() => ({ stop: vi.fn() }));
+
+        startScheduler({ schedule });
+
+        expect(schedule).toHaveBeenCalledTimes(2);
+        expect(schedule).toHaveBeenLastCalledWith(DEFAULT_RENEWAL_REMINDER_CRON, expect.any(Function), { timezone: 'Europe/Berlin' });
+        expect(DEFAULT_RENEWAL_REMINDER_CRON).toBe('0 9 * * *');
+    });
+
+    it('uses RENEWAL_REMINDER_CRON when set', () => {
+        process.env.RENEWAL_REMINDER_CRON = '30 7 * * *';
+        const schedule = vi.fn(() => ({ stop: vi.fn() }));
+
+        startScheduler({ schedule });
+
+        expect(schedule).toHaveBeenLastCalledWith('30 7 * * *', expect.any(Function), { timezone: 'Europe/Berlin' });
+    });
+
+    it('runs the renewal job from its cron callback and logs failures', async () => {
+        const runRenewalJob = vi.fn().mockResolvedValue({ count: 0 });
+        const schedule = vi.fn(() => ({ stop: vi.fn() }));
+
+        startScheduler({ schedule, runRenewalJob });
+        const tick = schedule.mock.calls[1][1];
+
+        await tick();
+        expect(runRenewalJob).toHaveBeenCalledTimes(1);
+
+        runRenewalJob.mockRejectedValue(new Error('db down'));
+        await tick();
+        expect(console.error).toHaveBeenCalledWith('renewal reminder job failed', expect.any(Error));
+    });
+
+    it('still returns the return reminder task', () => {
+        const returnTask = { name: 'return' };
+        const schedule = vi.fn().mockReturnValueOnce(returnTask).mockReturnValueOnce({ name: 'renewal' });
+
+        expect(startScheduler({ schedule })).toBe(returnTask);
     });
 });
