@@ -7,9 +7,9 @@ import { env } from '../config/env.js';
 import { User } from '../models/User.js';
 import { Reservation } from '../models/Reservation.js';
 import { Payment } from '../models/Payment.js';
-import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
+import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
 
 vi.mock('../models/User.js', () => ({
     User: { findById: vi.fn(), updateOne: vi.fn() }
@@ -28,6 +28,11 @@ vi.mock('../services/referralService.js', () => ({
     rewardReferralIfEligible: vi.fn(),
 }));
 
+vi.mock('../services/notificationService.js', () => ({
+    notify: vi.fn(),
+    notifyWishlistItemAvailable: vi.fn(),
+}));
+
 const ORIGIN = 'http://localhost:3000';
 const token = (id, role) => jwt.sign({ id, role }, env.jwtSecret, { expiresIn: '15m' });
 const asLender = () => {
@@ -35,7 +40,7 @@ const asLender = () => {
     return `accessToken=${token('lender1', 'lender')}`;
 };
 const mockReservation = (overrides = {}) => ({
-    _id: 'RES-1', lender: 'lender1', borrower: 'borrower1', status: 'upcoming',
+    _id: 'RES-1', item: 'ITM-1', lender: 'lender1', borrower: 'borrower1', status: 'upcoming',
     payment: { depositAmount: 100, method: 'wallet' }, handover: { pickupPhotos: [], returnPhotos: [] },
     save: vi.fn(), ...overrides,
 });
@@ -43,6 +48,8 @@ const mockReservation = (overrides = {}) => ({
 beforeEach(() => {
     vi.restoreAllMocks();
     vi.resetAllMocks();
+    notify.mockResolvedValue({});
+    notifyWishlistItemAvailable.mockResolvedValue(undefined);
 });
 
 describe('PATCH /api/lender/reservations/:id/pickup', () => {
@@ -86,13 +93,16 @@ describe('PATCH /api/lender/reservations/:id/pickup', () => {
         const cookie = asLender();
         const r = mockReservation();
         vi.spyOn(Reservation, 'findById').mockResolvedValue(r);
-        const notify = vi.spyOn(Notification, 'create').mockResolvedValue({});
         const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
         expect(res.status).toBe(200);
         expect(res.body.reservation.status).toBe('active');
         expect(r.handover.pickedUpAt).toBeInstanceOf(Date);
         expect(r.save).toHaveBeenCalled();
-        expect(notify).toHaveBeenCalledWith(expect.objectContaining({ username: 'borrower1' }));
+        expect(notify).toHaveBeenCalledWith('borrower1', expect.objectContaining({
+            type: 'other',
+            reservation: 'RES-1',
+            message: 'Your lender marked the item as picked up. Enjoy!',
+        }));
     });
 });
 
@@ -128,7 +138,6 @@ describe('PATCH /api/lender/reservations/:id/return', () => {
         vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ _id: 'RES-1', status: 'completed', handover: { returnedAt: new Date(), returnCondition: 'good' } });
         User.updateOne.mockResolvedValue({});
         const pay = vi.spyOn(Payment, 'create').mockResolvedValue([{}]);
-        vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
 
         const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
 
@@ -138,6 +147,10 @@ describe('PATCH /api/lender/reservations/:id/return', () => {
         expect(res.body.refunded).toBe(100);
         expect(User.updateOne).toHaveBeenCalledWith({ _id: 'borrower1' }, { $inc: { wallet: 100 } }, { session });
         expect(pay).toHaveBeenCalledWith([expect.objectContaining({ type: 'deposit-refund', amount: 100, direction: 'receive' })], { session });
+        expect(notify).toHaveBeenCalledWith('borrower1', expect.objectContaining({
+            message: expect.stringContaining('deposit of 100'),
+        }));
+        expect(notifyWishlistItemAvailable).toHaveBeenCalledWith('ITM-1');
         expect(session.endSession).toHaveBeenCalled();
     });
 
@@ -300,7 +313,6 @@ describe('POST /api/lender/reservations/:id/damage', () => {
         );
         vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ _id: 'RES-1', status: 'completed', handover: { returnPhotos } });
         const create = vi.spyOn(DamageReport, 'create').mockResolvedValue([{ _id: 'DMG-1', type: 'report' }]);
-        vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
 
         const res = await request(app).post(url).set('Origin', ORIGIN).set('Cookie', cookie)
             .field('returnCondition', 'Scratched').field('message', 'Lens scratched');
@@ -310,6 +322,10 @@ describe('POST /api/lender/reservations/:id/damage', () => {
         expect(create).toHaveBeenCalledWith([expect.objectContaining({
             report: { photos: [{ url: 'https://img/r1.jpg' }], message: 'Lens scratched' },
         })], { session });
+        expect(notify).toHaveBeenCalledWith('borrower1', expect.objectContaining({
+            message: expect.stringContaining('damaged'),
+        }));
+        expect(notifyWishlistItemAvailable).toHaveBeenCalledWith('ITM-1');
     });
 
     it('409 when reservation is not active', async () => {
@@ -335,7 +351,6 @@ describe('POST /api/lender/reservations/:id/damage', () => {
         });
         uploadItemPhoto.mockResolvedValue({ secure_url: 'https://img/d.jpg', public_id: 'd1' });
         const create = vi.spyOn(DamageReport, 'create').mockResolvedValue([{ _id: 'DMG-1', type: 'report' }]);
-        const notify = vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
         const pay = vi.spyOn(Payment, 'create');
 
         const res = await request(app).post(url).set('Origin', ORIGIN).set('Cookie', cookie)
@@ -358,7 +373,10 @@ describe('POST /api/lender/reservations/:id/damage', () => {
             returnCondition: 'Scratched',
             report: { photos: [{ url: 'https://img/r1.jpg' }, { url: 'https://img/d.jpg' }], message: 'Lens scratched' },
         })], { session });
-        expect(notify).toHaveBeenCalledWith([expect.objectContaining({ username: 'borrower1' })], { session });
+        expect(notify).toHaveBeenCalledWith('borrower1', expect.objectContaining({
+            message: expect.stringContaining('damaged'),
+        }));
+        expect(notifyWishlistItemAvailable).toHaveBeenCalledWith('ITM-1');
         expect(User.updateOne).not.toHaveBeenCalled();
         expect(pay).not.toHaveBeenCalled();
         expect(session.endSession).toHaveBeenCalled();
