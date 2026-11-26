@@ -3,6 +3,7 @@ import { User } from '../models/User.js';
 import { Payment } from '../models/Payment.js';
 import { Reservation } from '../models/Reservation.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
+import { notifyInApp } from './notificationService.js';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -86,6 +87,11 @@ export async function chargeLateFeeForReturn(reservation, session) {
             status: 'completed',
             description: `Late fee for ${daysLate} overdue day(s)`
         }], { session });
+
+        await notifyInApp(reservation.borrower, {
+            reservation: reservation._id,
+            message: `A late fee of €${lateFee.toFixed(2)} was charged for reservation ${reservation._id}.`
+        }, session);
     }
 
     await Reservation.updateOne(

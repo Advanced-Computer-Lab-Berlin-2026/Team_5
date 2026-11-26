@@ -1,5 +1,6 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Notification } from '../models/Notification.js';
 
 const mocks = vi.hoisted(() => ({
     itemFindById: vi.fn(),
@@ -44,7 +45,9 @@ function makeReservation(returnedAt) {
 }
 
 beforeEach(() => {
+    vi.restoreAllMocks();
     vi.resetAllMocks();
+    vi.spyOn(Notification, 'create').mockResolvedValue([]);
 
     mocks.itemFindById.mockReturnValue({
         session: vi.fn().mockResolvedValue({
@@ -182,6 +185,14 @@ describe('SCRUM-468 - Wallet deduction', () => {
             { session }
         );
 
+        expect(Notification.create).toHaveBeenCalledExactlyOnceWith([{
+            username: 'member-1',
+            type: 'other',
+            reservation: 'RES-test1234',
+            message: 'A late fee of €20.00 was charged for reservation RES-test1234.'
+        }], { session });
+        expect(mocks.paymentCreate).toHaveBeenCalledBefore(Notification.create);
+
         expect(mocks.reservationUpdateOne).toHaveBeenCalledWith(
             {
                 _id: 'RES-test1234',
@@ -207,6 +218,27 @@ describe('SCRUM-468 - Wallet deduction', () => {
         expect(result.lateFee).toBe(0);
         expect(mocks.userFindOneAndUpdate).not.toHaveBeenCalled();
         expect(mocks.paymentCreate).not.toHaveBeenCalled();
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    it('does not notify for an overdue return with a zero fee', async () => {
+        mocks.itemFindById.mockReturnValue({
+            session: vi.fn().mockResolvedValue({ borrowingRules: { lateFeePerDay: 0 } })
+        });
+
+        const result = await chargeLateFeeForReturn(makeReservation('2026-11-22T00:00:00.000Z'), session);
+
+        expect(result).toEqual({ daysLate: 2, lateFee: 0 });
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    it('does not notify if recording the charge fails', async () => {
+        mocks.paymentCreate.mockRejectedValue(new Error('Payment write failed'));
+
+        await expect(chargeLateFeeForReturn(makeReservation('2026-11-22T00:00:00.000Z'), session))
+            .rejects.toThrow('Payment write failed');
+
+        expect(Notification.create).not.toHaveBeenCalled();
     });
 
     it('charges the fee even when the wallet is empty, so the wallet goes negative', async () => {
@@ -247,5 +279,6 @@ describe('SCRUM-468 - Wallet deduction', () => {
 
         expect(mocks.paymentCreate).not.toHaveBeenCalled();
         expect(mocks.reservationUpdateOne).not.toHaveBeenCalled();
+        expect(Notification.create).not.toHaveBeenCalled();
     });
 });

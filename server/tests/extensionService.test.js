@@ -1,9 +1,9 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import mongoose from 'mongoose';
+import { Notification } from '../models/Notification.js';
 
 const mocks = vi.hoisted(() => ({
-    startSession: vi.fn(),
-    isValidObjectId: vi.fn(),
     reservationFindById: vi.fn(),
     reservationFindOverlap: vi.fn(),
     reservationFindOneAndUpdate: vi.fn(),
@@ -13,13 +13,6 @@ const mocks = vi.hoisted(() => ({
     extensionCreate: vi.fn(),
     extensionFindOneAndUpdate: vi.fn(),
     acquireCheckoutLock: vi.fn()
-}));
-
-vi.mock('mongoose', () => ({
-    default: {
-        startSession: mocks.startSession,
-        isValidObjectId: mocks.isValidObjectId
-    }
 }));
 
 vi.mock('../models/Reservation.js', () => ({
@@ -54,7 +47,7 @@ const RES_ID = 'RES-a1b2c3d4';
 const REQUEST_ID = '507f191e810c19729de860ea';
 
 const originalEndDate = new Date('2026-12-04T12:00:00.000Z');
-const requestedEndDate = new Date('2026-12-06T12:00:00.000Z');
+const requestedEndDate = new Date('2026-12-05T23:30:00.000Z');
 
 function query(value) {
     return {
@@ -90,6 +83,7 @@ function extensionRequest() {
 let session;
 
 beforeEach(() => {
+    vi.restoreAllMocks();
     vi.resetAllMocks();
 
     session = {
@@ -97,8 +91,8 @@ beforeEach(() => {
         endSession: vi.fn().mockResolvedValue(undefined)
     };
 
-    mocks.startSession.mockResolvedValue(session);
-    mocks.isValidObjectId.mockReturnValue(true);
+    vi.spyOn(mongoose, 'startSession').mockResolvedValue(session);
+    vi.spyOn(Notification, 'create').mockResolvedValue([]);
 
     mocks.reservationFindById.mockImplementation(
         () => query(reservation())
@@ -110,7 +104,7 @@ beforeEach(() => {
 
     mocks.reservationFindOverlap.mockResolvedValue(null);
 
-    mocks.extensionCreate.mockResolvedValue(extensionRequest());
+    mocks.extensionCreate.mockResolvedValue([extensionRequest()]);
 
     mocks.acquireCheckoutLock.mockResolvedValue({ _id: 'item-1' });
 
@@ -144,12 +138,19 @@ describe('SCRUM-472 - Request extension', () => {
             RES_ID
         );
 
-        expect(mocks.extensionCreate).toHaveBeenCalledWith({
+        expect(mocks.extensionCreate).toHaveBeenCalledWith([{
             reservation: RES_ID,
             originalEndDate,
             requestedEndDate,
             status: 'requested'
-        });
+        }], { session });
+        expect(Notification.create).toHaveBeenCalledExactlyOnceWith([{
+            username: 'lender-1',
+            type: 'other',
+            reservation: RES_ID,
+            message: `A member requested an extension for reservation ${RES_ID} until 6 Dec 2026.`
+        }], { session });
+        expect(mocks.extensionCreate).toHaveBeenCalledBefore(Notification.create);
 
         // Requesting does not change the return date.
         expect(
@@ -169,6 +170,7 @@ describe('SCRUM-472 - Request extension', () => {
         );
 
         expect(mocks.extensionCreate).not.toHaveBeenCalled();
+        expect(Notification.create).not.toHaveBeenCalled();
     });
 
     it('rejects an extension when the dates are unavailable', async () => {
@@ -187,6 +189,7 @@ describe('SCRUM-472 - Request extension', () => {
         );
 
         expect(mocks.extensionCreate).not.toHaveBeenCalled();
+        expect(Notification.create).not.toHaveBeenCalled();
     });
 
     it('rejects duplicate pending extension requests', async () => {
@@ -205,6 +208,29 @@ describe('SCRUM-472 - Request extension', () => {
         );
 
         expect(mocks.extensionCreate).not.toHaveBeenCalled();
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    it('does not notify if a concurrent request wins the unique index', async () => {
+        mocks.extensionCreate.mockRejectedValue(Object.assign(new Error('Duplicate key'), { code: 11000 }));
+
+        await expect(requestExtension(RES_ID, 'member-1', requestedEndDate.toISOString()))
+            .rejects.toMatchObject({ code: 'EXTENSION_ALREADY_REQUESTED' });
+
+        expect(Notification.create).not.toHaveBeenCalled();
+        expect(session.endSession).toHaveBeenCalledOnce();
+    });
+
+    it('fails the write transaction if the lender notification cannot be saved', async () => {
+        const error = new Error('Notification write failed');
+        Notification.create.mockRejectedValue(error);
+
+        await expect(requestExtension(RES_ID, 'member-1', requestedEndDate.toISOString()))
+            .rejects.toBe(error);
+
+        expect(mocks.extensionCreate).toHaveBeenCalledWith(expect.any(Array), { session });
+        expect(Notification.create).toHaveBeenCalledWith(expect.any(Array), { session });
+        expect(session.endSession).toHaveBeenCalledOnce();
     });
 
     it('requires an active reservation', async () => {
@@ -273,6 +299,14 @@ describe('SCRUM-474 - Decide extension', () => {
             { new: true, session }
         );
 
+        expect(Notification.create).toHaveBeenCalledExactlyOnceWith([{
+            username: 'member-1',
+            type: 'other',
+            reservation: RES_ID,
+            message: `Your extension request for reservation ${RES_ID} was accepted. Your new return date is 6 Dec 2026.`
+        }], { session });
+        expect(mocks.reservationFindOneAndUpdate).toHaveBeenCalledBefore(Notification.create);
+        expect(mocks.extensionFindOneAndUpdate).toHaveBeenCalledBefore(Notification.create);
         expect(session.endSession).toHaveBeenCalledOnce();
     });
 
@@ -291,6 +325,14 @@ describe('SCRUM-474 - Decide extension', () => {
 
         expect(result.status).toBe('rejected');
         expect(result.endDate).toEqual(originalEndDate);
+
+        expect(Notification.create).toHaveBeenCalledExactlyOnceWith([{
+            username: 'member-1',
+            type: 'other',
+            reservation: RES_ID,
+            message: `Your extension request for reservation ${RES_ID} was rejected.`
+        }], { session });
+        expect(mocks.extensionFindOneAndUpdate).toHaveBeenCalledBefore(Notification.create);
 
         expect(
             mocks.reservationFindOneAndUpdate
@@ -316,6 +358,7 @@ describe('SCRUM-474 - Decide extension', () => {
         expect(
             mocks.reservationFindOneAndUpdate
         ).not.toHaveBeenCalled();
+        expect(Notification.create).not.toHaveBeenCalled();
     });
 
     it('rechecks availability when the lender approves', async () => {
@@ -341,6 +384,66 @@ describe('SCRUM-474 - Decide extension', () => {
         expect(
             mocks.extensionFindOneAndUpdate
         ).not.toHaveBeenCalled();
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    it.each(['accept', 'reject'])('does not notify when a repeated %s finds a decided request', async (decision) => {
+        mocks.extensionFindOne.mockReturnValueOnce(query(extensionRequest()))
+            .mockReturnValueOnce(query({ ...extensionRequest(), status: 'accepted' }));
+
+        await decideExtension(RES_ID, REQUEST_ID, 'lender-1', 'accept');
+        await expect(decideExtension(RES_ID, REQUEST_ID, 'lender-1', decision))
+            .rejects.toMatchObject({ code: 'EXTENSION_ALREADY_DECIDED' });
+
+        expect(Notification.create).toHaveBeenCalledOnce();
+    });
+
+    it.each(['accept', 'reject'])('does not notify if the extension update for %s fails', async (decision) => {
+        mocks.extensionFindOneAndUpdate.mockResolvedValue(null);
+
+        await expect(decideExtension(RES_ID, REQUEST_ID, 'lender-1', decision))
+            .rejects.toMatchObject({ code: 'EXTENSION_CONFLICT' });
+
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    it('does not notify if acceptance cannot update the end date', async () => {
+        mocks.reservationFindOneAndUpdate.mockResolvedValue(null);
+
+        await expect(decideExtension(RES_ID, REQUEST_ID, 'lender-1', 'accept'))
+            .rejects.toMatchObject({ code: 'EXTENSION_CONFLICT' });
+
+        expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    it.each([false, true])('discards the first notification on abort (transaction retry: %s)', async (retry) => {
+        const error = new Error('Transaction aborted');
+        const staged = [];
+        const committed = [];
+        Notification.create.mockImplementation(async (documents, options) => {
+            expect(options).toEqual({ session });
+            staged.push(...documents);
+            return documents;
+        });
+        session.withTransaction.mockImplementation(async (callback) => {
+            await callback();
+            staged.length = 0;
+            if (!retry) throw error;
+            const result = await callback();
+            committed.push(...staged);
+            return result;
+        });
+
+        const decision = decideExtension(RES_ID, REQUEST_ID, 'lender-1', 'accept');
+        if (retry) {
+            await expect(decision).resolves.toMatchObject({ status: 'accepted' });
+        } else {
+            await expect(decision).rejects.toBe(error);
+        }
+
+        expect(Notification.create).toHaveBeenCalledTimes(retry ? 2 : 1);
+        expect(committed).toHaveLength(retry ? 1 : 0);
+        expect(session.endSession).toHaveBeenCalledOnce();
     });
 });
 

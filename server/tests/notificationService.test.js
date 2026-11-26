@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     notify, notifyWishlistItemAvailable, notifyWaitlistItemAvailable, notifyReservationCancelled, notifyReservationConfirmed, notifyReservationRejected,
-    notifyUpcomingReturn, notifyDeliveryStatus
+    notifyUpcomingReturn, notifyDeliveryStatus, notifyInApp
 } from '../services/notificationService.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { env } from '../config/env.js';
@@ -92,6 +92,24 @@ describe('notify', () => {
         Notification.create.mockRejectedValue(new Error('db down'));
 
         await expect(notify('yara', { message: saved.message })).rejects.toThrow('db down');
+        expect(sendNotificationEmail).not.toHaveBeenCalled();
+    });
+});
+
+describe('notifyInApp', () => {
+    it('saves a schema-valid notification in the supplied session without an email lookup', async () => {
+        const { Notification: RealNotification } = await vi.importActual('../models/Notification.js');
+        const session = { id: 'test-session' };
+        const details = { message: 'An extension was requested.', reservation: 'RES-1' };
+
+        await notifyInApp('yara', details, session);
+
+        expect(Notification.create).toHaveBeenCalledExactlyOnceWith([{
+            username: 'yara', type: 'other', ...details
+        }], { session });
+        const [[documents]] = Notification.create.mock.calls;
+        await expect(new RealNotification(documents[0]).validate()).resolves.toBeUndefined();
+        expect(User.findById).not.toHaveBeenCalled();
         expect(sendNotificationEmail).not.toHaveBeenCalled();
     });
 });

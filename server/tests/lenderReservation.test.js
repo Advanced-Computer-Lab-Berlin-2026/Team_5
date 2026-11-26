@@ -318,7 +318,7 @@ describe('PATCH /api/lender/reservations/:id/return', () => {
         expect(pay).not.toHaveBeenCalled();
     });
 
-    it('409 and no refund if already completed by a parallel request', async () => {
+    it('409 and no refund or late fee if already completed by a parallel request', async () => {
         const cookie = asLender();
         setupSession();
         vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ status: 'active' }));
@@ -329,15 +329,25 @@ describe('PATCH /api/lender/reservations/:id/return', () => {
         expect(chargeLateFeeForReturn).not.toHaveBeenCalled();
     });
 
-    it('500 when the transaction fails', async () => {
+    it('500 and no post-return notices when the transaction aborts after late-fee handling', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
         const cookie = asLender();
-        session.withTransaction.mockRejectedValue(new Error('db down'));
-        vi.spyOn(mongoose, 'startSession').mockResolvedValue(session);
-        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ status: 'active' }));
+        setupSession();
+        session.withTransaction.mockImplementation(async (callback) => {
+            await callback();
+            throw new Error('Commit failed');
+        });
+        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({
+            status: 'active', payment: { depositAmount: 0, method: 'wallet' }
+        }));
+        const returned = mockReservation({ status: 'completed' });
+        vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue(returned);
         const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
         expect(res.status).toBe(500);
         expect(res.body.message).toBe('Server Error');
+        expect(chargeLateFeeForReturn).toHaveBeenCalledExactlyOnceWith(returned, session);
+        expect(notify).not.toHaveBeenCalled();
+        expect(notifyWishlistItemAvailable).not.toHaveBeenCalled();
         expect(session.endSession).toHaveBeenCalled();
     });
 });
@@ -521,6 +531,9 @@ describe('POST /api/lender/reservations/:id/damage', () => {
         expect(create).toHaveBeenCalledWith([expect.objectContaining({
             report: { photos: [{ url: 'https://img/r1.jpg' }], message: 'Lens scratched' },
         })], { session });
+        expect(chargeLateFeeForReturn).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ _id: 'RES-1', status: 'completed' }), session
+        );
         expect(notify).toHaveBeenCalledWith('borrower1', expect.objectContaining({
             message: expect.stringContaining('damaged'),
         }));
@@ -594,6 +607,7 @@ describe('POST /api/lender/reservations/:id/damage', () => {
             .attach('photos', Buffer.from('img'), 'a.jpg');
         expect(res.status).toBe(409);
         expect(create).not.toHaveBeenCalled();
+        expect(chargeLateFeeForReturn).not.toHaveBeenCalled();
         expect(rewardReferralIfEligible).not.toHaveBeenCalled();
         expect(deleteItemPhoto).toHaveBeenCalledWith('d1');
     });

@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Reservation } from '../models/Reservation.js';
 import { ExtensionRequest } from '../models/ExtensionRequest.js';
 import { acquireCheckoutLock } from './checkoutService.js';
+import { formatNotificationDate, notifyInApp } from './notificationService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 
 const RESERVATION_ID_PATTERN = /^RES-[0-9a-f]{8}$/;
@@ -113,31 +114,42 @@ export async function requestExtension(
         );
     }
 
+    const session = await mongoose.startSession();
+
     try {
-        const request = await ExtensionRequest.create({
-            reservation: reservation._id,
-            originalEndDate: reservation.endDate,
-            requestedEndDate: newEndDate,
-            status: 'requested'
+        return await session.withTransaction(async () => {
+            const [request] = await ExtensionRequest.create([{
+                reservation: reservation._id,
+                originalEndDate: reservation.endDate,
+                requestedEndDate: newEndDate,
+                status: 'requested'
+            }], { session }).catch((error) => {
+                if (error.code === 11000) {
+                    throw new CheckoutError(
+                        409,
+                        'EXTENSION_ALREADY_REQUESTED',
+                        'An extension request is already pending.'
+                    );
+                }
+                throw error;
+            });
+
+            const date = formatNotificationDate(request.requestedEndDate);
+            await notifyInApp(reservation.lender, {
+                reservation: reservation._id,
+                message: `A member requested an extension for reservation ${reservation._id} until ${date}.`
+            }, session);
+
+            return {
+                requestId: request._id,
+                reservationId: reservation._id,
+                originalEndDate: request.originalEndDate,
+                requestedEndDate: request.requestedEndDate,
+                status: request.status
+            };
         });
-
-        return {
-            requestId: request._id,
-            reservationId: reservation._id,
-            originalEndDate: request.originalEndDate,
-            requestedEndDate: request.requestedEndDate,
-            status: request.status
-        };
-    } catch (error) {
-        if (error.code === 11000) {
-            throw new CheckoutError(
-                409,
-                'EXTENSION_ALREADY_REQUESTED',
-                'An extension request is already pending.'
-            );
-        }
-
-        throw error;
+    } finally {
+        await session.endSession();
     }
 }
 
@@ -248,6 +260,11 @@ export async function decideExtension(
                     );
                 }
 
+                await notifyInApp(reservation.borrower, {
+                    reservation: reservationId,
+                    message: `Your extension request for reservation ${reservationId} was rejected.`
+                }, session);
+
                 return {
                     requestId: rejected._id,
                     reservationId,
@@ -315,6 +332,12 @@ export async function decideExtension(
                     'The extension request changed during approval.'
                 );
             }
+
+            const date = formatNotificationDate(updatedReservation.endDate);
+            await notifyInApp(reservation.borrower, {
+                reservation: reservationId,
+                message: `Your extension request for reservation ${reservationId} was accepted. Your new return date is ${date}.`
+            }, session);
 
             return {
                 requestId: accepted._id,

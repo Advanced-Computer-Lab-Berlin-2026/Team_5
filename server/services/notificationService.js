@@ -31,6 +31,10 @@ export async function notify(username, { type, message, subject, reservation }) 
     return notification;
 }
 
+export async function notifyInApp(username, { message, reservation }, session) {
+    await Notification.create([{ username, type: 'other', message, reservation }], { session });
+}
+
 // null means send; otherwise the bit after "email skipped for NOT-…, " in the warn line
 function prefsSkipReason(notification, emailPreferences) {
     const category = EMAIL_CATEGORY_BY_TYPE[notification.type];
@@ -75,6 +79,10 @@ async function emailUser(notification, subject) {
 // berlin time, a utc server would show the wrong day for bookings around midnight
 const DATE_FORMAT = { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Berlin' };
 
+export function formatNotificationDate(date) {
+    return date.toLocaleDateString('en-GB', DATE_FORMAT);
+}
+
 // string id, or populated { _id } if a teammate forgot to keep the reservation unpopulated
 function asItemId(value) {
     if (typeof value === 'string') return value;
@@ -90,8 +98,10 @@ async function itemAndDates({ _id, item: itemRef, startDate, endDate }, label) {
         ? await Item.findById(itemId, { name: 1 }, { lean: true })
         : null;
     if (!item) console.warn(`item ${itemId} not found for ${_id}, sending the ${label} without its name`);
-    const format = (date) => date.toLocaleDateString('en-GB', DATE_FORMAT);
-    return { name: item && `"${item.name}"`, dates: `from ${format(startDate)} to ${format(endDate)}` };
+    return {
+        name: item && `"${item.name}"`,
+        dates: `from ${formatNotificationDate(startDate)} to ${formatNotificationDate(endDate)}`
+    };
 }
 
 // each side catches so Promise.all doesn't hide the second failure; about defaults to reservation id
@@ -192,7 +202,7 @@ export async function notifyUpcomingReturn(reservation) {
             return;
         }
         const { name } = await itemAndDates(reservation, 'return reminder');
-        const due = endDate.toLocaleDateString('en-GB', DATE_FORMAT);
+        const due = formatNotificationDate(endDate);
         const details = { type: 'upcoming-return-date', subject: 'Return reminder', reservation: _id };
         // same username twice would race two findOnes and double-create, so self-lend gets one reminder
         if (borrower === lender) {
