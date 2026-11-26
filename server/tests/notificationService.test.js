@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     notify, notifyWishlistItemAvailable, notifyWaitlistItemAvailable, notifyReservationCancelled, notifyReservationConfirmed, notifyReservationRejected,
-    notifyUpcomingReturn, notifyDeliveryStatus, notifyMembershipRenewal
+    notifyUpcomingReturn, notifyDeliveryStatus, notifyInApp, notifyMembershipRenewal
 } from '../services/notificationService.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { env } from '../config/env.js';
