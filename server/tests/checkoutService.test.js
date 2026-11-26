@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MongoClient, MongoServerError } from 'mongodb';
+import { CheckoutError } from '../utils/CheckoutError.js';
 
 // These are unit-test doubles. No MongoDB connection is required.
 const db = vi.hoisted(() => ({
@@ -14,10 +16,16 @@ const db = vi.hoisted(() => ({
   paymentCreate: vi.fn(),
   checkoutFindOne: vi.fn(),
   checkoutCreate: vi.fn(),
+  validatePromoCode: vi.fn(),
+  recordPromoRedemption: vi.fn(),
 }));
 
 vi.mock('mongoose', () => ({
   default: { startSession: db.startSession },
+}));
+vi.mock('../services/promoCodeService.js', () => ({
+  validatePromoCode: db.validatePromoCode,
+  recordPromoRedemption: db.recordPromoRedemption,
 }));
 vi.mock('../models/User.js', () => ({
   User: {
@@ -78,6 +86,8 @@ function checkoutQuery(value) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  db.validatePromoCode.mockReset();
+  db.recordPromoRedemption.mockReset();
 
   session = {
     inTransaction: vi.fn(() => true),
@@ -296,6 +306,8 @@ describe('checkoutWithWallet — SCRUM-424 / SCRUM-428', () => {
       { session },
     );
     expect(session.endSession).toHaveBeenCalledTimes(1);
+    expect(db.validatePromoCode).not.toHaveBeenCalled();
+    expect(db.recordPromoRedemption).not.toHaveBeenCalled();
   });
 
   it('handles multiple items with one total wallet debit', async () => {
@@ -311,6 +323,86 @@ describe('checkoutWithWallet — SCRUM-424 / SCRUM-428', () => {
     expect(db.userFindOneAndUpdate).toHaveBeenCalledTimes(1);
     expect(db.reservationCreate).toHaveBeenCalledTimes(2);
     expect(db.paymentCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('debits the rounded promo total and records one redemption across a wallet retry', async () => {
+    items['ITM-1'].depositAmount = 10.05;
+    borrowList.push({ item: 'ITM-2', ...dates });
+    items['ITM-2'] = {
+      _id: 'ITM-2', owner: 'lender1', archived: false,
+      flagged: false, depositAmount: 20.05,
+    };
+    db.validatePromoCode.mockResolvedValue({ valid: true, code: 'SAVE10', discountPercent: 10 });
+
+    const result = await checkoutWithWallet('member1', 'promo-key', ' save10 ');
+    expect(result).toMatchObject({
+      totalDeposit: 27.08, originalTotal: 30.10, promoCode: 'SAVE10', promoDiscountPercent: 10,
+    });
+    expect(db.validatePromoCode).toHaveBeenCalledWith('SAVE10', 'member1', 10.05, session);
+    expect(db.userFindOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ wallet: { $gte: 27.08 } }),
+      { $inc: { wallet: -27.08 } },
+      { new: true, session },
+    );
+    expect(db.paymentCreate).toHaveBeenNthCalledWith(
+      1, [expect.objectContaining({ amount: 9.04 })], { session },
+    );
+    expect(db.paymentCreate).toHaveBeenNthCalledWith(
+      2, [expect.objectContaining({ amount: 18.04 })], { session },
+    );
+    expect(db.recordPromoRedemption).toHaveBeenCalledWith({
+      checkoutId: result.checkoutId, userId: 'member1', promoCode: 'SAVE10',
+      paymentIds: ['PAY-1', 'PAY-2'], reservationIds: ['RES-1', 'RES-2'], session,
+      pricing: expect.objectContaining({ originalTotal: 30.10, totalDeposit: 27.08 }),
+    });
+
+    db.checkoutFindOne.mockImplementation(() => checkoutQuery({
+      ...db.checkoutCreate.mock.calls[0][0][0],
+      _id: result.checkoutId,
+    }));
+    await expect(checkoutWithWallet('member1', 'promo-key', 'SAVE10')).resolves.toEqual({
+      ...result, replayed: true,
+    });
+    expect(db.userFindOneAndUpdate).toHaveBeenCalledOnce();
+    expect(db.recordPromoRedemption).toHaveBeenCalledOnce();
+  });
+
+  it('aborts without committing when a permanent redemption error follows wallet writes', async () => {
+    // Use the real driver transaction handling with the model calls still stubbed.
+    const driverSession = new MongoClient('mongodb://127.0.0.1:27017').startSession();
+    const abort = vi.spyOn(driverSession, 'abortTransaction');
+    const commit = vi.spyOn(driverSession, 'commitTransaction');
+    db.startSession.mockResolvedValue(driverSession);
+    db.validatePromoCode.mockResolvedValue({ valid: true, discountPercent: 10 });
+    db.recordPromoRedemption.mockRejectedValue(new CheckoutError(
+      409, 'PROMO_USAGE_LIMIT_REACHED', 'No uses remaining.',
+    ));
+
+    await expect(checkoutWithWallet('member1', 'failed-promo', 'SAVE10')).rejects.toMatchObject({
+      code: 'PROMO_USAGE_LIMIT_REACHED',
+    });
+    expect(db.checkoutCreate).toHaveBeenCalledWith(expect.any(Array), { session: driverSession });
+    expect(db.recordPromoRedemption).toHaveBeenCalledOnce();
+    expect(abort).toHaveBeenCalledOnce();
+    expect(commit).not.toHaveBeenCalled();
+    expect(driverSession.hasEnded).toBe(true);
+  });
+
+  it('reruns the wallet transaction on a labelled redemption write conflict', async () => {
+    const driverSession = new MongoClient('mongodb://127.0.0.1:27017').startSession();
+    const abort = vi.spyOn(driverSession, 'abortTransaction');
+    const commit = vi.spyOn(driverSession, 'commitTransaction');
+    const conflict = new MongoServerError({ message: 'Write conflict', code: 112 });
+    conflict.addErrorLabel('TransientTransactionError');
+    db.startSession.mockResolvedValue(driverSession);
+    db.validatePromoCode.mockResolvedValue({ valid: true, discountPercent: 10 });
+    db.recordPromoRedemption.mockRejectedValueOnce(conflict);
+
+    await expect(checkoutWithWallet('member1', 'promo-write-conflict', 'SAVE10')).resolves
+      .toMatchObject({ totalDeposit: 90, promoCode: 'SAVE10' });
+    expect(db.recordPromoRedemption).toHaveBeenCalledTimes(2);
+    expect(abort).toHaveBeenCalledOnce();
+    expect(commit).toHaveBeenCalledOnce();
   });
 
   it('returns saved results on retry without starting another transaction', async () => {

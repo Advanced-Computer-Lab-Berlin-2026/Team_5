@@ -36,7 +36,7 @@ describe('checkout promo pricing', () => {
 
     it('applies one 20% discount across all checkout items', async () => {
         const result = await calculateCheckoutPricing('member1', items, ' save20 ');
-        expect(mocks.validatePromoCode).toHaveBeenCalledWith('SAVE20', 'member1');
+        expect(mocks.validatePromoCode).toHaveBeenCalledWith('SAVE20', 'member1', 50, null);
         expect(result).toMatchObject({
             originalTotal: 150,
             totalDeposit: 120,
@@ -47,15 +47,18 @@ describe('checkout promo pricing', () => {
         expect(result.items.map(item => item.depositAmount)).toEqual([80, 40]);
     });
 
-    it('allocates fractional cents so all items sum to the charged total', async () => {
+    it('sums independently rounded item quotes', async () => {
+        mocks.validatePromoCode.mockResolvedValueOnce({ valid: true, discountPercent: 10 });
+
         const result = await calculateCheckoutPricing('member1', [
-            { depositAmount: 0.01 },
-            { depositAmount: 0.01 },
-            { depositAmount: 0.01 }
-        ], 'SAVE20');
-        expect(result.totalCents).toBe(2);
-        expect(Math.round(result.items.reduce((n, x) => n + x.depositAmount, 0) * 100))
-            .toBe(2);
+            { depositAmount: 10.05 },
+            { depositAmount: 20.05 }
+        ], 'SAVE10');
+
+        expect(result.items.map(item => item.depositAmount)).toEqual([9.04, 18.04]);
+        expect(result.totalDeposit).toBe(27.08);
+        expect(result.totalCents).toBe(2708);
+        expect(result.lowestItemDeposit).toBe(10.05);
     });
 
     it('rejects invalid promo codes and validation responses', async () => {

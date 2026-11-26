@@ -8,7 +8,7 @@ import { User } from '../models/User.js';
 import { Reservation } from '../models/Reservation.js';
 import { lockAndCheckAvailability, removeConflictingBorrowListEntries} from './checkoutService.js';
 import { calculateCheckoutPricing, normalizePromoCode } from './checkoutPricingService.js';
-import { redeemCheckoutPromo, requirePromoRedemptionSupport } from './checkoutPromoRedemption.js';
+import { redeemCheckoutPromo } from './checkoutPromoRedemption.js';
 
 export async function createCardPaymentIntent(userId, idempotencyKey, promoCode = null) {
 
@@ -39,7 +39,6 @@ export async function createCardPaymentIntent(userId, idempotencyKey, promoCode 
         // 3. Retrieve and validate the member's borrow list
         const checkoutItems = await prepareCheckout(userId);
         const pricing = await calculateCheckoutPricing(userId, checkoutItems, requestedPromo);
-        if (pricing.promoCode) requirePromoRedemptionSupport();
 
         // 4. Validate the ACTUAL discounted amount Stripe will charge.
         const amountInCents = pricing.totalCents;
@@ -69,7 +68,8 @@ export async function createCardPaymentIntent(userId, idempotencyKey, promoCode 
                 checkoutItems: pricing.items,
                 promoCode: pricing.promoCode,
                 originalTotal: pricing.originalTotal,
-                promoDiscountPercent: pricing.discountPercent
+                promoDiscountPercent: pricing.discountPercent,
+                promoLowestItemDeposit: pricing.lowestItemDeposit
             });
 
         } catch (error) {
@@ -213,7 +213,6 @@ const UNAVAILABLE_CODES = new Set([
     'ITEM_UNAVAILABLE',
     'ITEM_ALREADY_RESERVED',
     'MEMBER_UNAVAILABLE',
-    // These codes must be used by the teammate for permanent redemption failures.
     'PROMO_EXPIRED',
     'PROMO_USAGE_LIMIT_REACHED',
     'PROMO_NO_LONGER_VALID'
@@ -597,6 +596,12 @@ export async function finalizeCardPayment(paymentIntent) {
                 paymentId: current._id,
                 paymentIds: [current._id],
                 reservationIds: reservations,
+                pricing: {
+                    originalTotal: current.originalTotal,
+                    totalDeposit: current.amount,
+                    discountPercent: current.promoDiscountPercent,
+                    lowestItemDeposit: current.promoLowestItemDeposit
+                },
                 session
             });
 

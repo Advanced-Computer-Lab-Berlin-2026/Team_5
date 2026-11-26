@@ -6,7 +6,7 @@ import { Checkout } from '../models/Checkout.js';
 import mongoose from 'mongoose';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { calculateCheckoutPricing, normalizePromoCode } from './checkoutPricingService.js';
-import { redeemCheckoutPromo, requirePromoRedemptionSupport } from './checkoutPromoRedemption.js';
+import { redeemCheckoutPromo } from './checkoutPromoRedemption.js';
 export function validateBorrowList(borrowList) {
     if (!Array.isArray(borrowList) || borrowList.length === 0) {
         throw new CheckoutError(
@@ -325,10 +325,9 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
             
 
             // 6. Calculate total deposit
-            const pricing = await calculateCheckoutPricing(userId, availableItems, requestedPromo);
+            const pricing = await calculateCheckoutPricing(userId, availableItems, requestedPromo, session);
             const totalDeposit = pricing.totalDeposit;
             const pricedItems = pricing.items;
-            if (pricing.promoCode) requirePromoRedemptionSupport();
 
             if (!Number.isFinite(totalDeposit)) {
                 throw new Error('Invalid total deposit amount.');
@@ -438,6 +437,7 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
                 checkoutId: checkout._id,
                 paymentIds: payments.map(p => p._id),
                 reservationIds: reservations.map(r => r._id),
+                pricing,
                 session
             });
 

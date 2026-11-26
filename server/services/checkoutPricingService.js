@@ -13,28 +13,8 @@ export function normalizePromoCode(promoCode = null) {
     return promoCode.trim().toUpperCase();
 }
 
-export async function calculateCheckoutPricing(userId, checkoutItems, promoCode = null) {
+export async function calculateCheckoutPricing(userId, checkoutItems, promoCode = null, session = null) {
     const normalizedPromo = normalizePromoCode(promoCode);
-    let discountPercent = 0;
-    let validatedCode = null;
-
-    if (normalizedPromo) {
-        const promo = await validatePromoCode(normalizedPromo, userId);
-
-        if (!promo?.valid) {
-            throw new CheckoutError(400, 'INVALID_PROMO_CODE', 'Promo code is not valid.');
-        }
-
-        if (!Number.isFinite(promo.discountPercent) ||
-            promo.discountPercent < 0 || promo.discountPercent > 100) {
-            throw new Error('Invalid discount percentage returned by promo service.');
-        }
-
-        discountPercent = promo.discountPercent;
-        validatedCode = typeof promo.code === 'string'
-            ? normalizePromoCode(promo.code)
-            : normalizedPromo;
-    }
 
     const originalCents = checkoutItems.map(item => {
         if (typeof item.depositAmount !== 'number' || !Number.isFinite(item.depositAmount)) {
@@ -55,29 +35,44 @@ export async function calculateCheckoutPricing(userId, checkoutItems, promoCode 
     if (!Number.isSafeInteger(originalTotalCents)) {
         throw new Error('Checkout total exceeds supported range.');
     }
-    const multiplier = 1 - discountPercent / 100;
-    const totalCents = Math.round(originalTotalCents * multiplier);
-    if (!Number.isSafeInteger(totalCents)) {
-        throw new Error('Discounted checkout total exceeds supported range.');
+
+    let discountPercent = 0;
+    let validatedCode = null;
+    let lowestItemDeposit;
+    let finalCents = originalCents;
+
+    if (normalizedPromo) {
+        lowestItemDeposit = checkoutItems.reduce(
+            (lowest, item) => Math.min(lowest, item.depositAmount),
+            Infinity
+        );
+        const promo = await validatePromoCode(
+            normalizedPromo, userId, lowestItemDeposit, session
+        );
+
+        if (!promo?.valid) {
+            throw new CheckoutError(400, 'INVALID_PROMO_CODE', 'Promo code is not valid.');
+        }
+
+        if (!Number.isFinite(promo.discountPercent) ||
+            promo.discountPercent < 1 || promo.discountPercent > 100) {
+            throw new Error('Invalid discount percentage returned by promo service.');
+        }
+
+        discountPercent = promo.discountPercent;
+        validatedCode = normalizePromoCode(promo.code) ?? normalizedPromo;
+
+        // Round the discount on each item as the promo validation endpoint does.
+        finalCents = checkoutItems.map(({ depositAmount }) => {
+            const discountAmount = Math.round(depositAmount * discountPercent) / 100;
+            return Math.round((depositAmount - discountAmount) * 100);
+        });
     }
 
-    // Allocate the total discount across items, including rounding cents.
-    const exactAmounts = originalCents.map(value => value * multiplier);
-    const allocated = exactAmounts.map(Math.floor);
-    const remaining = totalCents - allocated.reduce((sum, value) => sum + value, 0);
-
-    const order = exactAmounts.map((value, index) => ({
-        index,
-        fraction: value - allocated[index]
-    })).sort((a, b) => b.fraction - a.fraction);
-
-    for (let i = 0; i < remaining; i++) {
-        allocated[order[i].index]++;
-    }
-
+    const totalCents = finalCents.reduce((sum, value) => sum + value, 0);
     const items = checkoutItems.map((item, index) => ({
         ...item,
-        depositAmount: allocated[index] / 100
+        depositAmount: finalCents[index] / 100
     }));
 
     return {
@@ -86,6 +81,7 @@ export async function calculateCheckoutPricing(userId, checkoutItems, promoCode 
         totalDeposit: totalCents / 100,
         totalCents,
         discountPercent,
-        promoCode: validatedCode
+        promoCode: validatedCode,
+        lowestItemDeposit
     };
 }

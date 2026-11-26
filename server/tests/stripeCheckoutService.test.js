@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   refundCreate: vi.fn(),
   refundRetrieve: vi.fn(),
   refundList: vi.fn(),
+  validatePromoCode: vi.fn(),
+  recordPromoRedemption: vi.fn(),
 }));
 
 vi.mock('../config/stripe.js', () => ({
@@ -49,6 +51,10 @@ vi.mock('../models/Reservation.js', () => ({
   Reservation: { create: mocks.reservationCreate },
 }));
 vi.mock('mongoose', () => ({ default: { startSession: mocks.startSession } }));
+vi.mock('../services/promoCodeService.js', () => ({
+  validatePromoCode: mocks.validatePromoCode,
+  recordPromoRedemption: mocks.recordPromoRedemption,
+}));
 vi.mock('../services/checkoutService.js', () => ({
   prepareCheckout: mocks.prepareCheckout,
   lockAndCheckAvailability: mocks.lockAndCheckAvailability,
@@ -96,6 +102,23 @@ const stripeIntent = (overrides = {}) => ({
   amount_received: 15000,
   metadata: { paymentId: 'PAY-1', userId: USER, checkoutKey: KEY },
   client_secret: 'pi_test_123_secret_dummy',
+  ...overrides,
+});
+
+const pendingPromoPayment = () => ({
+  ...pendingPayment(),
+  amount: 135,
+  stripeAmountCents: 13500,
+  promoCode: 'SAVE10',
+  originalTotal: 150,
+  promoDiscountPercent: 10,
+  promoLowestItemDeposit: 50,
+  checkoutItems: checkoutItems.map(item => ({ ...item, depositAmount: item.depositAmount * 0.9 })),
+});
+
+const promoIntent = (overrides = {}) => stripeIntent({
+  amount: 13500,
+  amount_received: 13500,
   ...overrides,
 });
 
@@ -218,6 +241,20 @@ describe('createCardPaymentIntent — SCRUM-431', () => {
       amount: 15000,
       currency: 'eur',
     });
+  });
+
+  it('saves a discounted quote without redeeming when creating the intent', async () => {
+    mocks.validatePromoCode.mockResolvedValue({ valid: true, discountPercent: 10 });
+    mocks.intentCreate.mockResolvedValueOnce(promoIntent({ status: 'requires_payment_method' }));
+
+    await expect(createCardPaymentIntent(USER, KEY, 'save10')).resolves
+      .toMatchObject({ amount: 13500 });
+
+    expect(mocks.paymentCreate).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 135, stripeAmountCents: 13500, promoCode: 'SAVE10',
+      originalTotal: 150, promoDiscountPercent: 10, promoLowestItemDeposit: 50,
+    }));
+    expect(mocks.recordPromoRedemption).not.toHaveBeenCalled();
   });
 
   it('reuses an existing PaymentIntent without rereading the borrow list', async () => {
@@ -343,6 +380,53 @@ describe('finalizeCardPayment — SCRUM-431', () => {
       expect.any(Array), USER, session,
     );
     expect(session.endSession).toHaveBeenCalledOnce();
+    expect(mocks.refundCreate).not.toHaveBeenCalled();
+    expect(mocks.recordPromoRedemption).not.toHaveBeenCalled();
+  });
+
+  it('redeems from saved Stripe pricing once across a successful webhook replay', async () => {
+    currentPayment = pendingPromoPayment();
+
+    const result = await finalizeCardPayment(promoIntent());
+    expect(result).toEqual({ status: 'completed', paymentId: 'PAY-1', reservations: ['RES-1', 'RES-2'] });
+    expect(mocks.recordPromoRedemption).toHaveBeenCalledWith({
+      promoCode: 'SAVE10', userId: USER, paymentId: 'PAY-1',
+      paymentIds: ['PAY-1'], reservationIds: ['RES-1', 'RES-2'], session,
+      pricing: { originalTotal: 150, totalDeposit: 135, discountPercent: 10, lowestItemDeposit: 50 },
+    });
+
+    currentPayment = { ...currentPayment, status: 'completed', reservations: result.reservations };
+    await expect(finalizeCardPayment(promoIntent())).resolves.toEqual(result);
+    expect(mocks.recordPromoRedemption).toHaveBeenCalledOnce();
+    expect(mocks.validatePromoCode).not.toHaveBeenCalled();
+  });
+
+  it.each(['PROMO_EXPIRED', 'PROMO_USAGE_LIMIT_REACHED', 'PROMO_NO_LONGER_VALID'])(
+    'refunds a verified card charge when redemption fails with %s',
+    async (code) => {
+      currentPayment = pendingPromoPayment();
+      mocks.recordPromoRedemption.mockRejectedValue(new CheckoutError(409, code, 'Promo failed.'));
+      mocks.paymentFindOneAndUpdate.mockResolvedValue({ ...currentPayment, status: 'refund_pending' });
+      mocks.refundCreate.mockResolvedValue({ id: 're_test_1', amount: 13500, status: 'succeeded' });
+
+      await expect(finalizeCardPayment(promoIntent())).resolves.toEqual({
+        status: 'refunded', paymentId: 'PAY-1', refundId: 're_test_1',
+      });
+      expect(mocks.recordPromoRedemption).toHaveBeenCalledOnce();
+      expect(mocks.refundCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ payment_intent: 'pi_test_123' }),
+        { idempotencyKey: 'shareshed-unavailable-refund-PAY-1' },
+      );
+    },
+  );
+
+  it('does not redeem a promo for a card intent that has not succeeded', async () => {
+    currentPayment = pendingPromoPayment();
+
+    await expect(finalizeCardPayment(promoIntent({ status: 'requires_payment_method' })))
+      .rejects.toThrow('Stripe payment verification failed.');
+    expect(mocks.recordPromoRedemption).not.toHaveBeenCalled();
+    expect(mocks.paymentUpdateOne).not.toHaveBeenCalled();
     expect(mocks.refundCreate).not.toHaveBeenCalled();
   });
 
