@@ -18,6 +18,9 @@ import householdRoutes from './routes/household.js';
 import waitlistRoutes from './routes/waitlist.js';
 import alternativesRoutes from './routes/alternatives.js';
 import reservationRoutes from './routes/reservations.js';
+import memberReportRoutes from './routes/memberReports.js';
+import promoCodeRoutes from './routes/promoCodes.js';
+import supportTicketRoutes from './routes/supportTickets.js';
 import referralRoutes from './routes/referrals.js';
 import reviewRoutes from './routes/reviews.js';
 import notificationRoutes from './routes/notifications.js';
@@ -57,6 +60,9 @@ app.use('/api/lender/reservations', lenderReservations)
 app.use('/api/items', itemRoutes)
 app.use('/api/alternatives', alternativesRoutes)
 app.use('/api/reservations', reservationRoutes)
+app.use('/api/reports', memberReportRoutes)
+app.use('/api/promo-codes', promoCodeRoutes)
+app.use('/api/support-tickets', supportTicketRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/wishlist', wishlistRoutes)
 app.use('/api/borrow-list', borrowListRoutes)

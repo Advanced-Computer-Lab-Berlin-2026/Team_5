@@ -8,6 +8,9 @@ const promoCodeUsageSchema = new mongoose.Schema(
     code: { type: String, ref: "PromoCode", required: true },
     user: { type: String, ref: "User", required: true },
     reservation: { type: String, ref: "Reservation", required: true },
+    originalDeposit: { type: Number, required: true, min: 0 },
+    discountAmount: { type: Number, required: true, min: 0 },
+    finalDeposit: { type: Number, required: true, min: 0 },
     date: { type: Date, default: Date.now },
   },
   { timestamps: true, collection: "promocode_usage" }
