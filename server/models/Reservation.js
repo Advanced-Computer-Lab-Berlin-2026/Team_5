@@ -63,6 +63,8 @@ const reservationSchema = new mongoose.Schema(
     payment: {
       depositAmount: { type: Number, required: true, min: 0 },
       method: { type: String, enum: ["wallet", "card"], required: true },
+      // Direct reservation creation quotes the deposit without collecting it.
+      depositCollected: { type: Boolean },
       stripePaymentIntentId: { type: String },
       lateFee: { type: Number, default: 0, min: 0 },
     },

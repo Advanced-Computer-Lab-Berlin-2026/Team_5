@@ -53,7 +53,7 @@ async function decideIncomingReservation(req, res, next, decision) {
 
         const approved = decision === 'approved';
         const nextStatus = approved ? 'upcoming' : 'rejected';
-        const refund = reservation.payment.depositAmount;
+        const refund = reservation.payment.depositCollected === false ? 0 : reservation.payment.depositAmount;
         let updated = null;
 
         session = await mongoose.startSession();
@@ -65,7 +65,7 @@ async function decideIncomingReservation(req, res, next, decision) {
             );
             if (!updated) return;
 
-            if (!approved) {
+            if (!approved && refund > 0) {
                 await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
                 await Payment.create([{
                     user: reservation.borrower,
@@ -78,13 +78,16 @@ async function decideIncomingReservation(req, res, next, decision) {
                 }], { session });
             }
 
+            const rejectionMessage = refund > 0
+                ? `Your reservation request was rejected. Your deposit of ${refund} was added to your wallet.`
+                : 'Your reservation request was rejected.';
             await Notification.create([{
                 username: reservation.borrower,
                 reservation: reservation._id,
                 type: 'other',
                 message: approved
                     ? 'Your reservation request was approved.'
-                    : `Your reservation request was rejected. Your deposit of ${refund} was added to your wallet.`,
+                    : rejectionMessage,
             }], { session });
         });
 
@@ -160,7 +163,7 @@ export async function markReturnedGood(req, res, next) {
         const { reservation, status, message } = await findLenderReservation(req.params.id, req.user.id, ['active'], 'be marked as returned');
         if (!reservation) return res.status(status).json({ message });
 
-        const refund = reservation.payment.depositAmount;
+        const refund = reservation.payment.depositCollected === false ? 0 : reservation.payment.depositAmount;
         let updated = null;
 
         session = await mongoose.startSession();
@@ -173,18 +176,21 @@ export async function markReturnedGood(req, res, next) {
             );
             if (!updated) return;
 
-            await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
+            if (refund > 0) {
+                await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
+            }
             await chargeLateFeeForReturn(updated, session);
-            // create() needs an array when options like { session } are passed
-            await Payment.create([{
-                user: reservation.borrower,
-                reservation: reservation._id,
-                type: 'deposit-refund',
-                amount: refund,
-                direction: 'receive',
-                method: 'wallet',
-                description: `Deposit returned for reservation ${reservation._id}`,
-            }], { session });
+            if (refund > 0) {
+                await Payment.create([{
+                    user: reservation.borrower,
+                    reservation: reservation._id,
+                    type: 'deposit-refund',
+                    amount: refund,
+                    direction: 'receive',
+                    method: 'wallet',
+                    description: `Deposit returned for reservation ${reservation._id}`,
+                }], { session });
+            }
             await recalculateTrustScore(reservation.borrower, session);
             await recalculateTrustScore(reservation.lender, session);
             await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
@@ -197,7 +203,9 @@ export async function markReturnedGood(req, res, next) {
                 type: 'other',
                 subject: 'Item returned',
                 reservation: reservation._id,
-                message: `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`,
+                message: refund > 0
+                    ? `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`
+                    : 'The item was returned in good condition.',
             });
             // item is available again for wishlisters (358)
             await notifyWishlistItemAvailable(reservation.item);

@@ -24,6 +24,7 @@ vi.mock('../middleware/auth.js', () => ({
 }));
 
 import stripeRouter from '../routes/stripe.js';
+import mergedApp from '../app.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 
 const app = express();
@@ -60,8 +61,9 @@ describe('POST /api/stripe/payment-intent — SCRUM-431', () => {
   });
 
   it('forwards the promo code to the Stripe checkout service', async () => {
-    const response = await request(app)
+    const response = await request(mergedApp)
       .post(endpoint)
+      .set('Origin', 'http://localhost:3000')
       .set('Idempotency-Key', key)
       .send({ promoCode: 'SAVE20' });
     expect(response.status).toBe(200);

@@ -76,5 +76,9 @@ export const env = {
   nodeEnv: NODE_ENV,
   cloudinaryCloudName: CLOUDINARY_CLOUD_NAME,
   cloudinaryApiKey: CLOUDINARY_API_KEY,
-  cloudinaryApiSecret: CLOUDINARY_API_SECRET
+  cloudinaryApiSecret: CLOUDINARY_API_SECRET,
+  notifySmtpUser: NOTIFY_SMTP_USER,
+  notifySmtpPass: NOTIFY_SMTP_PASS,
+  stripeSecretKey: STRIPE_SECRET_KEY,
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET
 };

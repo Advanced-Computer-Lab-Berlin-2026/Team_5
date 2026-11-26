@@ -4,6 +4,7 @@ import { Reservation } from '../models/Reservation.js';
 import { Payment } from '../models/Payment.js';
 import { Item } from '../models/Item.js';
 import { User } from '../models/User.js';
+import { Notification } from '../models/Notification.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { calculateCancellationRefund } from './cancellationPolicy.js';
 
@@ -39,6 +40,8 @@ async function findOriginalPayment(reservation, session) {
     if (reservation.payment.method === 'wallet') {
         payments = await Payment.find({
             ...common,
+            // Wallet deposit records from before checkout had no status field.
+            status: { $in: ['completed', null] },
             reservation: reservation._id
         }).session(session);
 
@@ -142,8 +145,37 @@ async function getPolicy(reservation, session) {
     };
 }
 
-async function existingResult(reservation, session) {
+async function getRefundAmount(reservation, cancelledBy, cancelledAt, session) {
+    // The lender always gives a full refund.
+    const policy = cancelledBy === 'member'
+        ? await getPolicy(reservation, session)
+        : { freeDays: 0, forfeitPercent: 0 };
+
+    return calculateCancellationRefund({
+        paidDeposit: reservation.payment.depositAmount,
+        cancelledBy,
+        startDate: reservation.startDate,
+        cancelledAt,
+        ...policy
+    });
+}
+
+function cancellationResult(reservation, { refundAmount, refundPaymentId = null, replayed }, borrowerOnly) {
+    return {
+        reservationId: reservation._id,
+        status: 'cancelled',
+        refundAmount,
+        refundPaymentId,
+        replayed,
+        ...(borrowerOnly ? { reservation } : {})
+    };
+}
+
+async function existingResult(reservation, session, borrowerOnly) {
     if (!reservation.cancellationRefundPaymentId) {
+        if (reservation.payment?.depositCollected === false && reservation.cancellationRefundAmount === 0) {
+            return cancellationResult(reservation, { refundAmount: 0, replayed: true }, borrowerOnly);
+        }
         throw new CheckoutError(
             409,
             'ALREADY_CANCELLED',
@@ -174,16 +206,14 @@ async function existingResult(reservation, session) {
         );
     }
 
-    return {
-        reservationId: reservation._id,
-        status: 'cancelled',
+    return cancellationResult(reservation, {
         refundAmount: refund.amount,
         refundPaymentId: refund._id,
         replayed: true
-    };
+    }, borrowerOnly);
 }
 
-export async function cancelReservationWithRefund(reservationId, userId) {
+export async function cancelReservationWithRefund(reservationId, userId, { borrowerOnly = false } = {}) {
     if (!/^RES-[a-zA-Z0-9_-]{1,100}$/.test(reservationId)) {
         throw new CheckoutError(
             400,
@@ -215,17 +245,17 @@ export async function cancelReservationWithRefund(reservationId, userId) {
                     ? 'lender'
                     : null;
 
-            if (!cancelledBy) {
+            if (!cancelledBy || (borrowerOnly && cancelledBy !== 'member')) {
                 throw new CheckoutError(
                     403,
                     'NOT_RESERVATION_PARTICIPANT',
-                    'Only the borrower or lender may cancel.'
+                    borrowerOnly ? 'You can only cancel your own reservations' : 'Only the borrower or lender may cancel.'
                 );
             }
 
             // Repeated requests must not refund twice.
             if (reservation.status === 'cancelled') {
-                return existingResult(reservation, session);
+                return existingResult(reservation, session, borrowerOnly);
             }
 
             const cancelledAt = new Date();
@@ -242,24 +272,14 @@ export async function cancelReservationWithRefund(reservationId, userId) {
                 );
             }
 
-            // Verify the completed wallet or Stripe payment.
-            const originalPayment = await findOriginalPayment(
-                reservation,
-                session
-            );
+            // A direct reservation can be cancelled without refunding its quoted deposit.
+            const originalPayment = reservation.payment?.depositCollected === false
+                ? null
+                : await findOriginalPayment(reservation, session);
 
-            // The lender always gives a full refund.
-            const policy = cancelledBy === 'member'
-                ? await getPolicy(reservation, session)
-                : { freeDays: 0, forfeitPercent: 0 };
-
-            const refundAmount = calculateCancellationRefund({
-                paidDeposit: reservation.payment.depositAmount,
-                cancelledBy,
-                startDate: reservation.startDate,
-                cancelledAt,
-                ...policy
-            });
+            const refundAmount = originalPayment
+                ? await getRefundAmount(reservation, cancelledBy, cancelledAt, session)
+                : 0;
 
             // Atomically change the reservation state.
             const updated = await Reservation.findOneAndUpdate(
@@ -287,6 +307,19 @@ export async function cancelReservationWithRefund(reservationId, userId) {
                     'CANCELLATION_CONFLICT',
                     'Reservation changed during cancellation; retry.'
                 );
+            }
+
+            if (borrowerOnly) {
+                await Notification.create([{
+                    username: reservation.lender,
+                    reservation: reservation._id,
+                    type: 'rejected',
+                    message: `Reservation ${reservation._id} was cancelled by the borrower.`
+                }], { session });
+            }
+
+            if (!originalPayment) {
+                return cancellationResult(updated, { refundAmount, replayed: false }, borrowerOnly);
             }
 
             // Credit the MEMBER, regardless of who cancelled.
@@ -336,13 +369,12 @@ export async function cancelReservationWithRefund(reservationId, userId) {
                 );
             }
 
-            return {
-                reservationId: reservation._id,
-                status: 'cancelled',
+            updated.cancellationRefundPaymentId = refund._id;
+            return cancellationResult(updated, {
                 refundAmount,
                 refundPaymentId: refund._id,
                 replayed: false
-            };
+            }, borrowerOnly);
         });
 
     } catch (error) {
@@ -352,10 +384,10 @@ export async function cancelReservationWithRefund(reservationId, userId) {
 
             if (
                 current &&
-                (current.borrower === userId || current.lender === userId) &&
+                (current.borrower === userId || (!borrowerOnly && current.lender === userId)) &&
                 current.status === 'cancelled'
             ) {
-                return existingResult(current, null);
+                return existingResult(current, null, borrowerOnly);
             }
         }
 

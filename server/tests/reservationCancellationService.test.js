@@ -47,6 +47,10 @@ vi.mock('../models/User.js', () => ({
     }
 }));
 
+vi.mock('../models/Notification.js', () => ({
+    Notification: { create: vi.fn() }
+}));
+
 import { cancelReservationWithRefund } from '../services/reservationCancellationService.js';
 
 const START = new Date('2026-11-25T12:00:00.000Z');
@@ -353,6 +357,19 @@ describe('cancelReservationWithRefund', () => {
             cancelReservationWithRefund('RES-123', 'member-1')
         ).rejects.toThrow('Wallet payment amount mismatch.');
 
+        expect(mocks.userFindOneAndUpdate).not.toHaveBeenCalled();
+        expect(mocks.paymentCreate).not.toHaveBeenCalled();
+    });
+
+    it('requires an original payment for a reservation without an unpaid marker', async () => {
+        mocks.paymentFind.mockReturnValue(query([]));
+
+        await expect(cancelReservationWithRefund('RES-123', 'member-1')).rejects.toMatchObject({
+            statusCode: 409,
+            code: 'PAYMENT_NOT_VERIFIED'
+        });
+
+        expect(mocks.reservationFindOneAndUpdate).not.toHaveBeenCalled();
         expect(mocks.userFindOneAndUpdate).not.toHaveBeenCalled();
         expect(mocks.paymentCreate).not.toHaveBeenCalled();
     });
