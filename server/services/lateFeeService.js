@@ -1,4 +1,3 @@
-
 import { Item } from '../models/Item.js';
 import { User } from '../models/User.js';
 import { Payment } from '../models/Payment.js';
@@ -59,25 +58,21 @@ export async function chargeLateFeeForReturn(reservation, session) {
     });
 
     if (lateFee > 0) {
+        // No balance check: the wallet may go below 0, and the negative balance is what the
+        // borrower still owes (same as damage resolutions). Otherwise a borrower with an empty
+        // wallet would block the return and the reservation would stay active forever.
         const member = await User.findOneAndUpdate(
-            {
-                _id: reservation.borrower,
-                wallet: { $gte: lateFee }
-            },
-            {
-                $inc: { wallet: -lateFee }
-            },
-            {
-                session,
-                new: true
-            }
+            { _id: reservation.borrower },
+            { $inc: { wallet: -lateFee } },
+            { session, new: true }
         );
 
+        // The borrower's account was deleted: roll back instead of logging a fee nobody paid.
         if (!member) {
             throw new CheckoutError(
-                409,
-                'INSUFFICIENT_WALLET',
-                'Member wallet cannot cover the late fee.'
+                404,
+                'BORROWER_NOT_FOUND',
+                `User ${reservation.borrower} not found`
             );
         }
 

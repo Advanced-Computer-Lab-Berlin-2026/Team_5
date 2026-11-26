@@ -159,10 +159,7 @@ describe('SCRUM-468 - Wallet deduction', () => {
         });
 
         expect(mocks.userFindOneAndUpdate).toHaveBeenCalledWith(
-            {
-                _id: 'member-1',
-                wallet: { $gte: 20 }
-            },
+            { _id: 'member-1' },
             {
                 $inc: { wallet: -20 }
             },
@@ -212,7 +209,29 @@ describe('SCRUM-468 - Wallet deduction', () => {
         expect(mocks.paymentCreate).not.toHaveBeenCalled();
     });
 
-    it('rejects payment when the wallet is insufficient', async () => {
+    it('charges the fee even when the wallet is empty, so the wallet goes negative', async () => {
+        mocks.userFindOneAndUpdate.mockResolvedValue({ _id: 'member-1', wallet: -20 });
+
+        const result = await chargeLateFeeForReturn(
+            makeReservation('2026-11-22T00:00:00.000Z'),
+            session
+        );
+
+        expect(result.lateFee).toBe(20);
+        // no { wallet: { $gte } } filter, so the return is never blocked by the balance
+        expect(mocks.userFindOneAndUpdate).toHaveBeenCalledWith(
+            { _id: 'member-1' },
+            { $inc: { wallet: -20 } },
+            { session, new: true }
+        );
+        expect(mocks.paymentCreate).toHaveBeenCalledWith(
+            [expect.objectContaining({ type: 'late-fee', amount: 20, direction: 'deduct' })],
+            { session }
+        );
+        expect(mocks.reservationUpdateOne).toHaveBeenCalled();
+    });
+
+    it('404 and no payment when the borrower account was deleted', async () => {
         mocks.userFindOneAndUpdate.mockResolvedValue(null);
 
         await expect(
@@ -220,9 +239,11 @@ describe('SCRUM-468 - Wallet deduction', () => {
                 makeReservation('2026-11-22T00:00:00.000Z'),
                 session
             )
-        ).rejects.toThrow(
-            'Member wallet cannot cover the late fee.'
-        );
+        ).rejects.toMatchObject({
+            statusCode: 404,
+            code: 'BORROWER_NOT_FOUND',
+            message: 'User member-1 not found'
+        });
 
         expect(mocks.paymentCreate).not.toHaveBeenCalled();
         expect(mocks.reservationUpdateOne).not.toHaveBeenCalled();
