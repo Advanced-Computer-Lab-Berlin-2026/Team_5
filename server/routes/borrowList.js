@@ -1,11 +1,13 @@
 import { Router } from 'express';
-import { addToBorrowList, getBorrowList } from '../controllers/borrowListController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { removeFromBorrowList, addToBorrowList, getBorrowList } from '../controllers/borrowListController.js';
+
+const router = Router();
 
 const requireBorrower = requireRole('member', 'lender');
-const router = Router();
 
 router.get('/', requireAuth, requireBorrower, getBorrowList);
 router.post('/:itemId', requireAuth, requireBorrower, addToBorrowList);
+router.delete('/:itemId', requireAuth, requireBorrower, removeFromBorrowList);
 
 export default router;

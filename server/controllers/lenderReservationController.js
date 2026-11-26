@@ -6,6 +6,8 @@ import { Payment } from '../models/Payment.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js';
+import { recalculateTrustScore } from '../services/trustScoreService.js';
+import { rewardReferralIfEligible } from '../services/referralService.js';
 import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
 
 // Finds the reservation and checks that it belongs to this lender and has one of the allowed statuses.
@@ -99,6 +101,9 @@ export async function markReturnedGood(req, res, next) {
                 method: 'wallet',
                 description: `Deposit returned for reservation ${reservation._id}`,
             }], { session });
+            await recalculateTrustScore(reservation.borrower, session);
+            await recalculateTrustScore(reservation.lender, session);
+            await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
         });
 
         if (!updated) return res.status(409).json({ message: 'Only active reservations can be marked as returned' });
@@ -110,7 +115,7 @@ export async function markReturnedGood(req, res, next) {
                 reservation: reservation._id,
                 message: `The item was returned in good condition. Your deposit of ${refund} was added to your wallet.`,
             });
-            // item is available again for wishlisters (357)
+            // item is available again for wishlisters (358)
             await notifyWishlistItemAvailable(reservation.item);
         });
 
@@ -210,6 +215,9 @@ export async function reportDamage(req, res, next) {
                     message: value.message,
                 },
             }], { session });
+            await recalculateTrustScore(reservation.borrower, session);
+            await recalculateTrustScore(reservation.lender, session);
+            await rewardReferralIfEligible(reservation.borrower, reservation._id, session);
         });
 
         if (!report) {
