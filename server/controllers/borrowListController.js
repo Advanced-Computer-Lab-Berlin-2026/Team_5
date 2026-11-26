@@ -98,6 +98,38 @@ export async function addToBorrowList(req, res, next) {
     }
 }
 
+// PATCH /api/borrow-list/:itemId
+export async function updateBorrowListDates(req, res, next) {
+    const { itemId } = req.params;
+    if (!ITEM_ID_PATTERN.test(itemId)) return res.status(400).json({ message: 'Invalid item id' });
+
+    const { value, message } = readDates(req.body);
+    if (message) return res.status(400).json({ message });
+
+    try {
+        const userId = req.user.id;
+
+        // Checked before the overlap so an item that isn't in the list is always a 404
+        const inList = await User.exists({ _id: userId, 'borrow_list.item': itemId });
+        if (!inList) return res.status(404).json({ message: 'Item not in borrow list' });
+
+        const overlap = await Reservation.findOverlap(itemId, value.startDate, value.endDate);
+        if (overlap) return res.status(409).json({ message: 'Item is not available for these dates' });
+
+        // The positional $ operator only touches the entry the filter matched
+        const result = await User.updateOne(
+            { _id: userId, 'borrow_list.item': itemId },
+            { $set: { 'borrow_list.$.startDate': value.startDate, 'borrow_list.$.endDate': value.endDate } }
+        );
+        if (result.matchedCount === 0) return res.status(404).json({ message: 'Item not in borrow list' });
+
+        const entry = { item: itemId, startDate: value.startDate, endDate: value.endDate };
+        return res.status(200).json({ message: 'Borrow list dates updated', entry });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // GET /api/borrow-list
 export async function getBorrowList(req, res, next) {
     try {
