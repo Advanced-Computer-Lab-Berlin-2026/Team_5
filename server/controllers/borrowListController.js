@@ -1,4 +1,5 @@
-import { User } from '../models/User.js';
+import joi from 'joi';
+import { User, Item, Reservation } from '../models/index.js';
 
 const ITEM_ID_PATTERN = /^ITM-[0-9a-f]{8}$/;
 
@@ -36,11 +37,6 @@ export async function removeFromBorrowList(req, res, next) {
         next(error);
     }
 }
-import joi from 'joi';
-import { User, Item, Reservation } from '../models/index.js';
-
-const ITEM_ID_PATTERN = /^ITM-[0-9a-f]{8}$/;
-
 const ITEM_FIELDS = 'name category photos depositAmount pickup owner archived';
 
 const addToBorrowListSchema = joi.object({

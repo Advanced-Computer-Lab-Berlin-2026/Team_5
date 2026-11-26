@@ -8,6 +8,6 @@ const requireBorrower = requireRole('member', 'lender');
 
 router.get('/', requireAuth, requireBorrower, getBorrowList);
 router.post('/:itemId', requireAuth, requireBorrower, addToBorrowList);
-router.delete('/:itemId', requireAuth, requireRole('member', 'lender'), removeFromBorrowList);
+router.delete('/:itemId', requireAuth, requireBorrower, removeFromBorrowList);
 
 export default router;
