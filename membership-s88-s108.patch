@@ -1,0 +1,835 @@
+diff --git a/README.md b/README.md
+index 2e3a9c5..c397b0c 100644
+--- a/README.md
++++ b/README.md
+@@ -35,6 +35,7 @@ Keep secrets in `.env` and out of Git. Update `.env.sample` with placeholders wh
+ | `NOTIFY_SMTP_USER` | App Gmail address for password-reset and notification mail (optional for boot; required to actually send mail). |
+ | `NOTIFY_SMTP_PASS` | App Gmail app password for the same. |
+ | `RETURN_REMINDER_CRON` | Optional cron expression for the return-reminder job (default `0 9 * * *`, 09:00 Europe/Berlin). |
++| `RENEWAL_REMINDER_CRON` | Optional cron expression for the membership renewal-reminder job (default `0 9 * * *`, 09:00 Europe/Berlin). |
+ | `ENABLE_JOBS` | Optional; set to `false` to disable in-process cron jobs. Jobs never start when `NODE_ENV=test`. |
+ 
+ Required boot values must be nonempty. Configuration is captured at module load;
+@@ -152,7 +153,7 @@ chat, and item manuals are documented in the same table.
+ | `GET /api/admin/lender-requests/:username/documents/:slot` | None; admin only; optional `?download=true` | Redirects to a signed Cloudinary link to view or download the document. |
+ | `PATCH /api/admin/lender-requests/:username/decision` | `decision` (`accept` or `reject`); `reason` required when rejecting | Accept sets the role to `lender` and status `accepted`; reject sets status `rejected` and saves the reason in `verification.note`. |
+ | `GET /api/items/:id/calendar` | None; login required | Returns `{ reservations: [{ startDate, endDate }] }` for the item, sorted by start date. Only `pending`, `upcoming` and `active` reservations are included, and only their dates (no borrower or other details). `400` for an invalid item id; `404` if the item is missing, flagged, or its lender is suspended. |
+-| `POST /api/reservations` | `itemId` (`ITM-` id), `startDate`, `endDate` (ISO dates, start must be in the future and before end); optional `deliveryFlag` (boolean); `deliveryAddress` required when `deliveryFlag` is true; CSRF origin required | Creates a reservation for the signed-in member, lender or admin; returns `201` with `{ message, reservationId }`. Deposit is taken from the item and the payment method defaults to `wallet`; when delivery is requested the item's delivery fee is stored. `400` for missing or invalid fields, past dates, a duration over the item's `maxDurationDays` (default 30), reserving your own item, or delivery on an item that does not offer it. `403` if the borrower's trust score is below the item's minimum or the lender is suspended. `404` if the item is missing, archived or flagged. `409` if the dates overlap an existing reservation. |
++| `POST /api/reservations` | `itemId` (`ITM-` id), `startDate`, `endDate` (ISO dates, start must be in the future and before end); optional `deliveryFlag` (boolean); `deliveryAddress` required when `deliveryFlag` is true; CSRF origin required | Creates a reservation for the signed-in member, lender or admin; returns `201` with `{ message, reservationId }`. Deposit is taken from the item, reduced by the best membership discount (the borrower's own tier or an accepted household member's tier, see Membership below), and the payment method defaults to `wallet`; the reply also has `depositAmount` and `discountPercent`; when delivery is requested the item's delivery fee is stored. `400` for missing or invalid fields, past dates, a duration over the item's `maxDurationDays` (default 30), reserving your own item, or delivery on an item that does not offer it. `403` if the borrower's trust score is below the item's minimum or the lender is suspended. `404` if the item is missing, archived or flagged. `409` if the dates overlap an existing reservation. `403` also when the borrower already has as many open (pending, upcoming or active) reservations as their tier allows. |
+ | `GET /api/notifications` | None; login required; optional `?page=` (default 1) and `?limit=` (default 10, max 50) | Returns the caller's in-app notifications newest first, with pagination. |
+ | `PATCH /api/notifications/:id/read` | None; login required; CSRF origin required | Marks that notification as read for the caller only; another user's id is `404`. |
+ | `GET /api/settings/email-preferences` | None; member or lender cookie | Returns `{ emailPreferences: { reservations, promotions, communityNotices } }` (missing fields default to on). |
+@@ -201,6 +202,25 @@ returns the user to Basic, it needs no extra stored state or scheduled job to
+ downgrade later, and the deposit discount at reservation time (S88) then only
+ has to read `membership.tier` with no "cancelled but still active" case.
+ 
++**Deposit discount (S88).** When a reservation is made, the borrower's deposit is
++reduced by the best `deposit_discount` (percent, stored in the `MembershipTier`
++collection) among their own tier and the tiers of their accepted household
++members. Household members never need their own subscription, and the
++subscriber's discount reaches them through an accepted household link in either
++direction. The reduced amount is stored in `payment.depositAmount` (so refunds
++match what was held) and the percentage in `payment.discountPercent`. A paid tier
++only counts until its `renewalDate`; after that the user is treated as Basic.
++
++**Open reservations by tier (S88).** Pending, upcoming and active reservations
++count. Basic can have 2 at a time, Plus 3 and Premium 5 (only the Premium number
++comes from the ticket; the others are in `MAX_CONCURRENT_RESERVATIONS` in
++`server/services/membershipService.js`).
++
++**Renewal reminder (S108).** A daily job (09:00 Europe/Berlin, see
++`RENEWAL_REMINDER_CRON`) finds Plus and Premium members whose `renewalDate` is 7
++days away and saves a `renewal-reminder` notification, with an email unless they
++turned off the reservations switch. It never sends the same reminder twice.
++
+ A daily return-reminder job (Europe/Berlin) can create
+ `upcoming-return-date` notifications for active loans due the next calendar
+ day. Control it with `RETURN_REMINDER_CRON` and `ENABLE_JOBS`. Reservation
+diff --git a/server/controllers/reservationController.js b/server/controllers/reservationController.js
+index cfe3d1a..c5476b7 100644
+--- a/server/controllers/reservationController.js
++++ b/server/controllers/reservationController.js
+@@ -6,6 +6,7 @@ import { User } from '../models/User.js';
+ import { Payment } from '../models/Payment.js';
+ import { Notification } from '../models/Notification.js';
+ import { notifyDeliveryStatus } from '../services/notificationService.js';
++import { applyDiscount, getDepositDiscountPercent, hasReachedReservationLimit } from '../services/membershipService.js';
+ 
+ const RESERVATION_ID_PATTERN = /^RES-[0-9a-f]{8}$/;
+ const DELIVERY_STATUSES = ['preparing', 'out-for-delivery', 'delivered'];
+@@ -308,13 +309,26 @@ export async function createReservation(req, res, next) {
+             return res.status(400).json({ message: 'Start date cannot be in the past' });
+         }
+ 
++        // SCRUM-495 / 496: the borrower's own tier or an accepted household member's tier lowers the deposit
++        const discountPercent = await getDepositDiscountPercent(borrower);
++        const depositAmount = applyDiscount(item.depositAmount || 0, discountPercent);
++
+         let conflict = false;
++        let limit = null;
+         let reservation;
+ 
+         const session = await mongoose.startSession();
+         try {
+             await session.withTransaction(async () => {
+                 conflict = false;
++                limit = null;
++
++                // SCRUM-497: the tier decides how many reservations can be open at once
++                const limitCheck = await hasReachedReservationLimit(borrower, session);
++                if (limitCheck.reached) {
++                    limit = limitCheck;
++                    return;
++                }
+ 
+                 // write to item and reservation in a transaction to ensure consistency
+                 await Item.updateOne({ _id: itemId }, { $set: { updatedAt: new Date() } }, { session });
+@@ -332,7 +346,8 @@ export async function createReservation(req, res, next) {
+                     borrower: req.user.id,
+                     lender: item.owner,
+                     payment: {
+-                        depositAmount: item.depositAmount || 0,
++                        depositAmount,
++                        discountPercent,
+                         method: 'wallet', // default to wallet, can be changed later
+                     },
+                     startDate: start,
+@@ -346,11 +361,22 @@ export async function createReservation(req, res, next) {
+             await session.endSession();
+         }
+ 
++        if (limit) {
++            return res.status(403).json({
++                message: `Your ${limit.tier} membership allows up to ${limit.limit} open reservations at a time`
++            });
++        }
++
+         if (conflict) {
+             return res.status(409).json({ message: 'Item is already reserved for the selected dates' });
+         }
+ 
+-        return res.status(201).json({ message: 'Reservation created successfully', reservationId: reservation._id });
++        return res.status(201).json({
++            message: 'Reservation created successfully',
++            reservationId: reservation._id,
++            depositAmount,
++            discountPercent
++        });
+     } catch (error) {
+         next(error);
+     }
+diff --git a/server/jobs/renewalReminderJob.js b/server/jobs/renewalReminderJob.js
+new file mode 100644
+index 0000000..5c9eb6c
+--- /dev/null
++++ b/server/jobs/renewalReminderJob.js
+@@ -0,0 +1,45 @@
++import { User } from '../models/User.js';
++import { PAID_TIERS } from '../services/membershipService.js';
++import { notifyMembershipRenewal } from '../services/notificationService.js';
++import { berlinYmd } from './returnReminderJob.js';
++
++const BERLIN = 'Europe/Berlin';
++
++// how many days before the renewal date the member is reminded
++export const RENEWAL_REMINDER_DAYS = 7;
++
++// same civil-day trick as the return reminder, so a dst change can't skip or double a date
++export function berlinYmdPlusDays(days, now = new Date()) {
++    const [year, month, day] = berlinYmd(now).split('-').map(Number);
++    return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
++}
++
++// SCRUM-387: paid members whose renewalDate falls on the berlin day 7 days from now; notify skips members already reminded
++export async function runRenewalReminderJob(now = new Date()) {
++    const renewalYmd = berlinYmdPlusDays(RENEWAL_REMINDER_DAYS, now);
++
++    const users = await User.find(
++        {
++            'membership.tier': { $in: PAID_TIERS },
++            $expr: {
++                $eq: [
++                    { $dateToString: { format: '%Y-%m-%d', date: '$membership.renewalDate', timezone: BERLIN } },
++                    renewalYmd
++                ]
++            }
++        },
++        { _id: 1, 'membership.tier': 1, 'membership.renewalDate': 1 },
++        { lean: true }
++    );
++
++    for (const user of users) {
++        // the helper catches its own errors, the catch keeps one bad user from stopping the rest
++        try {
++            await notifyMembershipRenewal(user);
++        } catch (error) {
++            console.error(`renewal reminder failed for ${user._id}`, error);
++        }
++    }
++
++    return { renewalYmd, count: users.length };
++}
+diff --git a/server/jobs/scheduler.js b/server/jobs/scheduler.js
+index a1351f7..604a576 100644
+--- a/server/jobs/scheduler.js
++++ b/server/jobs/scheduler.js
+@@ -1,8 +1,10 @@
+ import cron from 'node-cron';
+ import { env } from '../config/env.js';
+ import { runReturnReminderJob } from './returnReminderJob.js';
++import { runRenewalReminderJob } from './renewalReminderJob.js';
+ 
+ export const DEFAULT_RETURN_REMINDER_CRON = '0 9 * * *';
++export const DEFAULT_RENEWAL_REMINDER_CRON = '0 9 * * *';
+ const BERLIN = 'Europe/Berlin';
+ 
+ // SCRUM-469: in-process runner; vitest sets NODE_ENV=test so we never leave a live timer hanging
+@@ -14,19 +16,30 @@ export function shouldStartJobs({ nodeEnv = env.nodeEnv, enableJobs = process.en
+ export function startScheduler({
+     schedule = cron.schedule,
+     expression = process.env.RETURN_REMINDER_CRON || DEFAULT_RETURN_REMINDER_CRON,
+-    runJob = runReturnReminderJob
++    runJob = runReturnReminderJob,
++    renewalExpression = process.env.RENEWAL_REMINDER_CRON || DEFAULT_RENEWAL_REMINDER_CRON,
++    runRenewalJob = runRenewalReminderJob
+ } = {}) {
+     if (!shouldStartJobs()) return null;
+ 
+     // bad RETURN_REMINDER_CRON would throw here — don't take down the api after listen
+     try {
+-        return schedule(
++        const returnTask = schedule(
+             expression,
+             () => {
+                 runJob().catch((error) => console.error('return reminder job failed', error));
+             },
+             { timezone: BERLIN }
+         );
++        // SCRUM-387: membership renewal reminders run on their own schedule
++        schedule(
++            renewalExpression,
++            () => {
++                runRenewalJob().catch((error) => console.error('renewal reminder job failed', error));
++            },
++            { timezone: BERLIN }
++        );
++        return returnTask;
+     } catch (error) {
+         console.error('return reminder scheduler failed to start', error);
+         return null;
+diff --git a/server/models/Reservation.js b/server/models/Reservation.js
+index 588984c..325f2b4 100644
+--- a/server/models/Reservation.js
++++ b/server/models/Reservation.js
+@@ -45,7 +45,8 @@ const reservationSchema = new mongoose.Schema(
+ 
+     // ---- group: payment ----
+     payment: {
+-      depositAmount: { type: Number, required: true, min: 0 },
++      depositAmount: { type: Number, required: true, min: 0 }, // already reduced by the membership discount
++      discountPercent: { type: Number, default: 0, min: 0, max: 100 }, // SCRUM-495: the membership discount that was applied
+       method: { type: String, enum: ["wallet", "card"], required: true },
+       stripePaymentIntentId: { type: String },
+       lateFee: { type: Number, default: 0, min: 0 },
+diff --git a/server/services/membershipService.js b/server/services/membershipService.js
+new file mode 100644
+index 0000000..8555b3b
+--- /dev/null
++++ b/server/services/membershipService.js
+@@ -0,0 +1,55 @@
++import { User } from '../models/User.js';
++import { MembershipTier } from '../models/MembershipTier.js';
++import { FriendLink } from '../models/FriendLink.js';
++import { Reservation } from '../models/Reservation.js';
++
++export const PAID_TIERS = ['Plus', 'Premium'];
++
++// SCRUM-497: how many reservations a member can have open (pending, upcoming or active) at once.
++// Only Premium (5) comes from the ticket; Basic and Plus are our choice, change them here.
++export const MAX_CONCURRENT_RESERVATIONS = { Basic: 2, Plus: 3, Premium: 5 };
++const OPEN_STATUSES = ['pending', 'upcoming', 'active'];
++
++// A paid tier counts only until its renewal date. Older users have no renewalDate, so they count as active.
++export function activeTier(membership, now = new Date()) {
++    const tier = membership?.tier;
++    if (!PAID_TIERS.includes(tier)) return 'Basic';
++    if (membership.renewalDate && new Date(membership.renewalDate) <= now) return 'Basic';
++    return tier;
++}
++
++// SCRUM-495 / 496: the best deposit discount (in %) the borrower gets, from their own tier or from an accepted household member's tier
++export async function getDepositDiscountPercent(borrower, now = new Date()) {
++    const tierNames = new Set([activeTier(borrower.membership, now)]);
++
++    const links = await FriendLink.find(
++        { status: 'accepted', $or: [{ requester: borrower._id }, { recipient: borrower._id }] },
++        { requester: 1, recipient: 1 }
++    ).lean();
++
++    if (links.length > 0) {
++        const householdIds = links.map((link) => (link.requester === borrower._id ? link.recipient : link.requester));
++        const household = await User.find({ _id: { $in: householdIds } }, { membership: 1 }).lean();
++        for (const member of household) tierNames.add(activeTier(member.membership, now));
++    }
++
++    // the percentages live in the MembershipTier collection, so an admin can change them without a code change
++    const tiers = await MembershipTier.find({ _id: { $in: [...tierNames] } }).lean();
++    return Math.max(0, ...tiers.map((tier) => tier.deposit_discount ?? 0));
++}
++
++// the deposit after the discount, rounded to 2 decimals
++export function applyDiscount(deposit, percent) {
++    return Math.round(deposit * (100 - percent)) / 100;
++}
++
++// SCRUM-497: true when the borrower already has as many open reservations as their tier allows
++export async function hasReachedReservationLimit(borrower, session, now = new Date()) {
++    const tier = activeTier(borrower.membership, now);
++    const limit = MAX_CONCURRENT_RESERVATIONS[tier];
++    const open = await Reservation.countDocuments(
++        { borrower: borrower._id, status: { $in: OPEN_STATUSES } },
++        { session }
++    );
++    return { reached: open >= limit, limit, tier };
++}
+diff --git a/server/services/notificationService.js b/server/services/notificationService.js
+index 2e1ded6..d1cce5b 100644
+--- a/server/services/notificationService.js
++++ b/server/services/notificationService.js
+@@ -306,3 +306,30 @@ export async function notifyWaitlistItemAvailable(itemRef) {
+         console.error(`failed to send the waitlist alerts for ${itemId}`, error);
+     }
+ }
++
++// SCRUM-387: daily job calls this for each paid member whose renewal date is 7 berlin days away
++// the message names the renewal date, so findOne on it stops a second run on the same day from sending it twice
++export async function notifyMembershipRenewal(user) {
++    try {
++        const { _id, membership } = user;
++        if (!membership?.renewalDate) {
++            console.error(`renewal reminder skipped for ${_id}, renewalDate is missing`);
++            return;
++        }
++        const renews = membership.renewalDate.toLocaleDateString('en-GB', DATE_FORMAT);
++        const details = {
++            type: 'renewal-reminder',
++            subject: 'Your membership is about to expire',
++            message: `Your ${membership.tier} membership ends on ${renews}. Renew it before then to keep your benefits`
++        };
++        const already = await Notification.findOne(
++            { username: _id, type: details.type, message: details.message },
++            { _id: 1 },
++            { lean: true }
++        );
++        if (already) return;
++        await notifyOrLog(_id, 'renewal reminder', details, _id);
++    } catch (error) {
++        console.error(`failed to send the renewal reminder for ${user?._id}`, error);
++    }
++}
+diff --git a/server/tests/createReservation.test.js b/server/tests/createReservation.test.js
+index e8cce7f..05e0adb 100644
+--- a/server/tests/createReservation.test.js
++++ b/server/tests/createReservation.test.js
+@@ -5,6 +5,7 @@ import { User } from "../models/User.js";
+ import { Item } from "../models/Item.js";
+ import { requireAuth } from "../middleware/auth.js";
+ import { Reservation } from "../models/Reservation.js";
++import { getDepositDiscountPercent, hasReachedReservationLimit } from "../services/membershipService.js";
+ import mongoose from "mongoose";
+ 
+ vi.mock('../models/User.js', () => ({
+@@ -21,6 +22,13 @@ vi.mock('../models/Reservation.js', () => {
+     return { Reservation };
+ });
+ 
++// the membership lookups have their own tests (membershipService.test.js); keep the pure helpers real
++vi.mock('../services/membershipService.js', async (importOriginal) => ({
++    ...(await importOriginal()),
++    getDepositDiscountPercent: vi.fn(),
++    hasReachedReservationLimit: vi.fn()
++}));
++
+ // replace only requireAuth, keep the other exports of the file
+ vi.mock('../middleware/auth.js', async (importOriginal) => ({
+     ...(await importOriginal()),
+@@ -87,6 +95,10 @@ beforeEach(() => {
+ 
+     Reservation.findOverlap.mockResolvedValue(null);
+ 
++    // baseline: no membership discount and no reservation limit reached
++    getDepositDiscountPercent.mockResolvedValue(0);
++    hasReachedReservationLimit.mockResolvedValue({ reached: false, limit: 2, tier: 'Basic' });
++
+     Reservation.mockImplementation(function () {
+         this._id = 'RES-12345678';
+         this.save = vi.fn().mockResolvedValue(this);
+@@ -230,4 +242,52 @@ describe('POST /api/reservations', () => {
+             fee: 30
+         });
+     });
++    // ---- SCRUM-382 family: S88 membership discount and reservation limit ----
++    it('stores the full deposit and a 0% discount for a Basic member', async () => {
++        const response = await post();
++
++        expect(response.status).toBe(201);
++        expect(Reservation.mock.calls[0][0].payment).toEqual({ depositAmount: 100, discountPercent: 0, method: 'wallet' });
++        expect(response.body).toMatchObject({ depositAmount: 100, discountPercent: 0 });
++    });
++
++    it('lowers the deposit by the membership discount', async () => {
++        getDepositDiscountPercent.mockResolvedValue(10);
++
++        const response = await post();
++
++        expect(response.status).toBe(201);
++        expect(Reservation.mock.calls[0][0].payment.depositAmount).toBe(90);
++        expect(Reservation.mock.calls[0][0].payment.discountPercent).toBe(10);
++        expect(response.body).toMatchObject({ depositAmount: 90, discountPercent: 10 });
++        // the borrower document is what the discount is worked out from
++        expect(getDepositDiscountPercent.mock.calls[0][0]).toMatchObject({ _id: 'member123' });
++    });
++
++    it('rounds the discounted deposit to 2 decimals', async () => {
++        getDepositDiscountPercent.mockResolvedValue(25);
++        Item.findOne.mockResolvedValue(makeItem({ depositAmount: 33.33 }));
++
++        const response = await post();
++
++        expect(response.body.depositAmount).toBe(25);
++    });
++
++    it('returns 403 and creates nothing when the tier limit is reached', async () => {
++        hasReachedReservationLimit.mockResolvedValue({ reached: true, limit: 2, tier: 'Basic' });
++
++        const response = await post();
++
++        expect(response.status).toBe(403);
++        expect(response.body.message).toBe('Your Basic membership allows up to 2 open reservations at a time');
++        expect(Reservation).not.toHaveBeenCalled();
++        expect(Item.updateOne).not.toHaveBeenCalled();
++        expect(session.endSession).toHaveBeenCalled();
++    });
++
++    it('checks the limit inside the transaction session', async () => {
++        await post();
++
++        expect(hasReachedReservationLimit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ _id: 'member123' }), session);
++    });
+ });
+\ No newline at end of file
+diff --git a/server/tests/membershipService.test.js b/server/tests/membershipService.test.js
+new file mode 100644
+index 0000000..e4741bf
+--- /dev/null
++++ b/server/tests/membershipService.test.js
+@@ -0,0 +1,181 @@
++import { beforeEach, describe, expect, it, vi } from "vitest";
++import {
++    MAX_CONCURRENT_RESERVATIONS,
++    activeTier,
++    applyDiscount,
++    getDepositDiscountPercent,
++    hasReachedReservationLimit
++} from "../services/membershipService.js";
++import { User } from "../models/User.js";
++import { MembershipTier } from "../models/MembershipTier.js";
++import { FriendLink } from "../models/FriendLink.js";
++import { Reservation } from "../models/Reservation.js";
++
++vi.mock('../models/User.js', () => ({ User: { find: vi.fn() } }));
++vi.mock('../models/MembershipTier.js', () => ({ MembershipTier: { find: vi.fn() } }));
++vi.mock('../models/FriendLink.js', () => ({ FriendLink: { find: vi.fn() } }));
++vi.mock('../models/Reservation.js', () => ({ Reservation: { countDocuments: vi.fn() } }));
++
++const NOW = new Date('2026-11-26T12:00:00.000Z');
++const FUTURE = new Date('2027-06-01T00:00:00.000Z');
++const PAST = new Date('2026-06-01T00:00:00.000Z');
++
++const tierRows = [
++    { _id: 'Basic', deposit_discount: 0 },
++    { _id: 'Plus', deposit_discount: 10 },
++    { _id: 'Premium', deposit_discount: 25 }
++];
++
++// find(...).lean() resolves to the rows; the tier lookup only returns the tiers it was asked for
++function fakeFind(rows) {
++    return { lean: vi.fn().mockResolvedValue(rows) };
++}
++
++function borrowerOn(tier, renewalDate) {
++    return { _id: 'tata', membership: { tier, renewalDate } };
++}
++
++beforeEach(() => {
++    vi.resetAllMocks();
++
++    FriendLink.find.mockReturnValue(fakeFind([]));
++    User.find.mockReturnValue(fakeFind([]));
++    MembershipTier.find.mockImplementation((filter) =>
++        fakeFind(tierRows.filter((row) => filter._id.$in.includes(row._id)))
++    );
++    Reservation.countDocuments.mockResolvedValue(0);
++});
++
++describe('activeTier', () => {
++    it.each([
++        ['Basic', undefined, 'Basic'],
++        ['Plus', FUTURE, 'Plus'],
++        ['Premium', FUTURE, 'Premium'],
++        ['Plus', undefined, 'Plus'],
++        ['Plus', null, 'Plus'],
++        ['Plus', PAST, 'Basic'],
++        ['Premium', NOW, 'Basic'],
++        ['Gold', FUTURE, 'Basic'],
++        [undefined, undefined, 'Basic']
++    ])('%s with renewal %s counts as %s', (tier, renewalDate, expected) => {
++        expect(activeTier({ tier, renewalDate }, NOW)).toBe(expected);
++    });
++
++    it('treats a missing membership as Basic', () => {
++        expect(activeTier(undefined, NOW)).toBe('Basic');
++    });
++});
++
++describe('applyDiscount', () => {
++    it.each([
++        [100, 0, 100],
++        [100, 10, 90],
++        [100, 25, 75],
++        [100, 100, 0],
++        [0, 25, 0],
++        [33.33, 25, 25]
++    ])('deposit %s with %s%% off is %s', (deposit, percent, expected) => {
++        expect(applyDiscount(deposit, percent)).toBe(expected);
++    });
++});
++
++describe('getDepositDiscountPercent', () => {
++    it('gives 0 to a Basic member with no household', async () => {
++        expect(await getDepositDiscountPercent(borrowerOn('Basic'), NOW)).toBe(0);
++        // no household means no user lookup
++        expect(User.find).not.toHaveBeenCalled();
++    });
++
++    it.each([['Plus', 10], ['Premium', 25]])('uses the %s tier discount from the database', async (tier, expected) => {
++        expect(await getDepositDiscountPercent(borrowerOn(tier, FUTURE), NOW)).toBe(expected);
++    });
++
++    it('reads the percentage from the database, not from a fixed number', async () => {
++        MembershipTier.find.mockReturnValue(fakeFind([{ _id: 'Plus', deposit_discount: 15 }]));
++
++        expect(await getDepositDiscountPercent(borrowerOn('Plus', FUTURE), NOW)).toBe(15);
++    });
++
++    it('gives 0 when the paid tier has expired', async () => {
++        expect(await getDepositDiscountPercent(borrowerOn('Premium', PAST), NOW)).toBe(0);
++    });
++
++    it('gives a Basic member the discount of an accepted household member, whoever sent the request', async () => {
++        FriendLink.find.mockReturnValue(fakeFind([
++            { requester: 'tata', recipient: 'mom' },
++            { requester: 'sis', recipient: 'tata' }
++        ]));
++        User.find.mockReturnValue(fakeFind([
++            { _id: 'mom', membership: { tier: 'Plus', renewalDate: FUTURE } },
++            { _id: 'sis', membership: { tier: 'Basic' } }
++        ]));
++
++        expect(await getDepositDiscountPercent(borrowerOn('Basic'), NOW)).toBe(10);
++
++        expect(FriendLink.find.mock.calls[0][0]).toEqual({
++            status: 'accepted',
++            $or: [{ requester: 'tata' }, { recipient: 'tata' }]
++        });
++        expect(User.find.mock.calls[0][0]).toEqual({ _id: { $in: ['mom', 'sis'] } });
++    });
++
++    it('takes the best discount between the own tier and the household', async () => {
++        FriendLink.find.mockReturnValue(fakeFind([{ requester: 'tata', recipient: 'mom' }]));
++        User.find.mockReturnValue(fakeFind([{ _id: 'mom', membership: { tier: 'Premium', renewalDate: FUTURE } }]));
++
++        expect(await getDepositDiscountPercent(borrowerOn('Plus', FUTURE), NOW)).toBe(25);
++    });
++
++    it('ignores a household member whose subscription has expired', async () => {
++        FriendLink.find.mockReturnValue(fakeFind([{ requester: 'tata', recipient: 'mom' }]));
++        User.find.mockReturnValue(fakeFind([{ _id: 'mom', membership: { tier: 'Premium', renewalDate: PAST } }]));
++
++        expect(await getDepositDiscountPercent(borrowerOn('Basic'), NOW)).toBe(0);
++    });
++
++    it('only looks at accepted links', async () => {
++        await getDepositDiscountPercent(borrowerOn('Basic'), NOW);
++
++        expect(FriendLink.find.mock.calls[0][0].status).toBe('accepted');
++    });
++});
++
++describe('hasReachedReservationLimit', () => {
++    it('has the limits we chose, with Premium at 5 as the ticket says', () => {
++        expect(MAX_CONCURRENT_RESERVATIONS).toEqual({ Basic: 2, Plus: 3, Premium: 5 });
++    });
++
++    it.each([
++        ['Basic', 1, false, 2],
++        ['Basic', 2, true, 2],
++        ['Plus', 2, false, 3],
++        ['Plus', 3, true, 3],
++        ['Premium', 4, false, 5],
++        ['Premium', 5, true, 5]
++    ])('%s with %s open reservations: reached = %s (limit %s)', async (tier, open, reached, limit) => {
++        Reservation.countDocuments.mockResolvedValue(open);
++
++        const result = await hasReachedReservationLimit(borrowerOn(tier, FUTURE), undefined, NOW);
++
++        expect(result).toEqual({ reached, limit, tier });
++    });
++
++    it('uses the Basic limit once a paid tier has expired', async () => {
++        Reservation.countDocuments.mockResolvedValue(2);
++
++        const result = await hasReachedReservationLimit(borrowerOn('Premium', PAST), undefined, NOW);
++
++        expect(result).toEqual({ reached: true, limit: 2, tier: 'Basic' });
++    });
++
++    it('counts only the borrower\'s pending, upcoming and active reservations, inside the session', async () => {
++        const session = { id: 'session' };
++
++        await hasReachedReservationLimit(borrowerOn('Basic'), session, NOW);
++
++        expect(Reservation.countDocuments).toHaveBeenCalledExactlyOnceWith(
++            { borrower: 'tata', status: { $in: ['pending', 'upcoming', 'active'] } },
++            { session }
++        );
++    });
++});
+diff --git a/server/tests/notificationService.test.js b/server/tests/notificationService.test.js
+index b186913..84d9a66 100644
+--- a/server/tests/notificationService.test.js
++++ b/server/tests/notificationService.test.js
+@@ -1,7 +1,7 @@
+ import { beforeEach, describe, expect, it, vi } from 'vitest';
+ import {
+     notify, notifyWishlistItemAvailable, notifyWaitlistItemAvailable, notifyReservationCancelled, notifyReservationConfirmed, notifyReservationRejected,
+-    notifyUpcomingReturn, notifyDeliveryStatus
++    notifyUpcomingReturn, notifyDeliveryStatus, notifyMembershipRenewal
+ } from '../services/notificationService.js';
+ import { sendNotificationEmail } from '../services/emailService.js';
+ import { env } from '../config/env.js';
+@@ -699,3 +699,45 @@ describe('notifyUpcomingReturn', () => {
+         );
+     });
+ });
++
++
++describe('notifyMembershipRenewal', () => {
++    const user = { _id: 'tata', membership: { tier: 'Plus', renewalDate: new Date('2026-12-03T10:00:00Z') } };
++    const message = 'Your Plus membership ends on 3 Dec 2026. Renew it before then to keep your benefits';
++
++    it('saves a renewal-reminder notification that names the tier and the berlin date', async () => {
++        await notifyMembershipRenewal(user);
++
++        expect(Notification.create).toHaveBeenCalledExactlyOnceWith({ username: 'tata', type: 'renewal-reminder', message, reservation: undefined });
++    });
++
++    it('emails it with the reservations switch and its own subject', async () => {
++        Notification.create.mockResolvedValue({ _id: 'NOT-1', username: 'tata', type: 'renewal-reminder', message });
++        User.findById.mockResolvedValue({ profile: { email: 'tata@example.com' } });
++
++        await notifyMembershipRenewal(user);
++        await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledWith('tata@example.com', 'Your membership is about to expire', message));
++    });
++
++    it('does not send the same reminder twice', async () => {
++        Notification.findOne.mockResolvedValue({ _id: 'NOT-old' });
++
++        await notifyMembershipRenewal(user);
++
++        expect(Notification.findOne).toHaveBeenCalledWith({ username: 'tata', type: 'renewal-reminder', message }, { _id: 1 }, { lean: true });
++        expect(Notification.create).not.toHaveBeenCalled();
++    });
++
++    it('skips and logs when the renewal date is missing', async () => {
++        await notifyMembershipRenewal({ _id: 'tata', membership: { tier: 'Plus' } });
++
++        expect(Notification.create).not.toHaveBeenCalled();
++        expect(console.error).toHaveBeenCalledWith('renewal reminder skipped for tata, renewalDate is missing');
++    });
++
++    it('never throws when saving fails', async () => {
++        Notification.create.mockRejectedValue(new Error('db down'));
++
++        await expect(notifyMembershipRenewal(user)).resolves.toBeUndefined();
++    });
++});
+diff --git a/server/tests/renewalReminderJob.test.js b/server/tests/renewalReminderJob.test.js
+new file mode 100644
+index 0000000..6214adf
+--- /dev/null
++++ b/server/tests/renewalReminderJob.test.js
+@@ -0,0 +1,91 @@
++import { beforeEach, describe, expect, it, vi } from 'vitest';
++import { RENEWAL_REMINDER_DAYS, berlinYmdPlusDays, runRenewalReminderJob } from '../jobs/renewalReminderJob.js';
++import { User } from '../models/User.js';
++import { notifyMembershipRenewal } from '../services/notificationService.js';
++
++vi.mock('../models/User.js', () => ({ User: { find: vi.fn() } }));
++vi.mock('../services/notificationService.js', () => ({ notifyMembershipRenewal: vi.fn() }));
++
++beforeEach(() => {
++    vi.resetAllMocks();
++    User.find.mockResolvedValue([]);
++    notifyMembershipRenewal.mockResolvedValue(undefined);
++    vi.spyOn(console, 'error').mockImplementation(() => {});
++});
++
++describe('berlinYmdPlusDays', () => {
++    it('adds days to the berlin calendar day', () => {
++        // 07:00 utc is 08:00 berlin in november
++        expect(berlinYmdPlusDays(7, new Date('2026-11-26T07:00:00Z'))).toBe('2026-12-03');
++    });
++
++    it('uses the berlin day, not the utc day, close to midnight', () => {
++        // 23:30 utc on the 30th is already 00:30 berlin on the 1st
++        expect(berlinYmdPlusDays(0, new Date('2026-11-30T23:30:00Z'))).toBe('2026-12-01');
++    });
++
++    it('rolls over month and year ends', () => {
++        expect(berlinYmdPlusDays(7, new Date('2026-12-28T12:00:00Z'))).toBe('2027-01-04');
++    });
++
++    it('still adds whole calendar days across berlin dst changes', () => {
++        expect(berlinYmdPlusDays(7, new Date('2026-03-25T12:00:00Z'))).toBe('2026-04-01');
++        expect(berlinYmdPlusDays(7, new Date('2026-10-22T12:00:00Z'))).toBe('2026-10-29');
++    });
++});
++
++describe('runRenewalReminderJob', () => {
++    const member = (id) => ({ _id: id, membership: { tier: 'Plus', renewalDate: new Date('2026-12-03T10:00:00Z') } });
++
++    it('reminds 7 days before the renewal date', () => {
++        expect(RENEWAL_REMINDER_DAYS).toBe(7);
++    });
++
++    it('queries paid members renewing on the berlin day 7 days away and notifies each', async () => {
++        User.find.mockResolvedValue([member('tata'), member('yara')]);
++
++        const result = await runRenewalReminderJob(new Date('2026-11-26T07:00:00Z'));
++
++        expect(result).toEqual({ renewalYmd: '2026-12-03', count: 2 });
++        expect(User.find).toHaveBeenCalledWith(
++            {
++                'membership.tier': { $in: ['Plus', 'Premium'] },
++                $expr: {
++                    $eq: [
++                        { $dateToString: { format: '%Y-%m-%d', date: '$membership.renewalDate', timezone: 'Europe/Berlin' } },
++                        '2026-12-03'
++                    ]
++                }
++            },
++            { _id: 1, 'membership.tier': 1, 'membership.renewalDate': 1 },
++            { lean: true }
++        );
++        expect(notifyMembershipRenewal).toHaveBeenCalledTimes(2);
++        expect(notifyMembershipRenewal).toHaveBeenCalledWith(expect.objectContaining({ _id: 'tata' }));
++        expect(notifyMembershipRenewal).toHaveBeenCalledWith(expect.objectContaining({ _id: 'yara' }));
++    });
++
++    it('does nothing when nobody renews that day', async () => {
++        const result = await runRenewalReminderJob(new Date('2026-11-26T07:00:00Z'));
++
++        expect(result.count).toBe(0);
++        expect(notifyMembershipRenewal).not.toHaveBeenCalled();
++    });
++
++    it('keeps going when one reminder throws', async () => {
++        User.find.mockResolvedValue([member('tata'), member('yara')]);
++        notifyMembershipRenewal.mockRejectedValueOnce(new Error('boom'));
++
++        const result = await runRenewalReminderJob(new Date('2026-11-26T07:00:00Z'));
++
++        expect(result.count).toBe(2);
++        expect(notifyMembershipRenewal).toHaveBeenCalledTimes(2);
++        expect(console.error).toHaveBeenCalledWith('renewal reminder failed for tata', expect.any(Error));
++    });
++
++    it('lets a database failure reach the scheduler, which logs it', async () => {
++        User.find.mockRejectedValue(new Error('db down'));
++
++        await expect(runRenewalReminderJob()).rejects.toThrow('db down');
++    });
++});
+diff --git a/server/tests/scheduler.test.js b/server/tests/scheduler.test.js
+index 9ece943..984a117 100644
+--- a/server/tests/scheduler.test.js
++++ b/server/tests/scheduler.test.js
+@@ -1,15 +1,19 @@
+ import { beforeEach, describe, expect, it, vi } from 'vitest';
+-import { DEFAULT_RETURN_REMINDER_CRON, shouldStartJobs, startScheduler } from '../jobs/scheduler.js';
++import { DEFAULT_RENEWAL_REMINDER_CRON, DEFAULT_RETURN_REMINDER_CRON, shouldStartJobs, startScheduler } from '../jobs/scheduler.js';
+ 
+ vi.mock('../config/env.js', () => ({ env: { nodeEnv: 'development' } }));
+ vi.mock('../jobs/returnReminderJob.js', () => ({
+     runReturnReminderJob: vi.fn()
+ }));
++vi.mock('../jobs/renewalReminderJob.js', () => ({
++    runRenewalReminderJob: vi.fn()
++}));
+ 
+ beforeEach(async () => {
+     vi.resetAllMocks();
+     delete process.env.ENABLE_JOBS;
+     delete process.env.RETURN_REMINDER_CRON;
++    delete process.env.RENEWAL_REMINDER_CRON;
+     const { env } = await import('../config/env.js');
+     env.nodeEnv = 'development';
+     vi.spyOn(console, 'error').mockImplementation(() => {});
+@@ -96,4 +100,46 @@ describe('startScheduler', () => {
+             expect.any(Error)
+         );
+     });
++
++    // SCRUM-387
++    it('also registers the membership renewal reminder at 09:00 berlin by default', () => {
++        const schedule = vi.fn(() => ({ stop: vi.fn() }));
++
++        startScheduler({ schedule });
++
++        expect(schedule).toHaveBeenCalledTimes(2);
++        expect(schedule).toHaveBeenLastCalledWith(DEFAULT_RENEWAL_REMINDER_CRON, expect.any(Function), { timezone: 'Europe/Berlin' });
++        expect(DEFAULT_RENEWAL_REMINDER_CRON).toBe('0 9 * * *');
++    });
++
++    it('uses RENEWAL_REMINDER_CRON when set', () => {
++        process.env.RENEWAL_REMINDER_CRON = '30 7 * * *';
++        const schedule = vi.fn(() => ({ stop: vi.fn() }));
++
++        startScheduler({ schedule });
++
++        expect(schedule).toHaveBeenLastCalledWith('30 7 * * *', expect.any(Function), { timezone: 'Europe/Berlin' });
++    });
++
++    it('runs the renewal job from its cron callback and logs failures', async () => {
++        const runRenewalJob = vi.fn().mockResolvedValue({ count: 0 });
++        const schedule = vi.fn(() => ({ stop: vi.fn() }));
++
++        startScheduler({ schedule, runRenewalJob });
++        const tick = schedule.mock.calls[1][1];
++
++        await tick();
++        expect(runRenewalJob).toHaveBeenCalledTimes(1);
++
++        runRenewalJob.mockRejectedValue(new Error('db down'));
++        await tick();
++        expect(console.error).toHaveBeenCalledWith('renewal reminder job failed', expect.any(Error));
++    });
++
++    it('still returns the return reminder task', () => {
++        const returnTask = { name: 'return' };
++        const schedule = vi.fn().mockReturnValueOnce(returnTask).mockReturnValueOnce({ name: 'renewal' });
++
++        expect(startScheduler({ schedule })).toBe(returnTask);
++    });
+ });

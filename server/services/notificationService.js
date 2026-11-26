@@ -306,3 +306,30 @@ export async function notifyWaitlistItemAvailable(itemRef) {
         console.error(`failed to send the waitlist alerts for ${itemId}`, error);
     }
 }
+
+// SCRUM-387: daily job calls this for each paid member whose renewal date is 7 berlin days away
+// the message names the renewal date, so findOne on it stops a second run on the same day from sending it twice
+export async function notifyMembershipRenewal(user) {
+    try {
+        const { _id, membership } = user;
+        if (!membership?.renewalDate) {
+            console.error(`renewal reminder skipped for ${_id}, renewalDate is missing`);
+            return;
+        }
+        const renews = membership.renewalDate.toLocaleDateString('en-GB', DATE_FORMAT);
+        const details = {
+            type: 'renewal-reminder',
+            subject: 'Your membership is about to expire',
+            message: `Your ${membership.tier} membership ends on ${renews}. Renew it before then to keep your benefits`
+        };
+        const already = await Notification.findOne(
+            { username: _id, type: details.type, message: details.message },
+            { _id: 1 },
+            { lean: true }
+        );
+        if (already) return;
+        await notifyOrLog(_id, 'renewal reminder', details, _id);
+    } catch (error) {
+        console.error(`failed to send the renewal reminder for ${user?._id}`, error);
+    }
+}
