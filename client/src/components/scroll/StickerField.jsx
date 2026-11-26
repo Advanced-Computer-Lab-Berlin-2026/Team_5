@@ -23,7 +23,7 @@ const STICKERS = [
 
 // While the login is still on screen (before this much of the sequence) the stickers keep circling on their own, and scrolling
 // only gives them a push of momentum. Past it, scrolling down takes over: the loop tightens until they meet.
-const THRESHOLD = 0.5;
+const THRESHOLD = 0.3;
 const BASE_SPEED = 0.15; // radians per second when nothing is pushing them
 const PUSH = 0.004; // extra radians per second for every pixel scrolled
 const COAST = 1.8; // seconds for a push to fade back to the base speed
@@ -48,10 +48,10 @@ export function playExplosion({ dark = false } = {}) {
 
 // The stickers are always there behind the page (they show through the opening circle) and spin on their own until you scroll
 // down from the login. After that only the scroll drives them, from the moment the login has opened to the end of the spacer:
-//   0 - 0.1   they keep circling wide
-//   0.1 - 0.7 the loop tightens as you scroll, until they meet
-//   0.7 - 0.82 they sit in one overlapping pile
-//   0.82 - 1  they flip, scatter, and a white burst takes over the whole screen
+//   0 - 0.3    they keep circling wide
+//   0.3 - 0.62 the loop tightens as you scroll, until they meet
+//   0.62 - 0.78 they sit in one overlapping pile
+//   0.78 - 1   they flip, scatter, and a white burst takes over the whole screen
 export function StickerField() {
     const fieldRef = useRef(null);
     const whiteRef = useRef(null);
@@ -100,8 +100,8 @@ export function StickerField() {
 
             // an in-place explosion runs on a clock instead of on scroll: gather first, then flip and burst
             const q = explosion ? clamp((performance.now() - explosion.start) / explosion.duration, 0, 1) : 0;
-            const meet = explosion ? Math.max(smooth(THRESHOLD, 0.8, p), smooth(0, 0.55, q)) : smooth(THRESHOLD, 0.8, p); // 0 = wide loop, 1 = everything has met
-            const burst = explosion ? smooth(0.6, 1, q) : smooth(0.86, 1, p); // flip, scatter and white
+            const meet = explosion ? Math.max(smooth(THRESHOLD, 0.62, p), smooth(0, 0.55, q)) : smooth(THRESHOLD, 0.62, p); // 0 = wide loop, 1 = everything has met
+            const burst = explosion ? smooth(0.6, 1, q) : smooth(0.78, 1, p); // flip, scatter and white
             const fadeOut = explosion ? 1 - smooth(0.9, 1, q) : 1 - smooth(0.94, 1, p);
             if (explosion && q >= 1 && explosion.resolve) { explosion.resolve(); explosion.resolve = null; }
 

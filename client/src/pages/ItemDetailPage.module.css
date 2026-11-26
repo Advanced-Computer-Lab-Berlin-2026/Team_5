@@ -12,3 +12,13 @@
 .actions .manual:not(:disabled):not([aria-disabled]):hover { background: #7a9ef5; border-color: #7a9ef5; }
 .actions .reserve:not(:disabled):not([aria-disabled]) { background: #8fd4a8; border-color: #8fd4a8; color: #141414; }
 .actions .reserve:not(:disabled):not([aria-disabled]):hover { background: #78c495; border-color: #78c495; }
+
+.similar { display: grid; gap: var(--space-4); margin-top: var(--space-4); }
+.similarGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr)); gap: var(--space-4); }
+@media (min-width: 960px) { .similarGrid { grid-template-columns: repeat(3, 1fr); } }
+
+/* the page eases in: the photos first, the details a beat later */
+.enter { animation: pageIn 520ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.enterLater { animation-delay: 90ms; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(18px) scale(0.985); } }
+@media (prefers-reduced-motion: reduce) { .enter { animation: none; } }

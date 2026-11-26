@@ -105,9 +105,9 @@ describe('Reservation model', () => {
             expect(query.session).toHaveBeenCalledWith(null);
         });
 
-        // completed, cancelled and rejected reservations must not block new bookings
-        it('only treats pending, upcoming and active as blocking', () => {
-            expect(BLOCKING_STATUSES).toEqual(['pending', 'upcoming', 'active']);
+        // pending, completed, cancelled and rejected reservations must not block new bookings
+        it('only treats upcoming and active as blocking, so pending requests do not', () => {
+            expect(BLOCKING_STATUSES).toEqual(['upcoming', 'active']);
         });
 
         it('passes the transaction session through', () => {

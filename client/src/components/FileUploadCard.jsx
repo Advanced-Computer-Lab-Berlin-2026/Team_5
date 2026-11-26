@@ -24,7 +24,7 @@ export function FileUploadCard({ title, name, accept, multiple = false, hint, bu
 
     return (
         <Card title={title}>
-            <FileField key={pickerKey} label="Choose file" name={name} accept={accept} multiple={multiple}
+            <FileField key={pickerKey} label="File" name={name} accept={accept} multiple={multiple}
                 hint={hint} onChange={setFiles} />
             <Message type="success">{success}</Message>
             <Message type="error">{error}</Message>

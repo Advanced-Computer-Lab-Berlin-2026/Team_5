@@ -1,0 +1,23 @@
+/* the same amber card as the household form and the login */
+.dialog { width: min(30rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); padding: var(--space-5); border: 0; border-radius: 12px; background: var(--color-amber); color: #141414; overflow: auto; box-shadow: 0 30px 60px -20px rgb(0 0 0 / 55%);
+  --color-text: #141414; --color-text-muted: #4d3a1d; --color-background: var(--color-amber); --color-surface: #fffaf1; --color-surface-subtle: #f3e6cf; --color-border: #6b4a1c; --color-border-muted: rgb(20 20 20 / 28%);
+  --color-link: #141414; --color-focus: #141414; --color-error: #8a1f1f; --color-error-surface: #fff0ef; }
+.dialog[open] { animation: dialogIn 260ms cubic-bezier(0.23, 1, 0.32, 1); }
+.dialog[data-closing] { animation: dialogOut 200ms ease-in forwards; }
+@keyframes dialogIn { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
+@keyframes dialogOut { to { opacity: 0; transform: translateY(8px) scale(0.98); } }
+.dialog::backdrop { background: rgb(0 0 0 / 55%); }
+.dialog[open]::backdrop { animation: fadeIn 260ms ease-out; }
+.dialog[data-closing]::backdrop { animation: fadeOut 200ms ease-in forwards; }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes fadeOut { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .dialog[open], .dialog[data-closing], .dialog::backdrop { animation: none !important; } }
+.dialog form { display: flex; flex-direction: column; gap: var(--space-3); }
+.dialog h2 { font-size: clamp(1.4rem, 2.4vw, 1.75rem); }
+.dialog form > button:not(.textButton) { background: #141414; border-color: #141414; color: #fff; }
+.dialog form > button:not(.textButton):hover:not(:disabled) { background: #000; }
+.dialog form > button:not(.textButton):disabled { opacity: 0.5; }
+.toggle { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+.footer { display: flex; justify-content: flex-end; }
+.textButton { min-height: var(--control-height); padding: 0 var(--space-2); border: 0; background: transparent; color: var(--color-text-muted); font-size: var(--font-size-small); font-weight: var(--font-weight-medium); cursor: pointer; }
+.textButton:hover, .textButton:focus-visible { color: var(--color-text); }

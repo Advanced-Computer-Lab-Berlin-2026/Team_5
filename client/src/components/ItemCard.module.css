@@ -1,9 +1,9 @@
 .face { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; border: var(--border-muted); border-radius: var(--radius-card); background: var(--color-surface); color: var(--color-text); overflow: hidden; box-sizing: border-box; text-align: left; }
 .image { display: block; width: 100%; flex: 1; min-height: 0; object-fit: cover; }
-.placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: var(--color-surface-subtle); color: var(--color-text-muted); font-size: var(--font-size-small); }
+.placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: color-mix(in srgb, var(--color-amber) 14%, var(--color-surface-subtle)); color: var(--color-text-muted); font-size: var(--font-size-small); }
 .body { display: flex; flex-direction: column; flex: none; gap: 0; padding: var(--space-3) var(--space-4); }
 .title { font-size: calc(var(--font-size-large) * 1.18); line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.category { color: var(--color-text-muted); font-size: var(--font-size-small); line-height: 1.2; }
+.category { color: var(--color-accent-text); font-size: var(--font-size-small); line-height: 1.2; }
 .back { justify-content: space-between; gap: var(--space-3); padding: var(--space-4); background: var(--color-surface-subtle); }
 .backDetails { display: flex; flex-direction: column; gap: var(--space-2); min-height: 0; }
 .facts { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-3) 0 0; }
@@ -13,3 +13,19 @@
 .hint { color: var(--color-text-muted); font-size: var(--font-size-small); }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); cursor: default; }
 .tag { position: absolute; top: var(--space-3); left: var(--space-3); padding: 2px var(--space-2); background: var(--color-inverse-background); color: var(--color-inverse-text); font-size: var(--font-size-small); font-weight: var(--font-weight-bold); }
+
+/* cards that open the item page: they dip when pressed, then swell and fade as the page opens */
+.openable { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.openable:active:not(.opening) { transform: scale(0.96); }
+.opening { animation: cardOpen 260ms cubic-bezier(0.4, 0, 0.2, 1) forwards; z-index: 5; }
+@keyframes cardOpen { 0% { transform: scale(0.97); opacity: 1; } 100% { transform: scale(1.1); opacity: 0; filter: blur(2px); } }
+@media (prefers-reduced-motion: reduce) { .openable, .opening { transition: none; animation: none; } }
+
+/* photos fade in once they have loaded */
+.fadeImage { opacity: 0; transform: scale(1.04); transition: opacity 600ms ease, transform 900ms cubic-bezier(0.23, 1, 0.32, 1); }
+.loadedImage { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .fadeImage { opacity: 1; transform: none; transition: none; } }
+
+/* a card lights up with an amber edge under the pointer */
+.face { transition: border-color 200ms ease; }
+.openable:hover .face { border-color: var(--color-amber); }

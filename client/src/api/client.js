@@ -87,3 +87,18 @@ export async function request(path, { method = 'GET', body, query } = {}) {
     if (!response.ok) throw toError(response, data);
     return data;
 }
+
+// Fetches a file (CSV or PDF) and hands it to the browser as a download.
+export async function download(path, { query, filename } = {}) {
+    let response = await send(path, { method: 'GET', query });
+    if (response.status === 401 && await refreshSession()) response = await send(path, { method: 'GET', query });
+    if (!response.ok) throw toError(response, await readBody(response));
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename ?? 'download';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}

@@ -1,0 +1,17 @@
+.calendar { display: grid; gap: var(--space-2); }
+.head { display: flex; align-items: center; justify-content: space-between; }
+.nav { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.nav:disabled { opacity: 0.3; cursor: default; }
+.grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.weekday { padding: var(--space-1) 0; text-align: center; font-size: var(--font-size-small); color: var(--color-text-muted); }
+/* sharp square days, like the filter chips */
+.day { aspect-ratio: 1; min-height: 2rem; padding: 0; border: var(--border-muted); border-radius: 0; background: var(--color-surface); color: var(--color-text); font: inherit; font-size: var(--font-size-small); cursor: pointer; transition: background var(--duration-fast); }
+.day:hover:not(:disabled) { background: var(--color-surface-subtle); }
+.day:disabled { cursor: default; opacity: 0.4; }
+.booked { background: var(--color-surface-subtle); text-decoration: line-through; opacity: 0.55; }
+.inside { background: rgb(20 20 20 / 22%); border-color: transparent; }
+.edge, .edge:hover:not(:disabled) { background: #141414; border-color: #141414; color: #fff; font-weight: var(--font-weight-bold); }
+.legend { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--font-size-small); color: var(--color-text-muted); }
+.swatchBooked, .swatchPicked { width: 0.8rem; height: 0.8rem; display: inline-block; border: var(--border-muted); }
+.swatchBooked { background: var(--color-surface-subtle); }
+.swatchPicked { background: #141414; margin-left: var(--space-3); }

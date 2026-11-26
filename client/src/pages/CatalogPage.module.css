@@ -3,9 +3,11 @@
 .search { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .search > * { margin-top: 0; }
 .searchField { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 15rem; position: relative; }
-.searchField > svg { position: absolute; left: var(--space-3); color: var(--color-text-muted); pointer-events: none; }
+.searchField > svg { position: absolute; left: var(--space-3); color: var(--color-accent-text); pointer-events: none; }
 .searchField input { padding-left: var(--space-6); }
+.searchField input:focus { border-color: var(--color-amber); outline-color: var(--color-amber); }
 .count { font-size: var(--font-size-small); color: var(--color-text-muted); }
+.resultSummary > p::before { content: ''; display: inline-block; width: 0.5rem; height: 0.5rem; margin-right: var(--space-2); background: var(--color-amber); }
 .results { display: grid; gap: var(--space-4); align-content: start; min-height: 60svh; overflow-anchor: none; }
 .resultSummary { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); min-height: 1.5em; }
 .hiddenClear { visibility: hidden; }

@@ -19,6 +19,10 @@ import AdminLenderRequestPage from './pages/AdminLenderRequestPage.jsx';
 import AdminCategoriesPage from './pages/AdminCategoriesPage.jsx';
 import AdminCreateAdminPage from './pages/AdminCreateAdminPage.jsx';
 import Cursor from './components/Cursor.jsx';
+import NotificationsPage from './pages/NotificationsPage.jsx';
+import ReservationPage from './pages/ReservationPage.jsx';
+import AdminReportsPage from './pages/AdminReportsPage.jsx';
+import EmailSettingsPage from './pages/EmailSettingsPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 
 export default function App() {
@@ -42,11 +46,14 @@ export default function App() {
                     <Route path="/wallet" element={<WalletPage />} />
                     <Route path="/notices" element={<NoticesPage />} />
                     <Route path="/change-password" element={<ChangePasswordPage />} />
+                    <Route path="/notifications" element={<NotificationsPage />} />
+                    <Route path="/reservations/:id" element={<ReservationPage />} />
                 </Route>
 
                 <Route element={<ProtectedRoute roles={['member', 'lender']} />}>
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/household" element={<HouseholdPage />} />
+                    <Route path="/settings/email" element={<EmailSettingsPage />} />
                 </Route>
 
                 <Route element={<ProtectedRoute roles={['member']} />}>
@@ -67,6 +74,7 @@ export default function App() {
                         <Route path="/admin/lender-requests/:username" element={<AdminLenderRequestPage />} />
                         <Route path="/admin/categories" element={<AdminCategoriesPage />} />
                         <Route path="/admin/create-admin" element={<AdminCreateAdminPage />} />
+                        <Route path="/admin/reports" element={<AdminReportsPage />} />
                     </Route>
                 </Route>
 

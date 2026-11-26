@@ -1,0 +1,15 @@
+.wrap { position: relative; }
+.bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem; border: 0; background: transparent; color: inherit; cursor: pointer; transition: transform var(--duration-fast); }
+.bell:hover, .bell:focus-visible { transform: rotate(-8deg); }
+.dot { position: absolute; top: 0.45rem; right: 0.5rem; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--color-amber); box-shadow: 0 0 0 2px var(--color-background); }
+/* a sharp square panel, like the dropdown lists */
+.panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; width: min(22rem, calc(100vw - 2rem)); border: var(--border); background: var(--color-surface); color: var(--color-text); box-shadow: 0 14px 30px -14px rgb(0 0 0 / 40%); animation: drop 140ms ease-out; transform-origin: top right; }
+@keyframes drop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+.list { max-height: 20rem; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.entry { display: grid; gap: 2px; width: 100%; padding: var(--space-3); border: 0; border-left: 3px solid transparent; border-bottom: var(--border-muted); background: transparent; color: inherit; font: inherit; font-size: var(--font-size-small); text-align: left; cursor: pointer; }
+.entry:hover { background: var(--color-surface-subtle); }
+.entry small { color: var(--color-text-muted); }
+.unread { border-left-color: var(--color-amber); font-weight: var(--font-weight-bold); }
+.empty { margin: 0; padding: var(--space-4); color: var(--color-text-muted); font-size: var(--font-size-small); }
+.all { display: block; padding: var(--space-3); text-align: center; font-size: var(--font-size-small); font-weight: var(--font-weight-bold); }
+@media (prefers-reduced-motion: reduce) { .panel { animation: none; } .bell { transition: none; } }

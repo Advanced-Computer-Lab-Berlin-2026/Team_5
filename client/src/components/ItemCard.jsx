@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from './Button.jsx';
 import { Icon } from './Icon.jsx';
 import { ItemImage } from './ItemImage.jsx';
@@ -6,10 +7,13 @@ import TiltedCard from './TiltedCard.jsx';
 import { rememberGuestSpot } from './scroll/transition.js';
 import styles from './ItemCard.module.css';
 
-// Catalog card. Click anywhere on it to flip; the back shows the details the list
+// Catalog card. By default a click anywhere on it flips it; the back shows the details the list
 // endpoint already returned plus a button to the item page (and any extra `actions`).
-export function ItemCard({ item, actions, introDelay = 0, intro = true, showView = true }) {
+// With openOnClick the card does not flip: a click opens the item page straight away.
+export function ItemCard({ item, actions, extra, introDelay = 0, intro = true, showView = true, openOnClick = false }) {
     const [flipped, setFlipped] = useState(false);
+    const navigate = useNavigate();
+    const [opening, setOpening] = useState(false);
     const to = `/items/${encodeURIComponent(item._id)}`;
     const photoCount = item.photos?.length ?? 0;
     const stopFlip = event => event.stopPropagation();
@@ -30,6 +34,7 @@ export function ItemCard({ item, actions, introDelay = 0, intro = true, showView
             <dl className={styles.facts}>
                 <div><dt>Deposit</dt><dd>{item.depositAmount} ₥</dd></div>
                 <div><dt>Photos</dt><dd>{photoCount}</dd></div>
+                {extra && <div><dt>Dates</dt><dd>{extra}</dd></div>}
                 {typeof item.archived === 'boolean' && <div><dt>Status</dt><dd>{item.archived ? 'Archived' : 'Listed'}</dd></div>}
             </dl>
             <p className={styles.hint}>Click the card to flip it back.</p>
@@ -58,6 +63,15 @@ export function ItemCard({ item, actions, introDelay = 0, intro = true, showView
         intro={intro}
         introDelay={introDelay}
         onFlip={setFlipped}
-        backContent={back}
+        backContent={openOnClick ? undefined : back}
+        className={openOnClick ? `${styles.openable} ${opening ? styles.opening : ''}` : undefined}
+        onClick={openOnClick ? () => {
+            rememberGuestSpot();
+            // the card swells and fades for a moment, then the item page opens
+            if (opening) return;
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { navigate(to); return; }
+            setOpening(true);
+            window.setTimeout(() => navigate(to), 260);
+        } : undefined}
     >{front}</TiltedCard>;
 }

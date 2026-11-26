@@ -1,0 +1,52 @@
+# Photo credits for items.json
+
+Real photographs from Wikimedia Commons (no AI-generated images). Each file keeps its own license; please keep this attribution.
+
+- Cordless Drill: Black & Decker Cordless 20V Drill.jpg by TaurusEmerald, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Black_%26_Decker_Cordless_20V_Drill.jpg
+- Cordless Drill: Battery Construction Cordless Drill Edited 2020 (49916988798).jpg by Tool Dude8mm, CC BY 2.0, https://commons.wikimedia.org/wiki/File:Battery_Construction_Cordless_Drill_Edited_2020_(49916988798).jpg
+- Cordless Drill: CORDLESS DRILL.jpg by Abduldedysubhansyah, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:CORDLESS_DRILL.jpg
+- Ladder 3m: Ladder 2.jpg by rrafson, CC BY-SA 3.0, https://commons.wikimedia.org/wiki/File:Ladder_2.jpg
+- Ladder 3m: Ladder aluminum.jpg by Amin, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Ladder_aluminum.jpg
+- Ladder 3m: Ladder in Gyumri.jpg by Araqangaraq, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Ladder_in_Gyumri.jpg
+- Camping Tent 4P: Deep Lake tenting campsite - Riding Mountain National Park.JPG by Norm Andreiw, CC BY 3.0, https://commons.wikimedia.org/wiki/File:Deep_Lake_tenting_campsite_-_Riding_Mountain_National_Park.JPG
+- Camping Tent 4P: Camping Out (30330925821).jpg by Daniel Walker from Melbourne, Australia, CC BY-SA 2.0, https://commons.wikimedia.org/wiki/File:Camping_Out_(30330925821).jpg
+- Camping Tent 4P: Ardgarten camp-site on a crisp October morning - geograph.org.uk - 1658080.jpg by Phil Champion, CC BY-SA 2.0, https://commons.wikimedia.org/wiki/File:Ardgarten_camp-site_on_a_crisp_October_morning_-_geograph.org.uk_-_1658080.jpg
+- Sleeping Bag: Mummy bag.jpg by Smack (talk), Public domain, https://commons.wikimedia.org/wiki/File:Mummy_bag.jpg
+- Sleeping Bag: Compactsleepingbag.jpg by User:James086, Public domain, https://commons.wikimedia.org/wiki/File:Compactsleepingbag.jpg
+- Sleeping Bag: OutDoor 2018, Friedrichshafen (1X7A0298).jpg by Matti Blume, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:OutDoor_2018,_Friedrichshafen_(1X7A0298).jpg
+- DSLR Camera: 2017 Nikon D5300.jpg by Jacek Halicki, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:2017_Nikon_D5300.jpg
+- DSLR Camera: 2016 Sony DSLR-A700.jpg by Jacek Halicki, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:2016_Sony_DSLR-A700.jpg
+- DSLR Camera: Nikon Camera.jpg by ParasharSarthak, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Nikon_Camera.jpg
+- Projector: InFocus IN34.jpg by Dave Pape, Public domain, https://commons.wikimedia.org/wiki/File:InFocus_IN34.jpg
+- Projector: JVC D-ILA projector.jpg by JVCAmerica, CC BY 2.0, https://commons.wikimedia.org/wiki/File:JVC_D-ILA_projector.jpg
+- Projector: Projectiondesign (Barco Fredrikstad) video projector at HighEnd-2009 (3556283833).jpg by Christian Herzog, CC BY 2.0, https://commons.wikimedia.org/wiki/File:Projectiondesign_(Barco_Fredrikstad)_video_projector_at_HighEnd-2009_(3556283833).jpg
+- PS5 Console: PS5Digitalprerefined.jpg by Wfrmsf, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:PS5Digitalprerefined.jpg
+- PS5 Console: PlayStation 5 and DualSense (2).jpg by Osh33m, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:PlayStation_5_and_DualSense_(2).jpg
+- PS5 Console: PlayStation 5 and DualSense.jpg by Osh33m, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:PlayStation_5_and_DualSense.jpg
+- Stand Mixer: Green Apple KitchenAid.jpg by Amy, CC BY-SA 2.0, https://commons.wikimedia.org/wiki/File:Green_Apple_KitchenAid.jpg
+- Stand Mixer: Red KitchenAid Artisan.jpg by BenFrantzDale, CC BY-SA 2.0, https://commons.wikimedia.org/wiki/File:Red_KitchenAid_Artisan.jpg
+- Stand Mixer: White KitchenAid mixer (KSM150PSWH).jpg by Your Best Digs, CC BY 2.0, https://commons.wikimedia.org/wiki/File:White_KitchenAid_mixer_(KSM150PSWH).jpg
+- Wheelchair: UNAwheel Mini Basic wheelchair power add-on 02.jpg by Nick Yudin, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:UNAwheel_Mini_Basic_wheelchair_power_add-on_02.jpg
+- Wheelchair: Wheelchair from Wheelchair Foundation in Russia,.jpg by Davronov Alexander, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Wheelchair_from_Wheelchair_Foundation_in_Russia,.jpg
+- Wheelchair: UNAwheel Mini Active and UNAwheel Mini Basic wheelchair power add-ons in Los Angeles.jpg by Nick Yudin, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:UNAwheel_Mini_Active_and_UNAwheel_Mini_Basic_wheelchair_power_add-ons_in_Los_Angeles.jpg
+- Blood Pressure Monitor: 2020 Sfigmomanometr elektroniczny.jpg by Jacek Halicki, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:2020_Sfigmomanometr_elektroniczny.jpg
+- Blood Pressure Monitor: 2017 Sfigmomanometr elektroniczny.jpg by Jacek Halicki, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:2017_Sfigmomanometr_elektroniczny.jpg
+- Blood Pressure Monitor: 1-Sphygmomanometer-aniroid type.jpg by Parvathisri, CC BY-SA 3.0, https://commons.wikimedia.org/wiki/File:1-Sphygmomanometer-aniroid_type.jpg
+- Football Goal Net: Fence and soccer goal in the north field in Brastad 3.jpg by W.carter, CC0, https://commons.wikimedia.org/wiki/File:Fence_and_soccer_goal_in_the_north_field_in_Brastad_3.jpg
+- Football Goal Net: Fence and soccer goal in the north field in Brastad 1.jpg by W.carter, CC0, https://commons.wikimedia.org/wiki/File:Fence_and_soccer_goal_in_the_north_field_in_Brastad_1.jpg
+- Football Goal Net: Football goal 20050521.jpg by Emha, CC BY-SA 3.0, https://commons.wikimedia.org/wiki/File:Football_goal_20050521.jpg
+- Party Speaker: Size comparison of JBL Xtreme Bluetooth speaker (28 cm long) with TV remote control.jpg by Pittigrilli, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Size_comparison_of_JBL_Xtreme_Bluetooth_speaker_(28_cm_long)_with_TV_remote_control.jpg
+- Party Speaker: JBL CHARGE3 という Portable Bluetooth Speaker 、疲れない音ですね。車載するよ！ (28494681635).jpg by Masahiko OHKUBO from Kobe, Japan, CC BY 2.0, https://commons.wikimedia.org/wiki/File:JBL_CHARGE3_%E3%81%A8%E3%81%84%E3%81%86_Portable_Bluetooth_Speaker_%E3%80%81%E7%96%B2%E3%82%8C%E3%81%AA%E3%81%84%E9%9F%B3%E3%81%A7%E3%81%99%E3%81%AD%E3%80%82%E8%BB%8A%E8%BC%89%E3%81%99%E3%82%8B%E3%82%88%EF%BC%81_(28494681635).jpg
+- Party Speaker: JBL Flip 3 bluetooth speaker (DSCF2653).jpg by Trougnouf, CC BY 4.0, https://commons.wikimedia.org/wiki/File:JBL_Flip_3_bluetooth_speaker_(DSCF2653).jpg
+- Board Games Bundle: Castles of Burgundy (Board Game).jpg by Mshuang2, CC0, https://commons.wikimedia.org/wiki/File:Castles_of_Burgundy_(Board_Game).jpg
+- Board Games Bundle: The Balderdash board game and pieces 01.jpg by Harrison Keely, CC BY 4.0, https://commons.wikimedia.org/wiki/File:The_Balderdash_board_game_and_pieces_01.jpg
+- Board Games Bundle: Can't Catch Harry Board Game.jpg by Dragonhawk12, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Can%27t_Catch_Harry_Board_Game.jpg
+- Anatomy Textbook Set: College Textbooks.jpg by Inayaysad, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:College_Textbooks.jpg
+- Anatomy Textbook Set: H. Gray, Anatomy descriptive and surgical Wellcome M0016989EA.jpg by unknown, CC BY 4.0, https://commons.wikimedia.org/wiki/File:H._Gray,_Anatomy_descriptive_and_surgical_Wellcome_M0016989EA.jpg
+- Anatomy Textbook Set: Eye orbit anatomy anterior2.jpg by Patrick J. Lynch, medical illustrator, CC BY 2.5, https://commons.wikimedia.org/wiki/File:Eye_orbit_anatomy_anterior2.jpg
+- Old Bicycle: Old bicycleML.jpg by Macieklew, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Old_bicycleML.jpg
+- Old Bicycle: Old Bicycle Leaning on Wall.jpg by TopmanJnr1, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Old_Bicycle_Leaning_on_Wall.jpg
+- Old Bicycle: Old Bicycle - geograph.org.uk - 5511079.jpg by Billy McCrorie, CC BY-SA 2.0, https://commons.wikimedia.org/wiki/File:Old_Bicycle_-_geograph.org.uk_-_5511079.jpg
+- Mystery Box: Gift (4344132308).jpg by Praveen from Bangalore, India, CC BY 2.0, https://commons.wikimedia.org/wiki/File:Gift_(4344132308).jpg
+- Mystery Box: Brown gift box with red ribbon and bow.jpg by Shixart1985, CC BY 2.0, https://commons.wikimedia.org/wiki/File:Brown_gift_box_with_red_ribbon_and_bow.jpg
+- Mystery Box: Attackfoto - In the photostudio (10246934063).jpg by Susanne Nilsson, CC BY-SA 2.0, https://commons.wikimedia.org/wiki/File:Attackfoto_-_In_the_photostudio_(10246934063).jpg

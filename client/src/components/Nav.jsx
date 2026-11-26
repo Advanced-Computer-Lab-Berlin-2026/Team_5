@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { Button } from './Button.jsx';
 import { Icon } from './Icon.jsx';
+import { NotificationBell } from './NotificationBell.jsx';
 import StaggeredMenu from './StaggeredMenu.jsx';
 import styles from './Nav.module.css';
 
@@ -10,7 +11,7 @@ import styles from './Nav.module.css';
 const LINKS_BY_ROLE = {
     member: [['/wishlist', 'Wishlist'], ['/household', 'Household'], ['/notices', 'Notices']],
     lender: [['/lender/items', 'My items'], ['/wishlist', 'Wishlist'], ['/household', 'Household'], ['/notices', 'Notices']],
-    admin: [['/admin', 'Users'], ['/admin/items', 'Items'], ['/admin/lender-requests', 'Lender requests'], ['/admin/categories', 'Categories'], ['/admin/create-admin', 'New admin'], ['/notices', 'Notices']]
+    admin: [['/admin', 'Users'], ['/admin/items', 'Items'], ['/admin/lender-requests', 'Lender requests'], ['/admin/categories', 'Categories'], ['/admin/create-admin', 'New admin'], ['/admin/reports', 'Reports'], ['/notices', 'Notices']]
 };
 
 function NavItem({ to, children }) {
@@ -61,12 +62,14 @@ export function Nav() {
             ))}
             </nav>}
             <div className={styles.account}>
+            {isLoggedIn && <NotificationBell />}
             {isLoggedIn ? (
                 <StaggeredMenu
                     items={[
                         ...(role === 'admin' ? [] : [
                             { label: 'Profile', ariaLabel: 'Go to your profile', link: '/profile', onSelect: () => navigate('/profile') },
-                            { label: 'Wallet', ariaLabel: 'Go to your wallet', link: '/wallet', onSelect: () => navigate('/wallet') }
+                            { label: 'Wallet', ariaLabel: 'Go to your wallet', link: '/wallet', onSelect: () => navigate('/wallet') },
+                            { label: 'Email', ariaLabel: 'Email preferences', link: '/settings/email', onSelect: () => navigate('/settings/email') }
                         ]),
                         ...(role === 'member' ? [{ label: 'Lend', ariaLabel: 'Become a lender', link: '/become-lender', onSelect: () => navigate('/become-lender') }] : []),
                         { label: 'Log out', ariaLabel: 'Log out', onSelect: handleLogout }
@@ -78,7 +81,7 @@ export function Nav() {
             ) : guestItemView ? null : (
                 <>
                     <Button variant="ghost" size="small" to="/login">Log in</Button>
-                    <Button size="small" to="/register">Join ACL</Button>
+                    <Button size="small" to="/register">Join In Your Shed</Button>
                 </>
             )}
             </div>

@@ -1,0 +1,37 @@
+.muted { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-small); }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.delivery { display: grid; gap: var(--space-3); }
+/* three steps on one bar: the first dot is at the left end, the last at the right end, and the amber fill grows from the first
+   dot to the current step, so a delivered order has the whole bar filled */
+.steps { --dot: 0.95rem; --progress: 0; position: relative; display: grid; grid-template-columns: repeat(3, 1fr); margin: 0; padding: 0; list-style: none; }
+.steps::before, .steps::after { content: ''; position: absolute; top: calc(var(--dot) / 2 - 1px); left: calc(var(--dot) / 2); height: 2px; }
+.steps::before { right: calc(var(--dot) / 2); background: var(--color-border-muted); }
+.steps::after { width: calc((100% - var(--dot)) * var(--progress)); background: var(--color-amber); transition: width 600ms cubic-bezier(0.23, 1, 0.32, 1); }
+.step { position: relative; padding-top: calc(var(--dot) + var(--space-2)); color: var(--color-text-muted); font-size: var(--font-size-small); }
+.step:nth-child(2) { text-align: center; }
+.step:nth-child(3) { text-align: right; }
+.stepDot { position: absolute; top: 0; left: 0; width: var(--dot); height: var(--dot); box-sizing: border-box; border: 2px solid var(--color-border-muted); border-radius: 50%; background: var(--color-surface); transition: background 300ms ease 200ms, border-color 300ms ease 200ms; }
+.step:nth-child(2) .stepDot { left: 50%; transform: translateX(-50%); }
+.step:nth-child(3) .stepDot { left: auto; right: 0; }
+.done { color: var(--color-text); font-weight: var(--font-weight-bold); }
+.done .stepDot { background: var(--color-amber); border-color: var(--color-amber); }
+@media (prefers-reduced-motion: reduce) { .steps::after, .stepDot { transition: none; } }
+.chat { display: grid; gap: var(--space-3); }
+.thread { display: flex; flex-direction: column; gap: var(--space-3); max-height: 24rem; min-height: 8rem; overflow-y: auto; padding: var(--space-4); border: var(--border-muted); border-radius: var(--radius-card); background: var(--color-background); }
+.row { display: flex; align-items: flex-end; gap: var(--space-2); max-width: 85%; animation: pop 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.mineRow { flex-direction: row-reverse; align-self: flex-end; }
+/* a small round bubble with the sender's initial, beside each message */
+.avatar { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--color-surface-subtle); border: var(--border-muted); color: var(--color-text); font-size: var(--font-size-small); font-weight: var(--font-weight-bold); }
+.mineRow .avatar { background: var(--color-amber); border-color: var(--color-amber); color: #141414; }
+/* the message itself: a rounded bubble whose corner nearest the sender is squared off, like a speech tail */
+.bubble { display: grid; gap: 2px; min-width: 0; padding: var(--space-2) var(--space-4); border-radius: 1.2rem 1.2rem 1.2rem 0.3rem; background: var(--color-surface-subtle); overflow-wrap: anywhere; }
+.bubble .who { font-size: 0.7rem; font-weight: var(--font-weight-bold); color: var(--color-text-muted); }
+.bubble small { color: var(--color-text-muted); font-size: 0.68rem; }
+.mine { border-radius: 1.2rem 1.2rem 0.3rem 1.2rem; background: var(--color-amber); color: #141414; }
+.mine .who, .mine small { color: #4d3a1d; }
+@keyframes pop { from { opacity: 0; transform: translateY(8px) scale(0.96); } }
+@media (prefers-reduced-motion: reduce) { .row { animation: none; } }
+.compose { display: flex; gap: var(--space-2); }
+.compose input { flex: 1; min-width: 0; min-height: var(--control-height); padding: var(--space-2) var(--space-4); border: var(--border); border-radius: 999px; background: var(--color-surface); color: var(--color-text); font: inherit; }
+.actionsGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--space-4); }
+.damage { grid-column: 1 / -1; }

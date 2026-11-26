@@ -26,3 +26,4 @@ export { PageSection } from './PageSection.jsx';
 export { CategoryRow, FilterToggle } from './FilterBar.jsx';
 export { EmptyState } from './EmptyState.jsx';
 export { ItemCard } from './ItemCard.jsx';
+export { Calendar } from './Calendar.jsx';

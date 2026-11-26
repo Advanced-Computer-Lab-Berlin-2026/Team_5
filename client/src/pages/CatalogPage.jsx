@@ -100,7 +100,7 @@ export default function CatalogPage({ embedded = false, showIntroduction = true 
             {shown && <div className={`${styles.stage} ${leaving ? styles.leaving : ''}`}>
                 {/* keyed by the items shown, so every new result set rises into place one card after another */}
                 <AnimatedContent key={shown.items.map(item => item._id).join(',')} className={styles.cards} trigger="mount" stagger={0.06} distance={28} duration={0.55} ease="power2.out">
-                    {shown.items.map(item => <ItemCard key={item._id} item={item} intro={false} />)}
+                    {shown.items.map(item => <ItemCard key={item._id} item={item} intro={false} openOnClick />)}
                 </AnimatedContent>
             </div>}
             <Pagination page={items.data.pagination.page} totalPages={items.data.pagination.totalPages} onChange={next => update({ page: next > 1 ? String(next) : '' })} />

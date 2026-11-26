@@ -4,3 +4,6 @@
 .notice h2 { font-size: var(--font-size-title); }
 .body { white-space: pre-line; overflow-wrap: anywhere; }
 .notice small { margin-top: auto; color: var(--color-text-muted); }
+
+/* the layout limits forms to 44rem; the post form runs the full width of the page */
+.postCard > div > form.wide { max-width: none; }
