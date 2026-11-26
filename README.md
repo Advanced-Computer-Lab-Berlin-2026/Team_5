@@ -172,6 +172,8 @@ chat, and item manuals are documented in the same table.
 | `GET /api/admin/reports/damage` | None; admin only; optional `?status=` `pending-review`, `decided`, `disputed` or `resolved` | Lists one case per reservation with its report, dispute and resolution history, status and forfeited deposit. |
 | `GET /api/admin/reports/damage/export` | `?format=` `csv` or `pdf`; optional `?status=` | Downloads the damage report as a file. |
 | `GET /api/admin/reports/membership-tiers` | None; admin only | Returns the number and percentage of members and lenders in each tier. |
+| `GET /api/membership-tiers` | None; member or lender | Lists every membership tier, cheapest first, as `{ tiers: [{ tier, annual_fee, deposit_discount }] }`. `deposit_discount` is a percentage. |
+| `GET /api/membership` | None; member or lender | Returns the caller's own `{ membership: { tier, startDate, renewalDate } }`. `renewalDate` defaults to one year after `startDate`; accounts made before the field existed get the same value calculated on the fly. |
 | `GET /api/lender/dashboard` | None; lender only | Returns listed items, times lent, distinct items lent, total deposits collected and the damage incident rate. |
 
 The password recovery URL is spelled `forget-password`, matching the current
