@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { exportDamageReport, exportUsageReport, getDamageReport, getTierDistribution, getUsageReport } from '../api/reports.js';
+import { exportDamageReport, exportUsageReport, getDamageReport, getReferralReport, getTierDistribution, getUsageReport } from '../api/reports.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
 import { Button, Card, Message, PageHeader, Row, Select, Spinner, Table } from '../components';
@@ -33,6 +33,7 @@ export default function AdminReportsPage() {
     const [month, setMonth] = useState(thisMonth());
     const [status, setStatus] = useState('');
     const tiers = useAsync(getTierDistribution);
+    const referrals = useAsync(getReferralReport);
     const usage = useAsync(() => getUsageReport({ month }), [month]);
     const damage = useAsync(() => getDamageReport(status), [status]);
     const exporting = useAction();
@@ -45,6 +46,15 @@ export default function AdminReportsPage() {
             {tiers.loading && <Spinner />}
             <Message type="error">{tiers.error}</Message>
             {tiers.data && <><p className={styles.muted}>{tiers.data.totalMembers} members in total</p><Bars tiers={tiers.data.tiers} /></>}
+        </Card>
+
+        <Card title="Referrals">
+            <Message type="error">{referrals.error}</Message>
+            {referrals.data && <div className={styles.tiles}>
+                <div><strong>{referrals.data.summary.referralsSent}</strong><span>codes used to join</span></div>
+                <div><strong>{referrals.data.summary.referralsConverted}</strong><span>finished a first borrow</span></div>
+                <div><strong>{referrals.data.summary.creditsIssued} ₥</strong><span>credit paid to inviters</span></div>
+            </div>}
         </Card>
 
         <Card title="Item usage" footer={<ExportButtons pending={exporting.pending} onExport={format => exporting.run(() => exportUsageReport(format, { month }))} />}>

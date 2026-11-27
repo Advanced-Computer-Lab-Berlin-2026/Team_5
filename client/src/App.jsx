@@ -27,6 +27,10 @@ import MyBookingsPage from './pages/MyBookingsPage.jsx';
 import BorrowListPage from './pages/BorrowListPage.jsx';
 import MembershipPage from './pages/MembershipPage.jsx';
 import SupportPage from './pages/SupportPage.jsx';
+import WaitlistPage from './pages/WaitlistPage.jsx';
+import AdminModerationPage from './pages/AdminModerationPage.jsx';
+import AdminPromoCodesPage from './pages/AdminPromoCodesPage.jsx';
+import AdminSupportPage from './pages/AdminSupportPage.jsx';
 import LenderReservationsPage from './pages/LenderReservationsPage.jsx';
 import EmailSettingsPage from './pages/EmailSettingsPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
@@ -63,11 +67,12 @@ export default function App() {
                     <Route path="/bookings" element={<MyBookingsPage />} />
                     <Route path="/membership" element={<MembershipPage />} />
                     <Route path="/support" element={<SupportPage />} />
+                    <Route path="/borrow-list" element={<BorrowListPage />} />
+                    <Route path="/waitlist" element={<WaitlistPage />} />
                 </Route>
 
                 <Route element={<ProtectedRoute roles={['member']} />}>
                     <Route path="/become-lender" element={<BecomeLenderPage />} />
-                    <Route path="/borrow-list" element={<BorrowListPage />} />
                 </Route>
 
                 <Route element={<ProtectedRoute roles={['lender']} />}>
@@ -87,6 +92,9 @@ export default function App() {
                         <Route path="/admin/create-admin" element={<AdminCreateAdminPage />} />
                         <Route path="/admin/reports" element={<AdminReportsPage />} />
                         <Route path="/admin/damage/:id" element={<AdminDamageCasePage />} />
+                        <Route path="/admin/moderation" element={<AdminModerationPage />} />
+                        <Route path="/admin/promo-codes" element={<AdminPromoCodesPage />} />
+                        <Route path="/admin/support" element={<AdminSupportPage />} />
                     </Route>
                 </Route>
 

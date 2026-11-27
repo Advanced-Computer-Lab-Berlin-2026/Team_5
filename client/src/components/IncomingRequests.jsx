@@ -10,6 +10,7 @@ import { ItemImage } from './ItemImage.jsx';
 import { Message } from './Message.jsx';
 import TiltedCard from './TiltedCard.jsx';
 import { UserReviewsDialog } from './UserReviewsDialog.jsx';
+import { announceLenderBookingsChange } from './AcceptedBookings.jsx';
 import itemStyles from './ItemCard.module.css';
 import styles from './IncomingRequests.module.css';
 
@@ -88,7 +89,7 @@ export function IncomingRequests() {
         const ok = await decide.run(() => (approve ? approveReservation(id) : rejectReservation(id)),
             approve ? 'Approved. The borrower has been told, and the dates are now blocked.' : 'Declined. The deposit went back to the borrower.');
         setBusyId('');
-        if (ok) reload();
+        if (ok) { reload(); if (approve) announceLenderBookingsChange(); }
         return ok;
     }
 

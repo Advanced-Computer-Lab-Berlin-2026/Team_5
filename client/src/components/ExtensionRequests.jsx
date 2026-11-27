@@ -8,6 +8,7 @@ import { formatDate } from '../utils/format.js';
 import { Button } from './Button.jsx';
 import { Message } from './Message.jsx';
 import { UserReviewsDialog } from './UserReviewsDialog.jsx';
+import { announceLenderBookingsChange } from './AcceptedBookings.jsx';
 import styles from './ExtensionRequests.module.css';
 
 // the list only carries the item's id, so each row looks up the item's name
@@ -29,7 +30,7 @@ export function ExtensionRequests() {
         const ok = await decide.run(() => decideExtension(request.reservationId, request.requestId, decision),
             decision === 'accept' ? 'Accepted. The new last day is saved and the borrower has been told.' : 'Declined. The borrower has been told.');
         setBusy('');
-        if (ok) reload();
+        if (ok) { reload(); if (decision === 'accept') announceLenderBookingsChange(); }
     }
 
     if (!requests.length && !error && !decide.success && !decide.error) return null;

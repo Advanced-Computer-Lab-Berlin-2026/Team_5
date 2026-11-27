@@ -76,8 +76,9 @@ describe('GET /api/alternatives/:itemId', () => {
         const response = await list(itemId).query({ startDate: '2030-01-01', endDate: '2030-01-03' });
 
         expect(response.status).toBe(200);
+        // only approved and in-progress bookings block dates (pending requests do not, see BLOCKING_STATUSES)
         expect(Reservation.distinct).toHaveBeenCalledExactlyOnceWith('item', {
-            status: { $in: ['pending', 'upcoming', 'active'] },
+            status: { $in: ['upcoming', 'active'] },
             startDate: { $lt: new Date('2030-01-03') },
             endDate: { $gt: new Date('2030-01-01') }
         });

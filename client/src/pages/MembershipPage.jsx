@@ -111,7 +111,7 @@ export default function MembershipPage() {
                         <div className={styles.actions}>
                             {paid && !isCurrent && <>
                                 <Button fullWidth disabled={!enough || waiting} onClick={() => ask(tier, 'wallet')}>Pay from wallet</Button>
-                                <Button variant="secondary" fullWidth disabled={!cardPaymentsAvailable || waiting} onClick={() => ask(tier, 'card')}>Pay by card</Button>
+                                {cardPaymentsAvailable && <Button variant="secondary" fullWidth disabled={waiting} onClick={() => ask(tier, 'card')}>Pay by card</Button>}
                                 {typeof balance === 'number' && !enough && <p className={styles.note}>Not enough in your wallet.</p>}
                             </>}
                             {paid && isCurrent && <Button variant="destructive" fullWidth onClick={() => { cancel.reset(); setCancelling(true); }}>Cancel membership</Button>}
@@ -121,7 +121,6 @@ export default function MembershipPage() {
                 </TiltedCard>;
             })}
         </div>
-        {!cardPaymentsAvailable && <p className={styles.note}>Card payments are not set up on this site yet.</p>}
 
         <ConfirmDialog open={Boolean(buying)} tone="dark" title={buying ? `Switch to ${buying.tier.tier}?` : ''} pending={pay.pending} error={pay.error}
             confirmLabel={buying?.method === 'card' ? 'Go to card payment' : `Pay ${buying ? money(buying.tier.annual_fee) : ''}`} cancelLabel="Not now"

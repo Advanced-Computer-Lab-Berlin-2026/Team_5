@@ -8,6 +8,7 @@ import { useAsync } from '../hooks/useAsync.js';
 import { BackLink, Button, Card, DetailList, ItemCard, Message, PageHeader, PageSection, PhotoGallery, Spinner } from '../components';
 import { ReserveDialog } from '../components/ReserveDialog.jsx';
 import { ReportDialog } from '../components/ReportDialog.jsx';
+import { useDepositRates } from '../hooks/useDepositRates.js';
 import { cameFromGuestPage, clearGuestSpot } from '../components/scroll/transition.js';
 import styles from './ItemDetailPage.module.css';
 
@@ -20,6 +21,7 @@ export default function ItemDetailPage() {
     const [params, setParams] = useSearchParams();
     const { isLoggedIn, isAdmin, role } = useAuth();
     const [reporting, setReporting] = useState(false);
+    const { rateOf, depositOf } = useDepositRates();
     const { data, error, loading } = useAsync(() => getItem(id), [id]);
     const wishlist = useAction();
     const [reserving, setReserving] = useState(false);
@@ -60,6 +62,7 @@ export default function ItemDetailPage() {
     }
 
     const similar = (alternatives.data?.items ?? []).slice(0, 3);
+    // the stored file address may not open for a private upload, so the server's manual link (a fresh signed address) is used
     const manual = item.documents?.[0];
 
     return (
@@ -76,7 +79,9 @@ export default function ItemDetailPage() {
                 <p>{item.description}</p>
                 <DetailList rows={[
                     ['Category', item.category],
-                    ['Deposit', `${item.depositAmount} ₥`],
+                    ['Listed deposit', `${item.depositAmount} ₥`],
+                    ['Deposit rate', `× ${rateOf(item.category)} (${item.category})`],
+                    ['Deposit you pay', `${depositOf(item)} ₥`],
                     ['Lender', item.owner && `${item.owner.name} (trust score ${item.owner.trustScore})`],
                     ['Condition', item.conditionNotes?.length ? item.conditionNotes.join('. ') : ''],
                     ['Pickup', item.pickup?.location],
@@ -94,7 +99,7 @@ export default function ItemDetailPage() {
                 <Message type="success">{wishlist.success}</Message>
                 <Message type="error">{wishlist.error}</Message>
                 <div className={styles.actions}>
-                    <Button className={styles.manual} fullWidth href={manual?.url} disabled={!manual} target="_blank" rel="noreferrer">{manual ? 'See the manual' : 'No manual'}</Button>
+                    <Button className={styles.manual} fullWidth href={manual ? `/api/items/${encodeURIComponent(item._id)}/manual` : undefined} disabled={!manual} target="_blank" rel="noreferrer">{manual ? 'See the manual' : 'No manual'}</Button>
                     {!isAdmin && <>
                         <Button fullWidth disabled={wishlist.pending} onClick={handleWishlist}>Add to wishlist</Button>
                         <Button className={styles.reserve} fullWidth onClick={handleReserve}>Reserve</Button>

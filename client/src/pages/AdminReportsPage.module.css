@@ -9,3 +9,7 @@
 .barValue { text-align: right; color: var(--color-text-muted); }
 @media (max-width: 560px) { .bars li { grid-template-columns: 5rem 1fr; } .barValue { grid-column: 1 / -1; text-align: left; } }
 @media (prefers-reduced-motion: reduce) { .fill { animation: none; } }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--space-3); }
+.tiles div { display: grid; gap: var(--space-1); padding: var(--space-4); border: var(--border-muted); background: var(--color-surface-subtle); }
+.tiles strong { font-family: var(--font-title, inherit); font-size: 1.8rem; line-height: 1; }
+.tiles span { color: var(--color-text-muted); font-size: var(--font-size-small); }

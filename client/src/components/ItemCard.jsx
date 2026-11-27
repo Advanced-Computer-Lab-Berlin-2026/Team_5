@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './Button.jsx';
 import { Icon } from './Icon.jsx';
+import { useDepositRates } from '../hooks/useDepositRates.js';
 import { ItemImage } from './ItemImage.jsx';
 import TiltedCard from './TiltedCard.jsx';
 import { rememberGuestSpot } from './scroll/transition.js';
@@ -13,8 +14,10 @@ import styles from './ItemCard.module.css';
 // tag: { label, tone } shows a small label on the photo (instead of "Archived"); details: [[label, value]] adds rows to the back;
 // subtitle replaces the category line under the photo (a booking shows its dates there);
 // plainBack leaves the category and the "click to flip back" line off the back.
-export function ItemCard({ item, actions, extra, tag, subtitle, details = [], plainBack = false, introDelay = 0, intro = true, showView = true, openOnClick = false }) {
+// deposit: an exact amount to show (e.g. what a booking was charged); otherwise the listed deposit × the category's deposit rate.
+export function ItemCard({ item, actions, extra, tag, subtitle, details = [], plainBack = false, deposit, introDelay = 0, intro = true, showView = true, openOnClick = false }) {
     const [flipped, setFlipped] = useState(false);
+    const { depositOf, rateOf } = useDepositRates();
     const navigate = useNavigate();
     const [opening, setOpening] = useState(false);
     const to = `/items/${encodeURIComponent(item._id)}`;
@@ -35,7 +38,9 @@ export function ItemCard({ item, actions, extra, tag, subtitle, details = [], pl
             {!plainBack && <p className={styles.category}>{item.category}</p>}
             <h2 className={styles.title}>{item.name}</h2>
             <dl className={styles.facts}>
-                <div><dt>Deposit</dt><dd>{item.depositAmount} ₥</dd></div>
+                {deposit !== undefined
+                    ? <div><dt>Deposit</dt><dd>{deposit} ₥</dd></div>
+                    : <div><dt>Deposit</dt><dd>{item.depositAmount} ₥ × {rateOf(item.category)} = <strong>{depositOf(item)} ₥</strong></dd></div>}
                 <div><dt>Photos</dt><dd>{photoCount}</dd></div>
                 {extra && <div><dt>Dates</dt><dd>{extra}</dd></div>}
                 {details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}

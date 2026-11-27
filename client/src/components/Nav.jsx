@@ -12,7 +12,7 @@ import styles from './Nav.module.css';
 const LINKS_BY_ROLE = {
     member: [['/bookings', 'My bookings'], ['/wishlist', 'Wishlist'], ['/household', 'Household'], ['/notices', 'Notices']],
     lender: [['/lender/items', 'My items'], ['/reservations', 'Reservations'], ['/bookings', 'My bookings'], ['/wishlist', 'Wishlist'], ['/household', 'Household'], ['/notices', 'Notices']],
-    admin: [['/admin', 'Users'], ['/admin/items', 'Items'], ['/admin/lender-requests', 'Lender requests'], ['/admin/categories', 'Categories'], ['/admin/create-admin', 'New admin'], ['/admin/reports', 'Reports'], ['/notices', 'Notices']]
+    admin: [['/admin', 'Users'], ['/admin/items', 'Items'], ['/admin/lender-requests', 'Lender requests'], ['/admin/categories', 'Categories'], ['/admin/promo-codes', 'Promo codes'], ['/admin/create-admin', 'New admin'], ['/admin/reports', 'Reports']]
 };
 
 function NavItem({ to, children }) {
@@ -54,25 +54,32 @@ export function Nav() {
     return (
         <header className={styles.header} data-hidden={hidden && !open && !menuOpen ? '' : undefined}>
           <div className={styles.nav}>
-            <Link to="/" className={styles.brand} aria-label="In Your Shed home"><span className={styles.logo} role="img" aria-label="In Your Shed, Cairo, est. 2018" /></Link>
+            {/* admins have no Discover link; for them the logo opens the catalog */}
+            <Link to={role === 'admin' ? '/items' : '/'} className={styles.brand} aria-label={role === 'admin' ? 'In Your Shed, open the catalog' : 'In Your Shed home'}><span className={styles.logo} role="img" aria-label="In Your Shed, Cairo, est. 2018" /></Link>
             {!guestItemView && <button className={styles.toggle} type="button" aria-label={open ? 'Close navigation' : 'Open navigation'} aria-expanded={open} aria-controls="primary-navigation" onClick={() => setOpenPath(open ? null : location.pathname)}><Icon name={open ? 'close' : 'menu'} /></button>}
             {!guestItemView && <nav id="primary-navigation" aria-label="Main navigation" className={`${styles.links} ${open ? styles.open : ''}`} onClick={event => { if (event.target.closest('a')) setOpenPath(null); }} onKeyDown={event => { if (event.key === 'Escape') setOpenPath(null); }}>
-            <NavItem to="/items">Discover</NavItem>
+            {role !== 'admin' && <NavItem to="/items">Discover</NavItem>}
             {isLoggedIn && (LINKS_BY_ROLE[role] ?? []).map(([to, label]) => (
                 <NavItem key={to} to={to}>{label}</NavItem>
             ))}
             </nav>}
             <div className={styles.account}>
-            {/* only members can pay for a borrow list (the server's checkout is members only), so only they get the basket */}
-            {isLoggedIn && role === 'member' && <BorrowBasket />}
+            {/* members and lenders both pay for their borrow list at checkout */}
+            {isLoggedIn && (role === 'member' || role === 'lender') && <BorrowBasket />}
             {isLoggedIn && <NotificationBell />}
             {isLoggedIn ? (
                 <StaggeredMenu
                     items={[
-                        ...(role === 'admin' ? [] : [
+                        // admin pages that are used less often live in this menu instead of the header
+                        ...(role === 'admin' ? [
+                            { label: 'Support', ariaLabel: 'Questions from members and lenders', link: '/admin/support', onSelect: () => navigate('/admin/support') },
+                            { label: 'Mods', ariaLabel: 'Reports about items and people', link: '/admin/moderation', onSelect: () => navigate('/admin/moderation') },
+                            { label: 'Notices', ariaLabel: 'Community notices', link: '/notices', onSelect: () => navigate('/notices') }
+                        ] : [
                             { label: 'Profile', ariaLabel: 'Go to your profile', link: '/profile', onSelect: () => navigate('/profile') },
                             { label: 'Wallet', ariaLabel: 'Go to your wallet', link: '/wallet', onSelect: () => navigate('/wallet') },
                             { label: 'Member', ariaLabel: 'Your membership plan', link: '/membership', onSelect: () => navigate('/membership') },
+                            { label: 'Waitlist', ariaLabel: 'Items you are waiting for', link: '/waitlist', onSelect: () => navigate('/waitlist') },
                             { label: 'Email', ariaLabel: 'Email preferences', link: '/settings/email', onSelect: () => navigate('/settings/email') }
                         ]),
                         ...(role === 'member' ? [{ label: 'Lend', ariaLabel: 'Become a lender', link: '/become-lender', onSelect: () => navigate('/become-lender') }] : []),

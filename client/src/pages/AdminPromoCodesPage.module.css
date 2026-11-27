@@ -1,0 +1,11 @@
+.form { border-top: 4px solid var(--color-amber); }
+.form > div > form.wide { max-width: none; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 0 var(--space-4); }
+.status { padding: 2px var(--space-2); border: 1px solid var(--color-border); font-size: 0.72rem; font-weight: var(--font-weight-bold); text-transform: uppercase; }
+.active { background: var(--color-amber); border-color: var(--color-amber); color: #141414; }
+.range { display: grid; grid-template-columns: repeat(2, minmax(0, 12rem)); gap: var(--space-4); }
+.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--space-3); }
+.totals div { display: grid; gap: var(--space-1); padding: var(--space-4); border: var(--border-muted); background: var(--color-surface-subtle); }
+.totals strong { font-family: var(--font-title, inherit); font-size: 1.8rem; line-height: 1; }
+.totals span { color: var(--color-text-muted); font-size: var(--font-size-small); }
+.details summary { cursor: pointer; font-weight: var(--font-weight-bold); }

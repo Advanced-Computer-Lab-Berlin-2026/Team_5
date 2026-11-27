@@ -11,7 +11,11 @@
 .facts dt { color: var(--color-text-muted); }
 .facts dd { margin: 0; font-weight: var(--font-weight-medium); }
 .hint { color: var(--color-text-muted); font-size: var(--font-size-small); }
-.actions { display: flex; flex-wrap: wrap; gap: var(--space-2); cursor: default; }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-2); cursor: default; padding-top: var(--space-2); margin-top: calc(var(--space-2) * -1); }
+/* the buttons on the back of a card (Open, Cancel, Edit ...) are big and share the row, and each answers presses a little
+   outside its edges, so a slightly missed press still counts instead of flipping the card */
+.actions > * { position: relative; flex: 1 1 auto; min-height: 2.75rem; justify-content: center; }
+.actions > *::after { content: ''; position: absolute; inset: -0.4rem -0.15rem; }
 .tag[data-tone='amber'] { background: var(--color-amber); color: #141414; }
 .tag[data-tone='muted'] { background: var(--color-surface-subtle); color: var(--color-text-muted); border: 1px dashed var(--color-border); }
 .tag { position: absolute; top: var(--space-3); left: var(--space-3); padding: 2px var(--space-2); background: var(--color-inverse-background); color: var(--color-inverse-text); font-size: var(--font-size-small); font-weight: var(--font-weight-bold); }

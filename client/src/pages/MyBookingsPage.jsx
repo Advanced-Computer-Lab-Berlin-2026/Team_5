@@ -52,7 +52,7 @@ export default function MyBookingsPage() {
         <Grid>
             {data?.reservations.map((reservation, index) => {
                 return <ItemCard key={reservation._id} item={{ photos: [], ...reservation.item, name: reservation.item?.name ?? 'Item no longer listed', _id: reservation.item?._id ?? reservation._id }}
-                    introDelay={index * 60} showView={false} plainBack
+                    introDelay={index * 60} showView={false} plainBack deposit={reservation.payment?.depositAmount}
                     tag={{ label: STATUS_LABELS[reservation.status] ?? reservation.status, tone: ['upcoming', 'active'].includes(reservation.status) ? 'amber' : ['cancelled', 'rejected', 'expired'].includes(reservation.status) ? 'muted' : undefined }}
                     subtitle={`${formatDate(reservation.startDate)} to ${formatDate(reservation.endDate)}`}
                     extra={`${formatDate(reservation.startDate)} to ${formatDate(reservation.endDate)}`}

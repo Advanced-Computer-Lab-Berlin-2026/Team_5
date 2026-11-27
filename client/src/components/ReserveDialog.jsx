@@ -15,14 +15,16 @@ import { Message } from './Message.jsx';
 import styles from './ReserveDialog.module.css';
 
 // The amber card for booking an item: pick dates on the calendar and reserve.
-// A member's Reserve puts the item and dates on their borrow list, where everything is paid for at once (wallet or card).
-// A lender cannot use that checkout (the server allows members only), so a lender's Reserve still sends the request straight away,
-// with the optional delivery. If the dates are taken (409) the same card offers the waitlist instead.
+// Reserve puts the item and dates on the borrow list (the basket), where everything is paid for at once from the wallet.
+// The checkout has no delivery option, so a booking with "deliver it to me" ticked is sent straight away instead,
+// and its deposit is taken from the wallet there and then.
+// "Dates taken? Join the waitlist" switches the calendar so red (booked) days can be picked, and joins the waitlist for them.
 export function ReserveDialog({ item, open, onClose }) {
     const dialog = useRef(null);
     useCardTilt(dialog);
     const { role } = useAuth();
-    const viaList = role === 'member';
+    const canBook = role === 'member' || role === 'lender';
+    const [waitMode, setWaitMode] = useState(false);
     const reserve = useAction();
     const waitlist = useAction();
     const [booked, setBooked] = useState([]);
@@ -51,13 +53,15 @@ export function ReserveDialog({ item, open, onClose }) {
         if (!open) return;
         setClash(false);
         setSent(false);
+        setWaitMode(false);
+        waitlist.reset();
         setRange({ start: '', end: '' });
         getItemCalendar(item._id).then(data => { setBooked(data.reservations ?? []); setCalendarError(''); }).catch(error => setCalendarError(error.message));
     }, [open, item._id]);
 
     const complete = range.start && range.end;
-    // the checkout has no delivery option yet, so only the direct request (lenders) can ask for delivery
-    const offersDelivery = item.delivery?.offered && !viaList;
+    const offersDelivery = item.delivery?.offered && !waitMode;
+    const viaList = canBook && !delivery;
 
     async function handleReserve(event) {
         event.preventDefault();
@@ -77,7 +81,8 @@ export function ReserveDialog({ item, open, onClose }) {
             onCancel={event => { event.preventDefault(); onClose(); }} onClose={onClose}>
             <form onSubmit={handleReserve}>
                 <h2>Reserve {item.name}</h2>
-                <Calendar booked={booked} value={range} onChange={setRange} />
+                <Calendar booked={booked} value={range} onChange={setRange} allowBooked={waitMode} />
+                {waitMode && <p>Pick the days you want, including red ones. You will hear if they free up.</p>}
                 <Message type="error">{calendarError}</Message>
                 {offersDelivery && (
                     <label className={styles.toggle}>
@@ -90,16 +95,19 @@ export function ReserveDialog({ item, open, onClose }) {
                 <Message type="success">{waitlist.success}</Message>
                 {sent && (viaList
                     ? <Message type="success">Added to your borrow list. <Link to="/borrow-list">Go to checkout</Link> when you are ready to pay.</Message>
-                    : <Message type="success">Request sent. The owner will get back to you. <Link to="/bookings">View my bookings</Link></Message>)}
+                    : <Message type="success">Request sent and the deposit was taken from your wallet. The owner will get back to you; if they decline, it comes back. <Link to="/bookings">View my bookings</Link></Message>)}
                 {alreadyListed && <Message type="info">It is on your borrow list already. <Link to="/borrow-list">Change its dates there</Link>.</Message>}
-                {sent ? null : clash
-                    ? <Button type="button" fullWidth pending={waitlist.pending} disabled={!complete}
-                        onClick={() => waitlist.run(() => joinWaitlist(item._id, { startDate: range.start, endDate: range.end }), 'You are on the waitlist for those dates.')}>
+                {sent ? null : (clash || waitMode)
+                    ? <Button type="button" fullWidth pending={waitlist.pending} disabled={!complete || Boolean(waitlist.success)}
+                        onClick={() => waitlist.run(() => joinWaitlist(item._id, { startDate: range.start, endDate: range.end }), 'You are on the waitlist. If those days free up you get a notification (Premium members are told first, then Plus, then Basic).')}>
                         Join the waitlist for these dates
                     </Button>
                     : <Button type="submit" fullWidth pending={reserve.pending} disabled={!complete || (delivery && !address)}>
-                        Reserve
+                        {delivery ? 'Reserve and pay the deposit now' : 'Reserve'}
                     </Button>}
+                {!sent && !clash && <button type="button" className={styles.textButton} onClick={() => { setWaitMode(mode => !mode); setRange({ start: '', end: '' }); waitlist.reset(); reserve.reset(); }}>
+                    {waitMode ? 'Back to reserving' : 'Dates taken? Join the waitlist'}
+                </button>}
                 <div className={styles.footer}>
                     <button type="button" className={styles.textButton} onClick={onClose}>Cancel</button>
                 </div>

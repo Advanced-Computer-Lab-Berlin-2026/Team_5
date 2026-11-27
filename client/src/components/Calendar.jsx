@@ -13,7 +13,7 @@ const fromKey = key => { const [y, m, d] = key.split('-').map(Number); return ne
 // readOnly: just shows the month (nothing can be picked, past days are not greyed out and you can page back), with the requested dates
 // in amber: `value` for one range, or `ranges` ([{ id, start, end }], both days included) for several, where the ones in `activeIds`
 // are solid amber and the others are outlined. With `onDayClick(key, rangeIds)`, a day inside a range can be pressed. compact makes the days a little shorter so a whole month fits in a small card.
-export function Calendar({ booked = [], value, onChange, minDate = toKey(new Date()), readOnly = false, compact = false, ranges, activeIds, onDayClick, fixedStart }) {
+export function Calendar({ booked = [], value, onChange, minDate = toKey(new Date()), readOnly = false, compact = false, ranges, activeIds, onDayClick, fixedStart, allowBooked = false }) {
     const shown = ranges ?? (value?.start ? [{ id: 'value', start: value.start, end: value.end || value.start }] : []);
     const [month, setMonth] = useState(() => {
         const first = shown.find(range => activeIds?.includes(range.id)) ?? shown[0];
@@ -54,7 +54,7 @@ export function Calendar({ booked = [], value, onChange, minDate = toKey(new Dat
             {DAYS.map(day => <span key={day} className={styles.weekday}>{day}</span>)}
             {cells.map((key, index) => {
                 if (!key) return <span key={`gap${index}`} />;
-                const unavailable = key < firstAllowed || blocked.has(key);
+                const unavailable = key < firstAllowed || (blocked.has(key) && !allowBooked);
                 const start = key === value?.start;
                 const end = key === value?.end;
                 const inside = value?.start && value?.end && key > value.start && key < value.end;

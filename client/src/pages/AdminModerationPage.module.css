@@ -1,0 +1,12 @@
+.filter { max-width: 16rem; }
+.list { display: grid; gap: var(--space-3); }
+.card { display: grid; gap: var(--space-2); padding: var(--space-4); border: var(--border-muted); border-radius: 12px; background: var(--color-surface); }
+.open { border-left: 4px solid var(--color-amber); }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.head h2 { margin: 0; flex: 1; font-size: 1.2rem; }
+.head a { color: inherit; }
+.kind { padding: 2px var(--space-2); background: var(--color-inverse-background); color: var(--color-inverse-text); font-size: 0.72rem; font-weight: var(--font-weight-bold); text-transform: uppercase; }
+.status { padding: 2px var(--space-2); border: 1px solid var(--color-border); font-size: 0.72rem; font-weight: var(--font-weight-bold); text-transform: uppercase; }
+.reason { margin: 0; font-size: 1.05rem; }
+.meta { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-small); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }

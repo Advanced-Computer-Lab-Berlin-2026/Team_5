@@ -10,6 +10,7 @@ import { CardPaymentDialog } from '../components/CardPaymentDialog.jsx';
 import { DatesDialog } from '../components/DatesDialog.jsx';
 import { formatDate } from '../utils/format.js';
 import { cardPaymentsAvailable } from '../utils/stripe.js';
+import { useDepositRates } from '../hooks/useDepositRates.js';
 import styles from './BorrowListPage.module.css';
 
 // the same rounding as the server (checkoutPricingService): the promo comes off every item, rounded to the cent
@@ -39,9 +40,13 @@ export default function BorrowListPage() {
     const [done, setDone] = useState(null); // { count, total, method }
     const [refunded, setRefunded] = useState(false);
 
+    const { depositOf, rateOf } = useDepositRates();
     const entries = useMemo(() => list.data?.borrowList ?? [], [list.data]);
-    const subtotal = entries.reduce((sum, entry) => sum + (entry.item.depositAmount ?? 0), 0);
-    const total = applied ? entries.reduce((sum, entry) => sum + discounted(entry.item.depositAmount ?? 0, applied.percent), 0) : subtotal;
+    // each item's deposit as it will be charged: the listed deposit × its category's deposit rate (before any membership discount)
+    const priceOf = entry => depositOf(entry.item);
+    const listed = entries.reduce((sum, entry) => sum + (entry.item.depositAmount ?? 0), 0);
+    const subtotal = entries.reduce((sum, entry) => sum + priceOf(entry), 0);
+    const total = applied ? entries.reduce((sum, entry) => sum + discounted(priceOf(entry), applied.percent), 0) : subtotal;
     const balance = wallet.data?.balance;
     const enoughInWallet = typeof balance === 'number' && balance >= total;
     // a different list or promo is a different payment, so it gets a new key
@@ -53,7 +58,7 @@ export default function BorrowListPage() {
         event.preventDefault();
         if (!entries.length || !promoText.trim()) return;
         // the server checks the code against the cheapest item, then takes the percentage off every item
-        const cheapest = entries.reduce((low, entry) => (entry.item.depositAmount < low.item.depositAmount ? entry : low));
+        const cheapest = entries.reduce((low, entry) => (priceOf(entry) < priceOf(low) ? entry : low));
         const result = await promo.run(() => validatePromoCode(promoText.trim(), cheapest.item._id));
         if (result) setApplied({ code: result.code ?? promoText.trim().toUpperCase(), percent: result.discountPercent });
     }
@@ -127,7 +132,7 @@ export default function BorrowListPage() {
                 {entries.map((entry, index) => <ItemCard key={entry.item._id} item={entry.item} introDelay={index * 60} showView plainBack
                     subtitle={`${formatDate(entry.startDate)} to ${formatDate(entry.endDate)}`}
                     extra={`${formatDate(entry.startDate)} to ${formatDate(entry.endDate)}`}
-                    details={applied ? [['After promo', money(discounted(entry.item.depositAmount, applied.percent))]] : []}
+                    details={applied ? [['After promo', money(discounted(priceOf(entry), applied.percent))]] : []}
                     actions={<>
                         <Button variant="secondary" size="small" onClick={() => setEditing(entry)}>Change dates</Button>
                         <Button variant="destructive" size="small" disabled={removal.pending}
@@ -137,12 +142,15 @@ export default function BorrowListPage() {
 
             <Card title="Checkout" className={styles.checkout}>
                 <dl className={styles.sums}>
-                    <div><dt>{entries.length} {entries.length === 1 ? 'item' : 'items'}</dt><dd>{money(subtotal)}</dd></div>
+                    {/* each item: listed deposit × its category's rate = what it costs */}
+                    {entries.map(entry => <div key={entry.item._id} className={styles.line}><dt>{entry.item.name}</dt><dd>{money(entry.item.depositAmount ?? 0)} × {rateOf(entry.item.category)} = {money(priceOf(entry))}</dd></div>)}
+                    <div className={styles.sub}><dt>Listed deposits</dt><dd>{money(listed)}</dd></div>
+                    <div><dt>After deposit rates</dt><dd>{money(subtotal)}</dd></div>
                     {applied && <div><dt>Promo {applied.code} (−{applied.percent}%)</dt><dd>−{money(subtotal - total)}</dd></div>}
-                    <div className={styles.total}><dt>Deposit to pay</dt><dd>{money(total)}</dd></div>
+                    <div className={styles.total}><dt>Deposit to pay (about)</dt><dd>{money(total)}</dd></div>
                     {typeof balance === 'number' && <div><dt>In your wallet</dt><dd>{money(balance)}</dd></div>}
                 </dl>
-                <p className={styles.note}>The deposit is held, not spent: you get it back when you return the items in good condition.</p>
+                <p className={styles.note}>Deposits include each category's deposit rate. Your membership discount comes off when you pay. The deposit is held, not spent: you get it back when you return the items in good condition.</p>
 
                 {applied
                     ? <div className={styles.promoApplied}><span>Promo <strong>{applied.code}</strong> applied</span><button type="button" className={styles.link} onClick={() => { setApplied(null); promo.reset(); }}>Remove</button></div>
@@ -156,11 +164,10 @@ export default function BorrowListPage() {
                 {refunded && <Message type="error">One of the items was booked by someone else while you paid, so your card was refunded. Check your list and try again.</Message>}
                 {waiting && <Message type="info">Waiting for the card payment to be confirmed…</Message>}
                 <div className={styles.payButtons}>
-                    <Button pending={pay.pending && !card} disabled={pay.pending || waiting || !enoughInWallet} onClick={handleWallet}>Pay {money(total)} from wallet</Button>
-                    <Button variant="secondary" disabled={pay.pending || waiting || !cardPaymentsAvailable} onClick={handleCard}>Pay by card</Button>
+                    <Button pending={pay.pending && !card} disabled={pay.pending || waiting} onClick={handleWallet}>Pay from wallet</Button>
+                    {cardPaymentsAvailable && <Button variant="secondary" disabled={pay.pending || waiting} onClick={handleCard}>Pay by card</Button>}
                 </div>
-                {typeof balance === 'number' && !enoughInWallet && <p className={styles.note}>Your wallet has {money(balance)}, which is not enough. Pay by card instead.</p>}
-                {!cardPaymentsAvailable && <p className={styles.note}>Card payments are not set up on this site yet.</p>}
+                {typeof balance === 'number' && !enoughInWallet && <p className={styles.note}>Your wallet has {money(balance)}, which may not be enough. If it is short, the payment is refused and nothing is taken.</p>}
             </Card>
         </div>}
 
