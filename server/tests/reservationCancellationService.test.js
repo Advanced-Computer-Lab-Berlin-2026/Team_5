@@ -263,6 +263,50 @@ describe('cancelReservationWithRefund', () => {
         expect(mocks.itemFindById).not.toHaveBeenCalled();
     });
 
+    it('pays the kept part of the deposit to the lender as a cancellation fee', async () => {
+        mocks.reservationFindById.mockReturnValue(query(makeReservation({
+            startDate: new Date('2026-11-18T12:00:00.000Z')
+        })));
+
+        await cancelReservationWithRefund('RES-123', 'member-1');
+
+        // 25 of the 100 deposit is kept: it goes to the lender's wallet, in the same transaction as the refund
+        expect(mocks.userFindOneAndUpdate).toHaveBeenCalledWith(
+            { _id: 'lender-1' },
+            { $inc: { wallet: 25 } },
+            { session: dbSession, new: true }
+        );
+        expect(mocks.paymentCreate).toHaveBeenCalledWith([expect.objectContaining({
+            user: 'lender-1',
+            reservation: 'RES-123',
+            sourcePaymentId: 'PAY-ORIGINAL',
+            refundKey: 'cancellation-fee:RES-123',
+            type: 'deposit-forfeit',
+            amount: 25,
+            direction: 'receive',
+            method: 'wallet',
+            status: 'completed'
+        })], { session: dbSession });
+    });
+
+    it('pays no cancellation fee inside the free window', async () => {
+        await cancelReservationWithRefund('RES-123', 'member-1');
+
+        expect(mocks.userFindOneAndUpdate).toHaveBeenCalledTimes(1);
+        expect(mocks.paymentCreate).not.toHaveBeenCalledWith([expect.objectContaining({ type: 'deposit-forfeit' })], expect.anything());
+    });
+
+    it('fails the whole cancellation if the lender account is gone, so no money is lost', async () => {
+        mocks.reservationFindById.mockReturnValue(query(makeReservation({
+            startDate: new Date('2026-11-18T12:00:00.000Z')
+        })));
+        mocks.userFindOneAndUpdate
+            .mockResolvedValueOnce({ _id: 'member-1', wallet: 200 })
+            .mockResolvedValueOnce(null);
+
+        await expect(cancelReservationWithRefund('RES-123', 'member-1')).rejects.toThrow('Lender not found');
+    });
+
     it('refunds the paid delivery fee in full while applying the deposit cancellation policy', async () => {
         mocks.reservationFindById.mockReturnValue(query(makeReservation({
             startDate: new Date('2026-11-18T12:00:00.000Z'),
@@ -276,6 +320,10 @@ describe('cancelReservationWithRefund', () => {
         expect(mocks.paymentFind).toHaveBeenLastCalledWith(expect.objectContaining({
             type: 'delivery-fee', reservation: 'RES-123'
         }));
+        // the lender gets the kept part of the deposit only, never any of the delivery fee
+        expect(mocks.userFindOneAndUpdate).toHaveBeenCalledWith(
+            { _id: 'lender-1' }, { $inc: { wallet: 25 } }, { session: dbSession, new: true }
+        );
     });
 
     it('refunds the full deposit when a paid request expires without approval', async () => {

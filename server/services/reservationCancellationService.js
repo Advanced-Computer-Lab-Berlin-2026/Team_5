@@ -357,6 +357,34 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
                 description: automaticExpiry ? 'Unanswered reservation expired' : `Reservation cancelled by ${cancelledBy}`
             }], { session });
 
+            // The part of the deposit kept by the cancellation policy (cancelling late) goes to the lender.
+            // Before, it was simply not refunded and ended up in nobody's wallet. The delivery fee is always refunded in full,
+            // and a lender cancelling or a request expiring refunds everything, so there is nothing to pay out then.
+            const feeCents = asCents(reservation.payment.depositAmount) - asCents(depositRefund);
+            if (feeCents > 0) {
+                const lender = await User.findOneAndUpdate(
+                    { _id: reservation.lender },
+                    { $inc: { wallet: feeCents / 100 } },
+                    { session, new: true }
+                );
+                if (!lender) {
+                    throw new Error('Lender not found during cancellation fee payout.');
+                }
+                await Payment.create([{
+                    user: reservation.lender,
+                    reservation: reservation._id,
+                    sourcePaymentId: originalPayment._id,
+                    // unique, so a retried cancellation can never pay the lender twice
+                    refundKey: `cancellation-fee:${reservation._id}`,
+                    type: 'deposit-forfeit',
+                    amount: feeCents / 100,
+                    direction: 'receive',
+                    method: 'wallet',
+                    status: 'completed',
+                    description: `Cancellation fee for reservation ${reservation._id}`
+                }], { session });
+            }
+
             // Store the refund ID for future idempotent requests.
             const saved = await Reservation.updateOne(
                 {
