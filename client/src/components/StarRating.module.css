@@ -1,0 +1,5 @@
+.stars { display: inline-flex; gap: 2px; }
+.star { padding: 0; border: 0; background: none; color: var(--color-border-muted); font-size: 1.8rem; line-height: 1; cursor: inherit; transition: color 120ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+button.star:hover { transform: scale(1.15); }
+.on { color: var(--color-amber); }
+span.star { font-size: 1.1rem; }

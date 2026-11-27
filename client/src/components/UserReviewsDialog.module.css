@@ -1,0 +1,10 @@
+.body { display: grid; gap: var(--space-3); }
+.body h2 { margin: 0; }
+.meta { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-small); }
+.average { display: flex; align-items: center; gap: var(--space-2); width: fit-content; padding: var(--space-1) var(--space-3); border-radius: var(--radius-control); background: #fffaf1; font-size: var(--font-size-small); }
+.list { display: grid; gap: var(--space-2); max-height: 22rem; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.list li { padding: var(--space-3); border-radius: var(--radius-control); background: #fffaf1; }
+.list p { margin: var(--space-1) 0 0; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--color-text-muted); font-size: 0.78rem; }
+/* the stars sit on cream here, so the empty ones need to be darker than on the page */
+.body [class*='star'] { --color-border-muted: rgb(20 20 20 / 25%); }

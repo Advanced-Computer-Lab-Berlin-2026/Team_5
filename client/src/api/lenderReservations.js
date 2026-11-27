@@ -25,3 +25,20 @@ export function reportDamage(id, { returnCondition, message }, files = []) {
     files.forEach((file) => form.append('photos', file));
     return request(`${BASE}/${encodeURIComponent(id)}/damage`, { method: 'POST', body: form });
 }
+
+// pending requests for this lender's items, oldest first. Resolves to { reservations }
+export const listIncomingReservations = () => request(BASE);
+
+// approved and in-progress bookings of this lender's items, soonest first. { reservations } with item (name, photos) and borrower
+export const listAcceptedReservations = () => request(BASE, { query: { view: 'accepted' } });
+
+// approving makes the booking "upcoming" (and blocks those dates); rejecting refunds the deposit to the borrower
+export const approveReservation = (id) => request(`${BASE}/${encodeURIComponent(id)}/approve`, { method: 'PATCH' });
+export const rejectReservation = (id) => request(`${BASE}/${encodeURIComponent(id)}/reject`, { method: 'PATCH' });
+
+// extension requests waiting for this lender: { requests: [{ requestId, reservationId, originalEndDate, requestedEndDate, borrower, item (id) }] }
+export const listPendingExtensions = () => request(`${BASE}/extensions/pending`);
+
+// decision: 'accept' (the end date moves) or 'reject'
+export const decideExtension = (reservationId, requestId, decision) =>
+    request(`${BASE}/${encodeURIComponent(reservationId)}/extensions/${encodeURIComponent(requestId)}`, { method: 'PATCH', body: { decision } });

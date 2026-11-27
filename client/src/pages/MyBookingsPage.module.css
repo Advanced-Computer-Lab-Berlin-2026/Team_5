@@ -1,0 +1,3 @@
+.filter { max-width: 14rem; }
+.list { display: grid; gap: var(--space-3); }
+.entry { animation: none; }

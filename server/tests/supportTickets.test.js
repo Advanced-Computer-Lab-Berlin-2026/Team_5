@@ -58,7 +58,22 @@ describe('POST /api/support-tickets', () => {
         expect(SupportTicket.create).not.toHaveBeenCalled();
     });
 
-    it('allows only members to submit tickets', async () => {
+    it('lets a lender open a ticket too, marked as coming from a lender', async () => {
+        const cookie = cookieFor('lender1', 'lender');
+        vi.spyOn(SupportTicket, 'create').mockResolvedValue({ _id: 'TKT-9' });
+
+        const response = await request(app).post('/api/support-tickets')
+            .set('Origin', ORIGIN).set('Cookie', cookie)
+            .send({ subject: 'Payout question', message: 'When do I get the deposit?' });
+
+        expect(response.status).toBe(201);
+        expect(SupportTicket.create).toHaveBeenCalledWith(expect.objectContaining({
+            user: 'lender1',
+            messages: [expect.objectContaining({ sender: 'lender1', userType: 'lender' })],
+        }));
+    });
+
+    it('does not let admins submit tickets', async () => {
         const cookie = cookieFor('admin1', 'admin');
 
         const response = await request(app).post('/api/support-tickets')

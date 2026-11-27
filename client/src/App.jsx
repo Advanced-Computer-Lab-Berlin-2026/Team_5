@@ -22,6 +22,12 @@ import Cursor from './components/Cursor.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import ReservationPage from './pages/ReservationPage.jsx';
 import AdminReportsPage from './pages/AdminReportsPage.jsx';
+import AdminDamageCasePage from './pages/AdminDamageCasePage.jsx';
+import MyBookingsPage from './pages/MyBookingsPage.jsx';
+import BorrowListPage from './pages/BorrowListPage.jsx';
+import MembershipPage from './pages/MembershipPage.jsx';
+import SupportPage from './pages/SupportPage.jsx';
+import LenderReservationsPage from './pages/LenderReservationsPage.jsx';
 import EmailSettingsPage from './pages/EmailSettingsPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 
@@ -54,13 +60,18 @@ export default function App() {
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/household" element={<HouseholdPage />} />
                     <Route path="/settings/email" element={<EmailSettingsPage />} />
+                    <Route path="/bookings" element={<MyBookingsPage />} />
+                    <Route path="/membership" element={<MembershipPage />} />
+                    <Route path="/support" element={<SupportPage />} />
                 </Route>
 
                 <Route element={<ProtectedRoute roles={['member']} />}>
                     <Route path="/become-lender" element={<BecomeLenderPage />} />
+                    <Route path="/borrow-list" element={<BorrowListPage />} />
                 </Route>
 
                 <Route element={<ProtectedRoute roles={['lender']} />}>
+                    <Route path="/reservations" element={<LenderReservationsPage />} />
                     <Route path="/lender/items" element={<LenderItemsPage />} />
                     <Route path="/lender/items/new" element={<LenderItemFormPage />} />
                     <Route path="/lender/items/:id/edit" element={<LenderItemFormPage />} />
@@ -75,6 +86,7 @@ export default function App() {
                         <Route path="/admin/categories" element={<AdminCategoriesPage />} />
                         <Route path="/admin/create-admin" element={<AdminCreateAdminPage />} />
                         <Route path="/admin/reports" element={<AdminReportsPage />} />
+                        <Route path="/admin/damage/:id" element={<AdminDamageCasePage />} />
                     </Route>
                 </Route>
 

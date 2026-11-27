@@ -7,7 +7,8 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
-router.post('/', requireAuth, requireRole('member'), submitSupportTicket);
-router.get('/', requireAuth, requireRole('member'), listMemberSupportTickets);
+// members and lenders can both ask the admins for help
+router.post('/', requireAuth, requireRole('member', 'lender'), submitSupportTicket);
+router.get('/', requireAuth, requireRole('member', 'lender'), listMemberSupportTickets);
 
 export default router;

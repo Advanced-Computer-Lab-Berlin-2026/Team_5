@@ -75,7 +75,8 @@ export default function AdminReportsPage() {
                     { key: 'lender', header: 'Lender' },
                     { key: 'status', header: 'Status' },
                     { key: 'depositAmount', header: 'Deposit', render: row => (row.depositAmount == null ? '-' : `${row.depositAmount} ₥`) },
-                    { key: 'openedAt', header: 'Opened', render: row => formatDate(row.openedAt) }
+                    { key: 'openedAt', header: 'Opened', render: row => formatDate(row.openedAt) },
+                    { key: 'open', header: '', render: row => row.id ? <Button variant="secondary" size="small" to={`/admin/damage/${row.id}`}>Open</Button> : null }
                 ]} />}
         </Card>
     </>;

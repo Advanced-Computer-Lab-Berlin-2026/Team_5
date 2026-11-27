@@ -7,6 +7,7 @@ import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
 import { BackLink, Button, Card, DetailList, ItemCard, Message, PageHeader, PageSection, PhotoGallery, Spinner } from '../components';
 import { ReserveDialog } from '../components/ReserveDialog.jsx';
+import { ReportDialog } from '../components/ReportDialog.jsx';
 import { cameFromGuestPage, clearGuestSpot } from '../components/scroll/transition.js';
 import styles from './ItemDetailPage.module.css';
 
@@ -17,7 +18,8 @@ export default function ItemDetailPage() {
     useEffect(() => clearGuestSpot, []);
     const navigate = useNavigate();
     const [params, setParams] = useSearchParams();
-    const { isLoggedIn, isAdmin } = useAuth();
+    const { isLoggedIn, isAdmin, role } = useAuth();
+    const [reporting, setReporting] = useState(false);
     const { data, error, loading } = useAsync(() => getItem(id), [id]);
     const wishlist = useAction();
     const [reserving, setReserving] = useState(false);
@@ -109,6 +111,11 @@ export default function ItemDetailPage() {
             )}
             </PageSection>
             {!isAdmin && <ReserveDialog item={item} open={reserving} onClose={() => setReserving(false)} />}
+            {/* members can flag an item to the admins (the server only takes reports from members) */}
+            {role === 'member' && <>
+                <button type="button" className={styles.report} onClick={() => setReporting(true)}>Report this item</button>
+                <ReportDialog open={reporting} targetType="item" targetId={item._id} name={item.name} onClose={() => setReporting(false)} />
+            </>}
         </>
     );
 }

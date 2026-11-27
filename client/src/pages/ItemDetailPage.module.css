@@ -22,3 +22,5 @@
 .enterLater { animation-delay: 90ms; }
 @keyframes pageIn { from { opacity: 0; transform: translateY(18px) scale(0.985); } }
 @media (prefers-reduced-motion: reduce) { .enter { animation: none; } }
+.report { justify-self: end; align-self: end; padding: 0; border: 0; background: none; color: var(--color-text-muted); font: inherit; font-size: var(--font-size-small); text-decoration: underline; cursor: pointer; }
+.report:hover { color: var(--color-text); }

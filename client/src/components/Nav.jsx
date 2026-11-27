@@ -4,13 +4,14 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { Button } from './Button.jsx';
 import { Icon } from './Icon.jsx';
 import { NotificationBell } from './NotificationBell.jsx';
+import { BorrowBasket } from './BorrowBasket.jsx';
 import StaggeredMenu from './StaggeredMenu.jsx';
 import styles from './Nav.module.css';
 
 // Which links each role sees, after the always-visible ones.
 const LINKS_BY_ROLE = {
-    member: [['/wishlist', 'Wishlist'], ['/household', 'Household'], ['/notices', 'Notices']],
-    lender: [['/lender/items', 'My items'], ['/wishlist', 'Wishlist'], ['/household', 'Household'], ['/notices', 'Notices']],
+    member: [['/bookings', 'My bookings'], ['/wishlist', 'Wishlist'], ['/household', 'Household'], ['/notices', 'Notices']],
+    lender: [['/lender/items', 'My items'], ['/reservations', 'Reservations'], ['/bookings', 'My bookings'], ['/wishlist', 'Wishlist'], ['/household', 'Household'], ['/notices', 'Notices']],
     admin: [['/admin', 'Users'], ['/admin/items', 'Items'], ['/admin/lender-requests', 'Lender requests'], ['/admin/categories', 'Categories'], ['/admin/create-admin', 'New admin'], ['/admin/reports', 'Reports'], ['/notices', 'Notices']]
 };
 
@@ -62,6 +63,8 @@ export function Nav() {
             ))}
             </nav>}
             <div className={styles.account}>
+            {/* only members can pay for a borrow list (the server's checkout is members only), so only they get the basket */}
+            {isLoggedIn && role === 'member' && <BorrowBasket />}
             {isLoggedIn && <NotificationBell />}
             {isLoggedIn ? (
                 <StaggeredMenu
@@ -69,9 +72,12 @@ export function Nav() {
                         ...(role === 'admin' ? [] : [
                             { label: 'Profile', ariaLabel: 'Go to your profile', link: '/profile', onSelect: () => navigate('/profile') },
                             { label: 'Wallet', ariaLabel: 'Go to your wallet', link: '/wallet', onSelect: () => navigate('/wallet') },
+                            { label: 'Member', ariaLabel: 'Your membership plan', link: '/membership', onSelect: () => navigate('/membership') },
                             { label: 'Email', ariaLabel: 'Email preferences', link: '/settings/email', onSelect: () => navigate('/settings/email') }
                         ]),
                         ...(role === 'member' ? [{ label: 'Lend', ariaLabel: 'Become a lender', link: '/become-lender', onSelect: () => navigate('/become-lender') }] : []),
+                        // members and lenders can ask the admins for help
+                        ...(role === 'member' || role === 'lender' ? [{ label: 'Help', ariaLabel: 'Ask the admins for help', link: '/support', onSelect: () => navigate('/support') }] : []),
                         { label: 'Log out', ariaLabel: 'Log out', onSelect: handleLogout }
                     ]}
                     title={`${user.username} · ${role}`}

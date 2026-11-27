@@ -1,0 +1,30 @@
+.section { display: grid; gap: var(--space-3); }
+.section h2 { margin: 0; display: flex; align-items: center; gap: var(--space-2); }
+.count { display: inline-flex; align-items: center; justify-content: center; min-width: 1.6rem; height: 1.6rem; padding: 0 6px; background: var(--color-amber); color: #141414; font-size: 0.85rem; font-family: var(--font-body, inherit); }
+/* every item takes a whole row: its card on the left (a third), its calendar and requests on the right (two thirds) */
+.list { display: grid; gap: var(--space-5, 2rem); }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-4); align-items: stretch; }
+@media (max-width: 800px) { .row { grid-template-columns: minmax(0, 1fr); } }
+.badge { position: absolute; top: var(--space-3); left: var(--space-3); padding: 2px var(--space-2); background: var(--color-amber); color: #141414; font-size: var(--font-size-small); font-weight: var(--font-weight-bold); }
+
+/* the panel fills the height of the item card next to it: the month on one side, the requests on the other. More requests make the
+   list scroll instead of making the panel taller */
+.panelWrap { position: relative; min-height: 0; }
+.panel { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--space-4); width: 100%; height: 100%; box-sizing: border-box; padding: var(--space-4); border: var(--border-muted); border-radius: 12px; background: var(--color-surface); text-align: left; color: var(--color-text); overflow: hidden; }
+.calendar { min-height: 0; align-self: start; }
+.bookedList { margin: var(--space-2) 0 0; color: var(--color-text-muted); font-size: 0.78rem; line-height: 1.5; }
+.bookedList strong { color: var(--color-text); }
+.note { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-small); }
+.requests { display: grid; gap: var(--space-3); margin: 0; padding: 0 var(--space-1) 0 0; list-style: none; min-height: 0; overflow-y: auto; align-content: start; overscroll-behavior: contain; overflow-x: hidden; }
+/* narrow screens: the card is full width, so the panel gets its own fixed height and scrolls as a whole */
+@media (max-width: 1100px) { .panel { grid-template-columns: minmax(0, 1fr); overflow-x: hidden; overflow-y: auto; } .requests { overflow: visible; } }
+@media (max-width: 800px) { .panelWrap { height: 44rem; } }
+.request { display: grid; gap: var(--space-3); padding: var(--space-3); border: var(--border-muted); border-left: 4px solid transparent; background: var(--color-surface-subtle); transition: border-color 200ms ease, background 200ms ease; }
+.lit { border-color: var(--color-amber); background: color-mix(in srgb, var(--color-amber) 14%, var(--color-surface-subtle)); }
+.pick { display: grid; gap: 2px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.pick strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick span { color: var(--color-text-muted); font-size: var(--font-size-small); }
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.buttons > * { min-height: 2.75rem; }
+.reviewsLink { justify-self: start; padding: 0; border: 0; background: none; color: var(--color-text-muted); font: inherit; font-size: 0.78rem; text-decoration: underline; cursor: pointer; }
+.reviewsLink:hover { color: var(--color-text); }

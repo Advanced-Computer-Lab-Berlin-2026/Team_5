@@ -70,6 +70,7 @@ beforeEach(() => {
 describe('GET /api/reservations/:reservationId/delivery', () => {
     it.each([
         ['member', 'Youries'],
+        ['lender', 'martinies'],
         ['admin', 'admin123']
     ])('returns delivery data unchanged to the authorized %s', async (role, id) => {
         authenticateAs(id, role);

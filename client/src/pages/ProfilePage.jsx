@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { useAction } from '../hooks/useAction.js';
 import { Button, FormField, Icon, Message, PageHeader } from '../components';
 import TiltedCard from '../components/TiltedCard.jsx';
+import { MyReviewsCard, ReferralCard } from '../components/ProfileExtras.jsx';
 import styles from './ProfilePage.module.css';
 
 // Muted card colors; the details card picks one at random every time the page opens. dark: true means dark text.
@@ -103,6 +104,10 @@ export default function ProfilePage() {
                 </TiltedCard>
             </div>
 
+            <div className={styles.extras}>
+                <ReferralCard />
+                <MyReviewsCard />
+            </div>
         </>
     );
 }

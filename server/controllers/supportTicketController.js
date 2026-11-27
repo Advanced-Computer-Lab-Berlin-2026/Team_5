@@ -25,7 +25,7 @@ export async function submitSupportTicket(req, res, next) {
             status: 'in-progress',
             messages: [{
                 sender: req.user.id,
-                userType: 'member',
+                userType: req.user.role === 'lender' ? 'lender' : 'member',
                 text: value.message,
             }],
         });

@@ -12,6 +12,8 @@
 .facts dd { margin: 0; font-weight: var(--font-weight-medium); }
 .hint { color: var(--color-text-muted); font-size: var(--font-size-small); }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); cursor: default; }
+.tag[data-tone='amber'] { background: var(--color-amber); color: #141414; }
+.tag[data-tone='muted'] { background: var(--color-surface-subtle); color: var(--color-text-muted); border: 1px dashed var(--color-border); }
 .tag { position: absolute; top: var(--space-3); left: var(--space-3); padding: 2px var(--space-2); background: var(--color-inverse-background); color: var(--color-inverse-text); font-size: var(--font-size-small); font-weight: var(--font-weight-bold); }
 
 /* cards that open the item page: they dip when pressed, then swell and fade as the page opens */

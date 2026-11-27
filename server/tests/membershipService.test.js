@@ -168,13 +168,19 @@ describe('hasReachedReservationLimit', () => {
         expect(result).toEqual({ reached: true, limit: 2, tier: 'Basic' });
     });
 
-    it('counts only the borrower\'s pending, upcoming and active reservations, inside the session', async () => {
+    it('counts upcoming and active reservations, and pending ones only while their start date is still ahead, inside the session', async () => {
         const session = { id: 'session' };
 
         await hasReachedReservationLimit(borrowerOn('Basic'), session, NOW);
 
         expect(Reservation.countDocuments).toHaveBeenCalledExactlyOnceWith(
-            { borrower: 'tata', status: { $in: ['pending', 'upcoming', 'active'] } },
+            {
+                borrower: 'tata',
+                $or: [
+                    { status: { $in: ['upcoming', 'active'] } },
+                    { status: 'pending', startDate: { $gt: NOW } }
+                ]
+            },
             { session }
         );
     });
