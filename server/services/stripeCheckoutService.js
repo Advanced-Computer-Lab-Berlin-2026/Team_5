@@ -90,6 +90,14 @@ export async function createCardPaymentIntent(userId, idempotencyKey, promoCode 
         }
     }
 
+    if (payment.type === 'membership-fee') {
+        throw new CheckoutError(
+            409,
+            'IDEMPOTENCY_KEY_CONFLICT',
+            'This Idempotency-Key was already used for a different checkout.'
+        );
+    }
+
     // Never reuse an existing PaymentIntent for a different promo selection.
     if (normalizePromoCode(payment.promoCode) !== requestedPromo) {
         throw new CheckoutError(
@@ -288,8 +296,8 @@ function verifyPaymentIntent(payment, intent) {
     }
 }
 
-// Refund an already-charged checkout whose items became unavailable.
-async function refundUnavailablePayment(paymentId) {
+// Refund a card payment when checkout can no longer be fulfilled.
+export async function refundUnavailablePayment(paymentId) {
     let payment = await Payment.findOneAndUpdate(
         {
             _id: paymentId,
@@ -346,8 +354,7 @@ async function refundUnavailablePayment(paymentId) {
             {
                 payment_intent: payment.stripePaymentIntentId,
                 metadata: {
-                    shareshedPaymentId: payment._id,
-                    purpose: 'unavailable_checkout'
+                    shareshedPaymentId: payment._id
                 }
             },
             {

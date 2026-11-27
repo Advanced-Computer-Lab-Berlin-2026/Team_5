@@ -5,6 +5,7 @@ import request from 'supertest';
 const mocks = vi.hoisted(() => ({
   constructEvent: vi.fn(),
   finalizeCardPayment: vi.fn(),
+  finalizeMembershipCardPayment: vi.fn(),
 }));
 
 vi.mock('../config/stripe.js', () => ({
@@ -15,6 +16,9 @@ vi.mock('../config/env.js', () => ({
 }));
 vi.mock('../services/stripeCheckoutService.js', () => ({
   finalizeCardPayment: mocks.finalizeCardPayment,
+}));
+vi.mock('../services/membershipPaymentService.js', () => ({
+  finalizeMembershipCardPayment: mocks.finalizeMembershipCardPayment,
 }));
 
 import { env } from '../config/env.js';
@@ -55,6 +59,16 @@ beforeEach(() => {
 });
 
 describe('POST /api/stripe/webhook — SCRUM-431', () => {
+  it('routes confirmed membership fees to membership finalization', async () => {
+    const intent = { ...succeededIntent, metadata: { ...succeededIntent.metadata, purpose: 'membership-fee' } };
+    mocks.constructEvent.mockReturnValue({ type: 'payment_intent.succeeded', data: { object: intent } });
+
+    const response = await sendWebhook();
+
+    expect(response.status).toBe(200);
+    expect(mocks.finalizeMembershipCardPayment).toHaveBeenCalledExactlyOnceWith(intent);
+    expect(mocks.finalizeCardPayment).not.toHaveBeenCalled();
+  });
   it('passes the raw Buffer and signature to Stripe, and finalizes a successful payment', async () => {
     const response = await sendWebhook();
     expect(response.status).toBe(200);

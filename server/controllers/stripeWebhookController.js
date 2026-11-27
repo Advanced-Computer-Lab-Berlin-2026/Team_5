@@ -2,6 +2,7 @@
 import stripe from '../config/stripe.js';
 import { env } from '../config/env.js';
 import { finalizeCardPayment } from '../services/stripeCheckoutService.js';
+import { finalizeMembershipCardPayment } from '../services/membershipPaymentService.js';
 
 export async function handleStripeWebhook(req, res) {
     const signature = req.get('stripe-signature');
@@ -40,7 +41,11 @@ export async function handleStripeWebhook(req, res) {
                     });
                 }
 
-                await finalizeCardPayment(paymentIntent);
+                if (paymentIntent.metadata.purpose === 'membership-fee') {
+                    await finalizeMembershipCardPayment(paymentIntent);
+                } else {
+                    await finalizeCardPayment(paymentIntent);
+                }
                 break;
             }
 
