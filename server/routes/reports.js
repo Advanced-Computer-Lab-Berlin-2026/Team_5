@@ -4,6 +4,7 @@ import {
     exportUsageReport,
     getDamageReport,
     exportDamageReport,
+    getReferralReport,
     getTierDistribution
 } from '../controllers/reportController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
@@ -15,6 +16,7 @@ router.get('/usage', requireAuth, requireAdmin, getUsageReport);
 router.get('/usage/export', requireAuth, requireAdmin, exportUsageReport);
 router.get('/damage', requireAuth, requireAdmin, getDamageReport);
 router.get('/damage/export', requireAuth, requireAdmin, exportDamageReport);
+router.get('/referrals', requireAuth, requireAdmin, getReferralReport);
 router.get('/membership-tiers', requireAuth, requireAdmin, getTierDistribution);
 
 export default router;

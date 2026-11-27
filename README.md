@@ -177,6 +177,7 @@ chat, and item manuals are documented in the same table.
 | `POST /api/reservations/:reservationId/messages` | `text` (1–1000 chars); CSRF origin required | Appends a message from the caller on an `upcoming` or `active` reservation they participate in; returns `201` with the new message. |
 | `GET /api/items/:id/manual` | None; public (no login); optional `?download=true` | If the item is visible (same rules as item details) and has a usage manual, redirects to a signed Cloudinary PDF URL. Missing item → `404` item; no manual → `404` manual. |
 | `POST /api/waitlist/:itemId` | `startDate`, `endDate` | Joins the waitlist when a pending, upcoming, or active reservation overlaps the requested dates; authenticated members, admins, and lenders. |
+| `GET /api/admin/reports/referrals` | No query parameters. Admin session required. | Returns all-time totals for referrals sent, referrals converted, and wallet credits issued. |
 | `GET /api/waitlist` | None | Returns the signed-in user's waitlist entries with item details populated; authenticated members, admins, and lenders. |
 | `DELETE /api/waitlist/WTL-...` | None | Removes the signed-in user's waitlist entry; authenticated members, admins, and lenders. |
 | `DELETE /api/waitlist/:itemId` | None | Removes all waitlist entries for the item; authenticated members, admins, and lenders. |
