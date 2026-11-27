@@ -134,6 +134,18 @@ describe('GET /api/reservations', () => {
 describe('PATCH /api/reservations/:reservationId/cancel', () => {
     const session = { withTransaction: vi.fn(), endSession: vi.fn() };
     const futureDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    const url = `/api/reservations/${validResId}/cancel`;
+    const query = value => ({ session: vi.fn().mockResolvedValue(value) });
+    const mockReservation = value => vi.spyOn(Reservation, 'findById').mockReturnValue(query(value));
+    const paidReservation = {
+        _id: validResId,
+        item: validItemId,
+        borrower: 'member1',
+        lender: 'lender1',
+        status: 'upcoming',
+        startDate: futureDate,
+        payment: { depositAmount: 80, method: 'wallet' }
+    };
 
     beforeEach(() => {
         session.withTransaction.mockImplementation(async (fn) => fn());
@@ -149,7 +161,7 @@ describe('PATCH /api/reservations/:reservationId/cancel', () => {
     });
 
     it('returns 404 when reservation does not exist', async () => {
-        vi.spyOn(Reservation, 'findById').mockResolvedValue(null);
+        mockReservation(null);
 
         const res = await request(app)
             .patch(`/api/reservations/${validResId}/cancel`)
@@ -159,7 +171,7 @@ describe('PATCH /api/reservations/:reservationId/cancel', () => {
     });
 
     it('returns 403 when reservation belongs to another borrower', async () => {
-        vi.spyOn(Reservation, 'findById').mockResolvedValue({
+        mockReservation({
             _id: validResId,
             borrower: 'someoneElse',
             status: 'upcoming',
@@ -174,7 +186,7 @@ describe('PATCH /api/reservations/:reservationId/cancel', () => {
     });
 
     it('returns 409 when reservation is already active or completed', async () => {
-        vi.spyOn(Reservation, 'findById').mockResolvedValue({
+        mockReservation({
             _id: validResId,
             borrower: 'member1',
             status: 'active',
@@ -189,7 +201,7 @@ describe('PATCH /api/reservations/:reservationId/cancel', () => {
     });
 
     it('returns 409 when pickup date has already arrived', async () => {
-        vi.spyOn(Reservation, 'findById').mockResolvedValue({
+        mockReservation({
             _id: validResId,
             borrower: 'member1',
             status: 'upcoming',
@@ -204,24 +216,16 @@ describe('PATCH /api/reservations/:reservationId/cancel', () => {
     });
 
     it('returns 200, cancels reservation, refunds deposit to wallet, and notifies lender', async () => {
-        vi.spyOn(Reservation, 'findById').mockResolvedValue({
-            _id: validResId,
-            item: validItemId,
-            borrower: 'member1',
-            lender: 'lender1',
-            status: 'upcoming',
-            startDate: futureDate,
-            payment: { depositAmount: 80, method: 'wallet' }
-        });
-        vi.spyOn(Item, 'findById').mockReturnValue({
-            lean: vi.fn().mockResolvedValue({ _id: validItemId, cancellation: { freeDays: 0, forfeitPercent: 0 } })
-        });
+        mockReservation(paidReservation);
+        const originalPayment = vi.spyOn(Payment, 'find').mockReturnValue(query([{ _id: 'PAY-ORIGINAL', amount: 80 }]));
+        vi.spyOn(Item, 'findById').mockReturnValue(query({ _id: validItemId, cancellation: { freeDays: 0, forfeitPercent: 0 } }));
         vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({
             _id: validResId,
             status: 'cancelled'
         });
-        const updateUser = vi.spyOn(User, 'updateOne').mockResolvedValue({});
-        const createPayment = vi.spyOn(Payment, 'create').mockResolvedValue([{}]);
+        vi.spyOn(Reservation, 'updateOne').mockResolvedValue({ matchedCount: 1 });
+        const updateUser = vi.spyOn(User, 'findOneAndUpdate').mockResolvedValue({ _id: 'member1' });
+        const createPayment = vi.spyOn(Payment, 'create').mockResolvedValue([{ _id: 'PAY-REFUND' }]);
         const createNotification = vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
 
         const res = await request(app)
@@ -230,12 +234,69 @@ describe('PATCH /api/reservations/:reservationId/cancel', () => {
 
         expect(res.status).toBe(200);
         expect(res.body).toEqual({
-            reservation: { _id: validResId, status: 'cancelled' },
+            reservation: { _id: validResId, status: 'cancelled', cancellationRefundPaymentId: 'PAY-REFUND' },
             refunded: 80
         });
-        expect(updateUser).toHaveBeenCalledWith({ _id: 'member1' }, { $inc: { wallet: 80 } }, { session });
-        expect(createPayment).toHaveBeenCalledOnce();
-        expect(createNotification).toHaveBeenCalledOnce();
+        expect(originalPayment).toHaveBeenCalledExactlyOnceWith({
+            user: 'member1', type: 'deposit-paid', status: { $in: ['completed', null] },
+            direction: 'deduct', method: 'wallet', reservation: validResId
+        });
+        expect(updateUser).toHaveBeenCalledExactlyOnceWith({ _id: 'member1' }, { $inc: { wallet: 80 } }, { session, new: true });
+        expect(createPayment).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({
+            sourcePaymentId: 'PAY-ORIGINAL', refundKey: `cancellation:${validResId}`, amount: 80
+        })], { session });
+        expect(createNotification).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({ username: 'lender1' })], { session });
+    });
+
+    it('lets the lender cancel through POST while keeping PATCH borrower-only', async () => {
+        authenticateAs('lender1', 'lender');
+        mockReservation(paidReservation);
+        vi.spyOn(Payment, 'find').mockReturnValue(query([{ _id: 'PAY-ORIGINAL', amount: 80 }]));
+        const updateReservation = vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ _id: validResId, status: 'cancelled' });
+        vi.spyOn(Reservation, 'updateOne').mockResolvedValue({ matchedCount: 1 });
+        vi.spyOn(User, 'findOneAndUpdate').mockResolvedValue({ _id: 'member1' });
+        vi.spyOn(Payment, 'create').mockResolvedValue([{ _id: 'PAY-REFUND' }]);
+
+        expect((await request(app).patch(url).set('Origin', ORIGIN)).status).toBe(403);
+        expect(updateReservation).not.toHaveBeenCalled();
+
+        const res = await request(app).post(url).set('Origin', ORIGIN);
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({
+            reservationId: validResId, status: 'cancelled', refundAmount: 80,
+            refundPaymentId: 'PAY-REFUND', replayed: false
+        });
+        expect(updateReservation).toHaveBeenCalledOnce();
+    });
+
+    it('cancels a direct reservation without crediting its uncollected deposit', async () => {
+        const unpaid = { ...paidReservation, payment: { ...paidReservation.payment, depositCollected: false } };
+        mockReservation(unpaid);
+        const updateReservation = vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ ...unpaid, status: 'cancelled' });
+        const credit = vi.spyOn(User, 'findOneAndUpdate');
+        const pay = vi.spyOn(Payment, 'create');
+        vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
+
+        const res = await request(app).patch(url).set('Origin', ORIGIN);
+
+        expect(res.status).toBe(200);
+        expect(res.body.refunded).toBe(0);
+        expect(res.body.reservation.status).toBe('cancelled');
+        expect(updateReservation).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ _id: validResId }),
+            { $set: expect.objectContaining({ status: 'cancelled', cancellationRefundAmount: 0 }) },
+            { session, new: true }
+        );
+        expect(credit).not.toHaveBeenCalled();
+        expect(pay).not.toHaveBeenCalled();
+
+        mockReservation({ ...unpaid, status: 'cancelled', cancellationRefundAmount: 0 });
+        const replay = await request(app).post(url).set('Origin', ORIGIN);
+        expect(replay.body).toEqual({
+            reservationId: validResId, status: 'cancelled', refundAmount: 0,
+            refundPaymentId: null, replayed: true
+        });
+        expect(updateReservation).toHaveBeenCalledOnce();
     });
 });
 

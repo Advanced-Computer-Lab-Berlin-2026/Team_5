@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import joi from 'joi';
 import { Item } from '../models/Item.js';
 import { RefreshSession } from '../models/RefreshSession.js';
+import { Referral } from '../models/Referral.js';
 import { Report } from '../models/Report.js';
 import { User } from '../models/User.js';
 import { deleteUserAccount } from '../services/userAccountService.js';
@@ -408,6 +409,32 @@ export async function exportDamageReport(req, res, next) {
             subtitle: `Total cases: ${total}  |  ${counts}`,
             tables: [{ heading: 'Cases', columns: DAMAGE_COLUMNS, rows: report.cases }]
         });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// GET /api/admin/reports/referrals
+export async function getReferralReport(req, res, next) {
+    try {
+        const [summary] = await Referral.aggregate([
+            { $match: { status: { $in: ['sent', 'converted'] } } },
+            {
+                $group: {
+                    _id: null,
+                    referralsSent: { $sum: 1 },
+                    referralsConverted: { $sum: { $cond: [{ $eq: ['$status', 'converted'] }, 1, 0] } },
+                    creditsIssued: { $sum: { $cond: [{ $eq: ['$status', 'converted'] }, '$creditsIssued', 0] } }
+                }
+            },
+            { $project: { _id: 0 } }
+        ]);
+
+        return res.status(200).json({ summary: summary ?? {
+            referralsSent: 0,
+            referralsConverted: 0,
+            creditsIssued: 0
+        } });
     } catch (error) {
         next(error);
     }

@@ -1,20 +1,19 @@
 import joi from 'joi';
 import { User } from '../models/User.js';
 import { MembershipTier } from '../models/MembershipTier.js';
+import { oneYearAfter, payForMembership } from '../services/membershipPaymentService.js';
+import { CheckoutError } from '../utils/CheckoutError.js';
 
 const PAID_TIERS = ['Plus', 'Premium'];
 
 const subscribeSchema = joi.object({
     tier: joi.string().valid(...PAID_TIERS).required().messages({
         'any.only': `tier must be one of: ${PAID_TIERS.join(', ')} (Basic is the default; cancel to return to it)`
-    })
+    }),
+    method: joi.string().valid('wallet', 'card').required()
 });
 
-function oneYearAfter(date) {
-    const renewal = new Date(date);
-    renewal.setUTCFullYear(renewal.getUTCFullYear() + 1);
-    return renewal;
-}
+const checkoutKeySchema = joi.string().trim().max(128).required();
 
 function getRenewalDate({ renewalDate, startDate }) {
     if (renewalDate !== undefined) return renewalDate;
@@ -40,31 +39,17 @@ export async function getMyMembership(req, res, next) {
 export async function subscribeToTier(req, res, next) {
     const { value, error } = subscribeSchema.validate(req.body ?? {});
     if (error) return res.status(400).json({ message: error.message });
+    const key = checkoutKeySchema.validate(req.get('Idempotency-Key'));
+    if (key.error) return res.status(400).json({ message: 'A valid Idempotency-Key header is required.' });
 
     try {
         const tier = await MembershipTier.findById(value.tier).lean();
         if (!tier) return res.status(404).json({ message: 'Membership tier not found' });
 
-        const startDate = new Date();
-        const user = await User.findOneAndUpdate(
-            { _id: req.user?.id, 'membership.tier': { $ne: tier.tier } },
-            {
-                $set: {
-                    'membership.tier': tier.tier,
-                    'membership.startDate': startDate,
-                    'membership.renewalDate': oneYearAfter(startDate)
-                }
-            },
-            { returnDocument: 'after' }
-        ).select('membership');
-
-        if (!user) {
-            return res.status(409).json({ message: `You are already subscribed to ${tier.tier}` });
-        }
-
-        return res.status(200).json({
-            message: `Subscribed to ${tier.tier}`,
-            membership: user.membership,
+        const payment = await payForMembership(req.user.id, tier, value.method, key.value);
+        return res.status(payment.status === 'awaiting_payment' ? 202 : 200).json({
+            ...payment,
+            ...(payment.status === 'completed' ? { message: `Subscribed to ${tier.tier}` } : {}),
             tier: {
                 tier: tier.tier,
                 annual_fee: tier.annual_fee,
@@ -72,6 +57,9 @@ export async function subscribeToTier(req, res, next) {
             }
         });
     } catch (error) {
+        if (error instanceof CheckoutError) {
+            return res.status(error.statusCode).json({ code: error.code, message: error.message });
+        }
         next(error);
     }
 }

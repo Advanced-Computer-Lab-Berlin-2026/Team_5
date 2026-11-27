@@ -27,6 +27,22 @@ const reservationSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    // Policy agreed at booking time.
+    cancellationPolicy: {
+        freeDays: { type: Number, min: 0 },
+        forfeitPercent: { type: Number, min: 0, max: 100 }
+    },
+
+    cancelledAt: { type: Date },
+    cancelledBy: {
+        type: String,
+        enum: ['member', 'lender']
+    },
+    cancelledByUser: { type: String, ref: 'User' },
+    cancellationRefundAmount: { type: Number, min: 0 },
+    cancellationRefundPaymentId: { type: String, ref: 'Payment' },
+
+
     // ---- group: handover
     handover: {
       pickedUpAt: { type: Date },
@@ -48,6 +64,8 @@ const reservationSchema = new mongoose.Schema(
       depositAmount: { type: Number, required: true, min: 0 }, // already reduced by the membership discount
       discountPercent: { type: Number, default: 0, min: 0, max: 100 }, // SCRUM-495: the membership discount that was applied
       method: { type: String, enum: ["wallet", "card"], required: true },
+      // Direct reservation creation quotes the deposit without collecting it.
+      depositCollected: { type: Boolean },
       stripePaymentIntentId: { type: String },
       lateFee: { type: Number, default: 0, min: 0 },
     },
@@ -89,13 +107,27 @@ reservationSchema.index({ status: 1, startDate: 1, endDate: 1, item: 1 });
 export const BLOCKING_STATUSES = ["upcoming", "active"];
 
 // Finds a reservation that overlaps the dates.
-reservationSchema.statics.findOverlap = function (itemId, start, end, session) {
-  return this.findOne({
-    item: itemId,
-    status: { $in: BLOCKING_STATUSES },
-    startDate: { $lt: end },
-    endDate: { $gt: start },
-  }).session(session || null);
+
+reservationSchema.statics.findOverlap = function (
+    itemId,
+    start,
+    end,
+    session,
+    excludeReservationId = null
+) {
+    const filter = {
+        item: itemId,
+        status: { $in: BLOCKING_STATUSES },
+        startDate: { $lt: end },
+        endDate: { $gt: start }
+    };
+
+    if (excludeReservationId) {
+        filter._id = { $ne: excludeReservationId };
+    }
+
+    return this.findOne(filter).session(session || null);
 };
+
 
 export const Reservation = mongoose.model("Reservation", reservationSchema);
