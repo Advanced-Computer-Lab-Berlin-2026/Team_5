@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
+import mongoose from 'mongoose';
 import app from "../app.js";
 import { User } from "../models/User.js";
 import { MembershipTier } from "../models/MembershipTier.js";
 import { requireAuth } from "../middleware/auth.js";
+import { Payment } from '../models/Payment.js';
+import stripe from '../config/stripe.js';
+import { env } from '../config/env.js';
+import { finalizeMembershipCardPayment } from '../services/membershipPaymentService.js';
+import * as stripeCheckoutService from '../services/stripeCheckoutService.js';
 
 vi.mock('../models/User.js', () => ({
-    User: { findOneAndUpdate: vi.fn() }
+    User: { findOneAndUpdate: vi.fn(), findById: vi.fn(), updateOne: vi.fn() }
 }));
 
 vi.mock('../models/MembershipTier.js', () => ({
@@ -59,18 +65,25 @@ function failUpdate() {
 }
 
 const post = (url) => request(app).post(url).set('Origin', ORIGIN);
+const subscribe = (body, key = 'membership-test-key') => post(SUBSCRIBE_URL).set('Idempotency-Key', key).send(body);
+const wallet = { tier: 'Plus', method: 'wallet' };
+const session = {};
 
 beforeEach(() => {
     vi.resetAllMocks();
+    vi.restoreAllMocks();
 
     authenticateAs();
     mockTierLookup(tiers.Plus);
     mockUpdate({ membership: { tier: 'Plus' } });
+    vi.spyOn(mongoose.connection, 'transaction').mockImplementation((callback) => callback(session));
+    vi.spyOn(Payment, 'findOne').mockReturnValue({ session: vi.fn().mockResolvedValue(null) });
+    vi.spyOn(Payment, 'create').mockImplementation(async ([payment]) => [{ ...payment, _id: 'PAY-1' }]);
 });
 
 describe('POST /api/membership/subscribe', () => {
     it('returns 200, sets the tier and a renewal date one year after the start date', async () => {
-        const response = await post(SUBSCRIBE_URL).send({ tier: 'Plus' });
+        const response = await subscribe(wallet);
 
         expect(response.status).toBe(200);
         expect(response.body.message).toBe('Subscribed to Plus');
@@ -83,9 +96,12 @@ describe('POST /api/membership/subscribe', () => {
         expect(tier).toBe('Plus');
         expect(startDate).toBeInstanceOf(Date);
         expect(renewalDate.getTime()).toBe(new Date(startDate).setUTCFullYear(startDate.getUTCFullYear() + 1));
-        expect(options).toEqual({ returnDocument: 'after' });
-        // only updates a user who is not already on this tier
-        expect(filter).toEqual({ _id: 'member123', 'membership.tier': { $ne: 'Plus' } });
+        expect(options).toEqual({ session });
+        expect(filter).toEqual({ _id: 'member123', 'membership.tier': { $ne: 'Plus' }, wallet: { $gte: 300 } });
+        expect(update.$inc).toEqual({ wallet: -300 });
+        expect(Payment.create).toHaveBeenCalledWith([expect.objectContaining({
+            user: 'member123', checkoutKey: 'membership-test-key', type: 'membership-fee', method: 'wallet', direction: 'deduct', amount: 300
+        })], { session });
     });
 
     it('works for Premium and for lenders', async () => {
@@ -93,7 +109,7 @@ describe('POST /api/membership/subscribe', () => {
         mockTierLookup(tiers.Premium);
         mockUpdate({ membership: { tier: 'Premium' } });
 
-        const response = await post(SUBSCRIBE_URL).send({ tier: 'Premium' });
+        const response = await subscribe({ ...wallet, tier: 'Premium' });
 
         expect(response.status).toBe(200);
         expect(response.body.tier).toEqual(tiers.Premium);
@@ -101,12 +117,13 @@ describe('POST /api/membership/subscribe', () => {
     });
 
     it('returns the updated membership in the response', async () => {
-        const membership = { tier: 'Plus', startDate: '2026-11-26T10:00:00.000Z', renewalDate: '2027-11-26T10:00:00.000Z' };
-        mockUpdate({ membership });
-
-        const response = await post(SUBSCRIBE_URL).send({ tier: 'Plus' });
-
-        expect(response.body.membership).toEqual(membership);
+        const response = await subscribe(wallet);
+        const update = User.findOneAndUpdate.mock.calls[0][1].$set;
+        expect(response.body.membership).toEqual({
+            tier: 'Plus',
+            startDate: update['membership.startDate'].toISOString(),
+            renewalDate: update['membership.renewalDate'].toISOString()
+        });
     });
 
     it.each([
@@ -116,7 +133,7 @@ describe('POST /api/membership/subscribe', () => {
         ['a missing tier', {}],
         ['a non-string tier', { tier: 5 }]
     ])('returns 400 for %s', async (_name, body) => {
-        const response = await post(SUBSCRIBE_URL).send(body);
+        const response = await subscribe({ method: 'wallet', ...body });
 
         expect(response.status).toBe(400);
         expect(MembershipTier.findById).not.toHaveBeenCalled();
@@ -133,7 +150,7 @@ describe('POST /api/membership/subscribe', () => {
     it('returns 404 when the tier is missing from the database', async () => {
         mockTierLookup(null);
 
-        const response = await post(SUBSCRIBE_URL).send({ tier: 'Plus' });
+        const response = await subscribe(wallet);
 
         expect(response.status).toBe(404);
         expect(User.findOneAndUpdate).not.toHaveBeenCalled();
@@ -141,8 +158,9 @@ describe('POST /api/membership/subscribe', () => {
 
     it('returns 409 when the member is already on that tier', async () => {
         mockUpdate(null);
+        User.findById.mockReturnValue({ select: () => ({ session: async () => ({ membership: { tier: 'Plus' } }) }) });
 
-        const response = await post(SUBSCRIBE_URL).send({ tier: 'Plus' });
+        const response = await subscribe(wallet);
 
         expect(response.status).toBe(409);
         expect(response.body.message).toBe('You are already subscribed to Plus');
@@ -151,7 +169,7 @@ describe('POST /api/membership/subscribe', () => {
     it('returns 401 when the request is not authenticated', async () => {
         rejectAuth();
 
-        const response = await post(SUBSCRIBE_URL).send({ tier: 'Plus' });
+        const response = await subscribe(wallet);
 
         expect(response.status).toBe(401);
         expect(User.findOneAndUpdate).not.toHaveBeenCalled();
@@ -160,7 +178,7 @@ describe('POST /api/membership/subscribe', () => {
     it('returns 403 for admins', async () => {
         authenticateAs('admin1', 'admin');
 
-        const response = await post(SUBSCRIBE_URL).send({ tier: 'Plus' });
+        const response = await subscribe(wallet);
 
         expect(response.status).toBe(403);
         expect(User.findOneAndUpdate).not.toHaveBeenCalled();
@@ -176,10 +194,131 @@ describe('POST /api/membership/subscribe', () => {
     it('returns 500 with a general message when the database fails', async () => {
         failUpdate();
 
-        const response = await post(SUBSCRIBE_URL).send({ tier: 'Plus' });
+        const response = await subscribe(wallet);
 
         expect(response.status).toBe(500);
         expect(response.body).toEqual({ message: 'Server Error' });
+    });
+
+    it('requires a payment method and idempotency key', async () => {
+        expect((await subscribe({ tier: 'Plus' })).status).toBe(400);
+        expect((await subscribe({ tier: 'Plus', method: 'cash' })).status).toBe(400);
+        expect((await post(SUBSCRIBE_URL).send(wallet)).status).toBe(400);
+        expect(Payment.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects insufficient wallet balance without recording a payment', async () => {
+        mockUpdate(null);
+        User.findById.mockReturnValue({ select: () => ({ session: async () => ({ membership: { tier: 'Basic' } }) }) });
+
+        const response = await subscribe(wallet);
+
+        expect(response.status).toBe(409);
+        expect(response.body.code).toBe('INSUFFICIENT_WALLET_BALANCE');
+        expect(Payment.create).not.toHaveBeenCalled();
+    });
+
+    it('does not deduct again when a completed wallet request is retried', async () => {
+        Payment.findOne.mockReturnValue({ session: async () => ({
+            _id: 'PAY-1', type: 'membership-fee', membershipTier: 'Plus', method: 'wallet', date: new Date()
+        }) });
+
+        const response = await subscribe(wallet);
+
+        expect(response.status).toBe(200);
+        expect(response.body.paymentId).toBe('PAY-1');
+        expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Payment.create).not.toHaveBeenCalled();
+    });
+
+    it('returns a Stripe client secret without activating a membership', async () => {
+        const originalSecret = env.stripeWebhookSecret;
+        env.stripeWebhookSecret = 'whsec_test';
+        try {
+            User.findById.mockReturnValue({ select: () => ({ lean: async () => ({ membership: { tier: 'Basic' } }) }) });
+            Payment.create.mockImplementation(async (payment) => ({ ...payment, _id: 'PAY-2', createdAt: new Date() }));
+            vi.spyOn(Payment, 'updateOne').mockResolvedValue({ matchedCount: 1 });
+            const createIntent = vi.spyOn(stripe.paymentIntents, 'create').mockResolvedValue({
+                id: 'pi_test', amount: 30000, currency: 'eur', status: 'requires_payment_method', client_secret: 'secret_test'
+            });
+
+            const response = await subscribe({ tier: 'Plus', method: 'card' });
+
+            expect(response.status).toBe(202);
+            expect(response.body).toMatchObject({ status: 'awaiting_payment', paymentId: 'PAY-2', clientSecret: 'secret_test' });
+            expect(createIntent).toHaveBeenCalledWith(expect.objectContaining({
+                amount: 30000, allowed_payment_method_types: ['card'], metadata: {
+                    purpose: 'membership-fee', paymentId: 'PAY-2', userId: 'member123'
+                }
+            }), { idempotencyKey: 'shareshed-membership-PAY-2' });
+            expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+            expect(User.updateOne).not.toHaveBeenCalled();
+        } finally {
+            env.stripeWebhookSecret = originalSecret;
+        }
+    });
+
+    it('rejects a key already used for reservation checkout', async () => {
+        Payment.findOne.mockReturnValue({ session: async () => ({ type: 'deposit-pending', method: 'card' }) });
+
+        const response = await subscribe(wallet);
+
+        expect(response.status).toBe(409);
+        expect(response.body.code).toBe('IDEMPOTENCY_KEY_CONFLICT');
+        expect(Payment.findOne).toHaveBeenCalledExactlyOnceWith({ user: 'member123', checkoutKey: 'membership-test-key' });
+        expect(User.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+});
+
+describe('membership card payment finalization', () => {
+    const intent = {
+        id: 'pi_test', amount: 30000, amount_received: 30000, currency: 'eur', status: 'succeeded',
+        metadata: { paymentId: 'PAY-2', userId: 'member123' }
+    };
+
+    function mockCardPayment() {
+        const payment = {
+            user: 'member123', status: 'awaiting_payment', stripePaymentIntentId: intent.id, stripeAmountCents: 30000,
+            previousMembershipTier: 'Basic', previousMembershipStartDate: new Date('2026-01-01'),
+            membershipTier: 'Plus', save: vi.fn()
+        };
+        Payment.findOne.mockReturnValue({ session: async () => payment });
+        return payment;
+    }
+
+    it('activates the tier once after verifying a confirmed payment', async () => {
+        const payment = mockCardPayment();
+        User.updateOne.mockResolvedValue({ matchedCount: 1 });
+
+        await finalizeMembershipCardPayment(intent);
+        await finalizeMembershipCardPayment(intent);
+
+        expect(payment.status).toBe('completed');
+        expect(payment.save).toHaveBeenCalledExactlyOnceWith({ session });
+        expect(User.updateOne).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+            _id: 'member123', 'membership.tier': 'Basic', 'membership.startDate': payment.previousMembershipStartDate
+        }), { $set: expect.objectContaining({ 'membership.tier': 'Plus' }) }, { session });
+    });
+
+    it('rejects a mismatched Stripe amount before updating membership', async () => {
+        const payment = mockCardPayment();
+
+        await expect(finalizeMembershipCardPayment({ ...intent, amount_received: 100 })).rejects.toThrow('verification failed');
+
+        expect(payment.save).not.toHaveBeenCalled();
+        expect(User.updateOne).not.toHaveBeenCalled();
+    });
+
+    it('refunds a confirmed card payment when the membership has changed', async () => {
+        const payment = mockCardPayment();
+        User.updateOne.mockResolvedValue({ matchedCount: 0 });
+        const refund = vi.spyOn(stripeCheckoutService, 'refundUnavailablePayment').mockResolvedValue({ status: 'refunded' });
+
+        await finalizeMembershipCardPayment(intent);
+
+        expect(payment.status).toBe('refund_pending');
+        expect(payment.save).toHaveBeenCalledExactlyOnceWith({ session });
+        expect(refund).toHaveBeenCalledExactlyOnceWith('PAY-2');
     });
 });
 

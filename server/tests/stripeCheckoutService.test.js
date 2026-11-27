@@ -290,6 +290,16 @@ describe('createCardPaymentIntent — SCRUM-431', () => {
     expect(mocks.intentCreate).not.toHaveBeenCalled();
   });
 
+  it('rejects a key already used for membership checkout', async () => {
+    mocks.paymentFindOne.mockResolvedValue({ ...pendingPayment(), type: 'membership-fee' });
+
+    await expect(createCardPaymentIntent(USER, KEY)).rejects.toMatchObject({
+      code: 'IDEMPOTENCY_KEY_CONFLICT',
+    });
+    expect(mocks.intentRetrieve).not.toHaveBeenCalled();
+    expect(mocks.intentCreate).not.toHaveBeenCalled();
+  });
+
   it('refuses to recreate an unlinked PaymentIntent after the retry window', async () => {
     mocks.paymentFindOne.mockResolvedValue({
       ...pendingPayment(),

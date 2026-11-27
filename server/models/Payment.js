@@ -21,6 +21,9 @@ const paymentSchema = new mongoose.Schema(
     checkoutKey: { type: String, trim: true },
     stripePaymentIntentId: { type: String },
     stripeAmountCents: { type: Number, min: 0 },
+    membershipTier: { type: String, ref: 'MembershipTier' },
+    previousMembershipTier: { type: String },
+    previousMembershipStartDate: { type: Date },
     
     checkoutItems: [{
         itemId: { type: String, ref: 'Item', required: true },
