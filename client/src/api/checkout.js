@@ -5,6 +5,8 @@ import { request } from './client.js';
 const withKey = (key) => ({ 'Idempotency-Key': key });
 
 // Pays from the wallet. Resolves to { checkoutId, reservations, totalDeposit, originalTotal, promoCode, remainingBalance, replayed }
+export const quoteCheckout = promoCode => request('/api/wallet/checkout/quote', { method: 'POST', body: promoCode ? { promoCode } : {} });
+
 export const payWithWallet = (key, promoCode) =>
     request('/api/wallet/checkout', { method: 'POST', headers: withKey(key), body: promoCode ? { promoCode } : {} });
 

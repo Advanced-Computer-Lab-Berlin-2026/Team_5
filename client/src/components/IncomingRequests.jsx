@@ -66,7 +66,7 @@ function RequestRow({ item, requests, busyId, disabled, onDecide, index }) {
                             </button>
                             <button type="button" className={styles.reviewsLink} onClick={() => setReviewsOf(borrowerUsername(request))}>See {borrowerName(request)}'s reviews</button>
                             <div className={styles.buttons}>
-                                <Button pending={busyId === request._id} disabled={disabled} onClick={() => decide(request._id, true)}>Approve</Button>
+                                <Button pending={busyId === request._id} disabled={disabled || new Date(request.startDate) <= new Date()} onClick={() => decide(request._id, true)}>Approve</Button>
                                 <Button variant="secondary" disabled={disabled} onClick={() => decide(request._id, false)}>Decline</Button>
                             </div>
                         </li>)}
@@ -94,8 +94,7 @@ export function IncomingRequests() {
     }
 
     // a request whose start day is already over cannot happen any more, so it is not offered for approval
-    const today = toKey(new Date());
-    const requests = (data?.reservations ?? []).filter(request => dayKey(request.startDate) >= today);
+    const requests = useMemo(() => data?.reservations ?? [], [data]);
     const groups = useMemo(() => {
         const byItem = new Map();
         for (const request of requests) {

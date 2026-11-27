@@ -38,6 +38,8 @@ Keep secrets in `.env` and out of Git. Update `.env.sample` with placeholders wh
 | `RENEWAL_REMINDER_CRON` | Optional cron expression for the membership renewal-reminder job (default `0 9 * * *`, 09:00 Europe/Berlin). |
 | `ENABLE_JOBS` | Optional; set to `false` to disable in-process cron jobs. Jobs never start when `NODE_ENV=test`. |
 
+The reservation expiry job runs every minute when jobs are enabled. It cancels requests still pending at their start time and returns any collected deposit in full to the borrower's wallet.
+
 Required boot values must be nonempty. Configuration is captured at module load;
 restart the server after changing it.
 

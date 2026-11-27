@@ -55,10 +55,16 @@ export function CardPaymentDialog({ open, clientSecret, amountLabel, onPaid, onC
         if (!stripeRef.current || !cardRef.current) return;
         setPaying(true);
         setError('');
-        const result = await stripeRef.current.confirmCardPayment(clientSecret, { payment_method: { card: cardRef.current } });
-        setPaying(false);
-        if (result.error) setError(result.error.message ?? 'The card was not accepted.');
-        else onPaid();
+        try {
+            const result = await stripeRef.current.confirmCardPayment(clientSecret, { payment_method: { card: cardRef.current } });
+            if (result.error) setError(result.error.message ?? 'The card was not accepted.');
+            else if (['succeeded', 'processing'].includes(result.paymentIntent?.status)) onPaid();
+            else setError('The card payment has not been confirmed.');
+        } catch (failure) {
+            setError(failure.message);
+        } finally {
+            setPaying(false);
+        }
     }
 
     return <dialog ref={dialog} className={styles.dialog} aria-label="Pay by card"

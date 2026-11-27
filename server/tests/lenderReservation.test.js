@@ -6,6 +6,7 @@ import app from '../app.js';
 import { env } from '../config/env.js';
 import { User } from '../models/User.js';
 import { Reservation } from '../models/Reservation.js';
+import { Item } from '../models/Item.js';
 import { Payment } from '../models/Payment.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
@@ -125,6 +126,8 @@ describe('PATCH /api/lender/reservations/:id/approve', () => {
     const setupSession = () => {
         session.withTransaction.mockImplementation(async (fn) => fn());
         vi.spyOn(mongoose, 'startSession').mockResolvedValue(session);
+        vi.spyOn(Item, 'updateOne').mockResolvedValue({ matchedCount: 1 });
+        vi.spyOn(Reservation, 'findOverlap').mockResolvedValue(null);
     };
 
     it('approves a pending request and notifies the borrower without refunding', async () => {
@@ -160,6 +163,21 @@ describe('PATCH /api/lender/reservations/:id/approve', () => {
 
         expect(res.status).toBe(403);
         expect(start).not.toHaveBeenCalled();
+    });
+
+    it('rejects approval when another reservation already blocks the dates', async () => {
+        const cookie = asLender();
+        setupSession();
+        vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ status: 'pending' }));
+        Reservation.findOverlap.mockResolvedValue({ _id: 'RES-other' });
+        const update = vi.spyOn(Reservation, 'findOneAndUpdate');
+
+        const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
+
+        expect(res.status).toBe(409);
+        expect(res.body.error).toBe('ITEM_ALREADY_RESERVED');
+        expect(update).not.toHaveBeenCalled();
+        expect(notifyReservationConfirmed).not.toHaveBeenCalled();
     });
 });
 

@@ -138,7 +138,7 @@ export async function notifyReservationConfirmed(reservation) {
     }
 }
 
-export async function notifyReservationCancelled(reservation) {
+export async function notifyReservationCancelled(reservation, { automaticExpiry = false } = {}) {
     try {
         const { _id, borrower, lender } = reservation;
         const { name, dates } = await itemAndDates(reservation, 'cancellation');
@@ -147,7 +147,9 @@ export async function notifyReservationCancelled(reservation) {
         const lenderCancelled = reservation.cancelledBy === 'lender';
         const borrowerDetails = {
             ...details,
-            message: lenderCancelled
+            message: automaticExpiry
+                ? `Your reservation request for ${name ?? 'the item'} ${dates} expired because it was not approved.${reservation.cancellationRefundAmount > 0 ? ' Your deposit was returned to your wallet.' : ''}`
+                : lenderCancelled
                 ? `${lender} cancelled your reservation for ${name ?? 'the item'} ${dates}`
                 : `You cancelled your reservation for ${name ?? 'the item'} ${dates}`
         };
@@ -159,7 +161,9 @@ export async function notifyReservationCancelled(reservation) {
             notifyOrLog(borrower, 'cancellation', borrowerDetails),
             notifyOrLog(lender, 'cancellation', {
                 ...details,
-                message: lenderCancelled
+                message: automaticExpiry
+                    ? `${borrower}'s reservation request for your ${name ?? 'item'} ${dates} expired before approval.`
+                    : lenderCancelled
                     ? `You cancelled ${borrower}'s reservation for your ${name ?? 'item'} ${dates}`
                     : `${borrower} cancelled their reservation for your ${name ?? 'item'} ${dates}`
             })

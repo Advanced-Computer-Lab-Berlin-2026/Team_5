@@ -37,7 +37,7 @@ export async function removeFromBorrowList(req, res, next) {
         next(error);
     }
 }
-const ITEM_FIELDS = 'name category photos depositAmount pickup owner archived';
+const ITEM_FIELDS = 'name category photos depositAmount pickup owner archived delivery';
 
 const addToBorrowListSchema = joi.object({
     startDate: joi.date().iso().required(),
@@ -50,8 +50,8 @@ function startOfToday() {
     return today;
 }
 
-function readDates(body) {
-    const { value, error } = addToBorrowListSchema.validate(body ?? {});
+function readDates(body, schema = addToBorrowListSchema) {
+    const { value, error } = schema.validate(body ?? {});
     if (error) return { message: error.message };
     if (value.startDate < startOfToday()) return { message: 'Start date cannot be in the past' };
     return { value };
@@ -61,7 +61,7 @@ function readDates(body) {
 async function findBorrowableItem(itemId) {
     const item = await Item.findOne(
         { _id: itemId, archived: false, flagged: { $ne: true } },
-        'owner',
+        'owner delivery',
         { lean: true, populate: { path: 'owner', select: 'suspended' } }
     );
     return item?.owner && !item.owner.suspended ? item : null;
@@ -72,7 +72,9 @@ export async function addToBorrowList(req, res, next) {
     const { itemId } = req.params;
     if (!ITEM_ID_PATTERN.test(itemId)) return res.status(400).json({ message: 'Invalid item id' });
 
-    const { value, message } = readDates(req.body);
+    const { value, message } = readDates(req.body, addToBorrowListSchema.keys({
+        deliveryAddress: joi.string().trim().max(500)
+    }));
     if (message) return res.status(400).json({ message });
 
     try {
@@ -80,11 +82,12 @@ export async function addToBorrowList(req, res, next) {
         const item = await findBorrowableItem(itemId);
         if (!item) return res.status(404).json({ message: 'Item not found' });
         if (item.owner._id === userId) return res.status(403).json({ message: 'You cannot borrow your own item' });
+        if (value.deliveryAddress && !item.delivery?.offered) return res.status(400).json({ message: 'Item does not offer delivery' });
 
         const overlap = await Reservation.findOverlap(itemId, value.startDate, value.endDate);
         if (overlap) return res.status(409).json({ message: 'Item is not available for these dates' });
 
-        const entry = { item: itemId, startDate: value.startDate, endDate: value.endDate };
+        const entry = { item: itemId, ...value };
         // The filter and the push run as one update, so the same item can never be added twice
         const result = await User.updateOne(
             { _id: userId, 'borrow_list.item': { $ne: itemId } },

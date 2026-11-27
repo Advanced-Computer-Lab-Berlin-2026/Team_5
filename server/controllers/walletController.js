@@ -1,7 +1,20 @@
 import { User } from '../models/User.js';
-import { checkoutWithWallet } from '../services/checkoutService.js';
+import { checkoutWithWallet, prepareCheckout } from '../services/checkoutService.js';
+import { calculateCheckoutPricing } from '../services/checkoutPricingService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { Payment } from '../models/Payment.js';
+
+export async function quoteWalletCheckout(req, res, next) {
+    try {
+        const items = await prepareCheckout(req.user.id);
+        const { totalDeposit, originalTotal, promoCode, discountPercent, deliveryFee, total } =
+            await calculateCheckoutPricing(req.user.id, items, req.body?.promoCode);
+        return res.json({ totalDeposit, originalTotal, promoCode, discountPercent, deliveryFee, total });
+    } catch (error) {
+        if (error instanceof CheckoutError) return res.status(error.statusCode).json({ error: error.code, message: error.message });
+        next(error);
+    }
+}
 // GET /api/wallet
 export async function getWalletBalance(req, res, next) {
     try {

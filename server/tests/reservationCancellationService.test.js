@@ -53,7 +53,7 @@ vi.mock('../services/notificationService.js', () => ({
 }));
 vi.mock('../services/waitlistPromotion.js', () => ({ promoteWaitlistAfterCancellation: vi.fn() }));
 
-import { cancelReservationWithRefund } from '../services/reservationCancellationService.js';
+import { cancelReservationWithRefund, expireUnansweredReservation } from '../services/reservationCancellationService.js';
 
 const START = new Date('2026-11-25T12:00:00.000Z');
 const END = new Date('2026-11-26T12:00:00.000Z');
@@ -261,6 +261,56 @@ describe('cancelReservationWithRefund', () => {
         );
 
         expect(mocks.itemFindById).not.toHaveBeenCalled();
+    });
+
+    it('refunds the paid delivery fee in full while applying the deposit cancellation policy', async () => {
+        mocks.reservationFindById.mockReturnValue(query(makeReservation({
+            startDate: new Date('2026-11-18T12:00:00.000Z'),
+            delivery: { fee: 12.5, feeCollected: true }
+        })));
+        mocks.paymentFind.mockReturnValueOnce(query([{ _id: 'PAY-ORIGINAL', amount: 100 }]));
+        mocks.paymentFind.mockReturnValueOnce(query([{ _id: 'PAY-DELIVERY', amount: 12.5 }]));
+
+        await expect(cancelReservationWithRefund('RES-123', 'member-1')).resolves
+            .toMatchObject({ refundAmount: 87.5 });
+        expect(mocks.paymentFind).toHaveBeenLastCalledWith(expect.objectContaining({
+            type: 'delivery-fee', reservation: 'RES-123'
+        }));
+    });
+
+    it('refunds the full deposit when a paid request expires without approval', async () => {
+        mocks.reservationFindById.mockReturnValue(query(makeReservation({
+            status: 'pending', startDate: new Date('2026-11-16T12:00:00.000Z')
+        })));
+
+        const result = await cancelReservationWithRefund('RES-123', 'member-1');
+
+        expect(result.refundAmount).toBe(100);
+        expect(mocks.reservationFindOneAndUpdate).toHaveBeenCalledWith(
+            { _id: 'RES-123', status: 'pending', 'handover.pickedUpAt': null },
+            expect.anything(), { session: dbSession, new: true }
+        );
+    });
+
+    it('automatically refunds an overdue pending request without attributing it to a user', async () => {
+        mocks.reservationFindById.mockReturnValue(query(makeReservation({
+            status: 'pending', startDate: new Date('2026-11-16T12:00:00.000Z')
+        })));
+
+        await expect(expireUnansweredReservation('RES-123')).resolves.toMatchObject({ refundAmount: 100 });
+        const update = mocks.reservationFindOneAndUpdate.mock.calls[0][1].$set;
+        expect(update).toMatchObject({ status: 'cancelled', cancellationRefundAmount: 100 });
+        expect(update).not.toHaveProperty('cancelledBy');
+        expect(update).not.toHaveProperty('cancelledByUser');
+    });
+
+    it('skips approved requests and pending requests that have not reached their start date', async () => {
+        for (const status of ['upcoming', 'pending']) {
+            mocks.reservationFindById.mockReturnValue(query(makeReservation({ status })));
+            await expect(expireUnansweredReservation('RES-123')).resolves.toBeNull();
+        }
+        expect(mocks.reservationFindOneAndUpdate).not.toHaveBeenCalled();
+        expect(mocks.paymentCreate).not.toHaveBeenCalled();
     });
 
     it('refunds only the reservation allocation from a card checkout', async () => {

@@ -15,19 +15,19 @@ import styles from './ProfileExtras.module.css';
 export function ReferralCard() {
     const { data, error, reload } = useAsync(getMyReferrals);
     const apply = useAction();
-    const [code, setCode] = useState('');
+    const [code, setCode] = useState(() => new URLSearchParams(window.location.search).get('ref') ?? '');
     const [copied, setCopied] = useState(false);
     const referrals = data?.referrals ?? [];
 
     async function copy() {
-        try { await navigator.clipboard.writeText(data.referralCode); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { /* the code is on screen to copy by hand */ }
+        try { await navigator.clipboard.writeText(new URL('/register?ref=' + encodeURIComponent(data.referralCode), window.location.origin).href); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { /* the code is on screen to copy by hand */ }
     }
 
     return <Card title="Invite friends" className={styles.card}>
         <Message type="error">{error}</Message>
         {data && <>
             <p className={styles.muted}>Give a friend your code. When they finish their first borrow, you get 50 ₥ in your wallet.</p>
-            <div className={styles.code}><span>{data.referralCode}</span><Button variant="secondary" size="small" onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button></div>
+            <div className={styles.code}><span>{data.referralCode}</span><Button variant="secondary" size="small" onClick={copy}>{copied ? 'Copied' : 'Copy invite link'}</Button></div>
             {referrals.length > 0 && <ul className={styles.list}>
                 {referrals.map(referral => <li key={referral._id}>
                     <span>{referral.referred}</span>

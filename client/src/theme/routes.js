@@ -4,6 +4,7 @@ export function getHomeForRole(role) {
 
 export function getLoginDestination(from, role) {
     return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') && !/^\/(login|register)(?:[/?#]|$)/.test(from)
+        && (role !== 'admin' || /^\/admin(?:[/?#]|$)/.test(from))
         ? from : getHomeForRole(role);
 }
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_RENEWAL_REMINDER_CRON, DEFAULT_RETURN_REMINDER_CRON, shouldStartJobs, startScheduler } from '../jobs/scheduler.js';
+import { DEFAULT_RENEWAL_REMINDER_CRON, DEFAULT_RETURN_REMINDER_CRON, RESERVATION_EXPIRY_CRON, shouldStartJobs, startScheduler } from '../jobs/scheduler.js';
 
 vi.mock('../config/env.js', () => ({ env: { nodeEnv: 'development' } }));
 vi.mock('../jobs/returnReminderJob.js', () => ({
@@ -107,8 +107,8 @@ describe('startScheduler', () => {
 
         startScheduler({ schedule });
 
-        expect(schedule).toHaveBeenCalledTimes(2);
-        expect(schedule).toHaveBeenLastCalledWith(DEFAULT_RENEWAL_REMINDER_CRON, expect.any(Function), { timezone: 'Europe/Berlin' });
+        expect(schedule).toHaveBeenCalledTimes(3);
+        expect(schedule).toHaveBeenNthCalledWith(2, DEFAULT_RENEWAL_REMINDER_CRON, expect.any(Function), { timezone: 'Europe/Berlin' });
         expect(DEFAULT_RENEWAL_REMINDER_CRON).toBe('0 9 * * *');
     });
 
@@ -118,7 +118,7 @@ describe('startScheduler', () => {
 
         startScheduler({ schedule });
 
-        expect(schedule).toHaveBeenLastCalledWith('30 7 * * *', expect.any(Function), { timezone: 'Europe/Berlin' });
+        expect(schedule).toHaveBeenNthCalledWith(2, '30 7 * * *', expect.any(Function), { timezone: 'Europe/Berlin' });
     });
 
     it('runs the renewal job from its cron callback and logs failures', async () => {
@@ -141,5 +141,16 @@ describe('startScheduler', () => {
         const schedule = vi.fn().mockReturnValueOnce(returnTask).mockReturnValueOnce({ name: 'renewal' });
 
         expect(startScheduler({ schedule })).toBe(returnTask);
+    });
+
+    it('runs the expiry job every minute with no overlapping ticks', async () => {
+        const runExpiryJob = vi.fn().mockResolvedValue(undefined);
+        const schedule = vi.fn();
+
+        startScheduler({ schedule, runExpiryJob });
+
+        expect(schedule).toHaveBeenLastCalledWith(RESERVATION_EXPIRY_CRON, expect.any(Function), { noOverlap: true });
+        await schedule.mock.calls[2][1]();
+        expect(runExpiryJob).toHaveBeenCalledOnce();
     });
 });

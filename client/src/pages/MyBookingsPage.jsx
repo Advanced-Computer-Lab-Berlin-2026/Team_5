@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { cancelReservation, getMyReservations } from '../api/reservations.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, ConfirmDialog, EmptyState, Grid, Icon, ItemCard, Message, PageHeader, Select, Spinner } from '../components';
+import { Button, ConfirmDialog, EmptyState, FormField, Grid, Icon, ItemCard, Message, PageHeader, Select, Spinner } from '../components';
 import { STATUS_LABELS } from '../components/ReservationCard.jsx';
 import { toKey } from '../components/Calendar.jsx';
 import { formatDate } from '../utils/format.js';
@@ -11,10 +11,13 @@ import styles from './MyBookingsPage.module.css';
 const VIEWS = [['upcoming', 'Coming up'], ['past', 'Past']].map(([value, label]) => ({ value, label }));
 
 // A booking can be cancelled until it starts, while the owner has not handed the item over yet
-const canCancel = reservation => ['pending', 'upcoming'].includes(reservation.status) && new Date(reservation.startDate) > new Date();
+const canCancel = reservation => ['pending', 'expired'].includes(reservation.status) || (reservation.status === 'upcoming' && new Date(reservation.startDate) > new Date());
 
 export default function MyBookingsPage() {
     const [view, setView] = useState('upcoming');
+    const [status, setStatus] = useState('');
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
     // the server's "upcoming" view is every pending, approved or active booking whatever its dates, so a request the owner never
     // answered stays in it forever. Both views are loaded and a pending request whose start date has passed is moved to Past as "expired".
     const { data: all, error, loading, reload } = useAsync(async () => {
@@ -29,6 +32,7 @@ export default function MyBookingsPage() {
     const data = all && { reservations: all
         .filter(reservation => (view === 'past') === (['completed', 'cancelled', 'rejected'].includes(reservation.status) || expired(reservation)))
         .map(reservation => (expired(reservation) ? { ...reservation, status: 'expired' } : reservation))
+        .filter(row => (!status || row.status === status) && (!from || row.endDate.slice(0, 10) >= from) && (!to || row.startDate.slice(0, 10) <= to))
         .sort((a, b) => (view === 'past' ? new Date(b.startDate) - new Date(a.startDate) : new Date(a.startDate) - new Date(b.startDate))) };
     const cancel = useAction();
     // the booking the person pressed Cancel on; the question is asked in a card in the middle of the screen
@@ -41,7 +45,11 @@ export default function MyBookingsPage() {
 
     return <>
         <PageHeader title="My bookings" />
-        <div className={styles.filter}><Select name="view" aria-label="Show" value={view} options={VIEWS} onChange={event => setView(event.target.value)} /></div>
+        <div className={styles.filter}><Select name="view" aria-label="Show" value={view} options={VIEWS} onChange={event => { setView(event.target.value); setStatus(''); }} />
+            <Select name="status" aria-label="Reservation status" value={status} options={[{ value: '', label: 'All statuses' }, ...(view === 'past' ? ['completed', 'cancelled', 'rejected', 'expired'] : ['pending', 'upcoming', 'active']).map(value => ({ value, label: STATUS_LABELS[value] ?? value }))]} onChange={event => setStatus(event.target.value)} />
+            <FormField label="From" name="bookingFrom" type="date" value={from} onChange={event => setFrom(event.target.value)} />
+            <FormField label="To" name="bookingTo" type="date" min={from || undefined} value={to} onChange={event => setTo(event.target.value)} />
+        </div>
         {loading && !data && <Spinner />}
         <Message type="error">{error || cancel.error}</Message>
         {cancel.success && <Message type="success">{cancel.success}</Message>}

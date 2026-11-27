@@ -57,6 +57,7 @@ const reservationSchema = new mongoose.Schema(
       status: { type: String, enum: ["preparing", "out-for-delivery", "delivered"] },
       fee: { type: Number, default: 0, min: 0 },
       address: { type: String },
+      feeCollected: { type: Boolean },
     },
 
     // ---- group: payment ----

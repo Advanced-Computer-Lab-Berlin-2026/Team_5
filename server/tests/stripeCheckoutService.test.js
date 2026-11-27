@@ -243,6 +243,17 @@ describe('createCardPaymentIntent — SCRUM-431', () => {
     });
   });
 
+  it('includes delivery in the card charge and saves its address and fee', async () => {
+    const delivery = { address: '10 Main Street', fee: 12.5 };
+    mocks.prepareCheckout.mockResolvedValueOnce([{ ...checkoutItems[0], delivery }, checkoutItems[1]]);
+    mocks.intentCreate.mockResolvedValueOnce(stripeIntent({ amount: 16250, status: 'requires_payment_method' }));
+
+    await expect(createCardPaymentIntent(USER, KEY)).resolves.toMatchObject({ amount: 16250 });
+    expect(mocks.paymentCreate).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 162.5, checkoutItems: [expect.objectContaining({ delivery }), checkoutItems[1]]
+    }));
+  });
+
   it('saves a discounted quote without redeeming when creating the intent', async () => {
     mocks.validatePromoCode.mockResolvedValue({ valid: true, discountPercent: 10 });
     mocks.intentCreate.mockResolvedValueOnce(promoIntent({ status: 'requires_payment_method' }));
@@ -344,6 +355,23 @@ describe('createCardPaymentIntent — SCRUM-431', () => {
 });
 
 describe('finalizeCardPayment — SCRUM-431', () => {
+  it('creates a delivery reservation from the paid card snapshot', async () => {
+    const delivery = { address: '10 Main Street', fee: 12.5 };
+    currentPayment = {
+      ...pendingPayment(), amount: 162.5, stripeAmountCents: 16250,
+      checkoutItems: [{ ...checkoutItems[0], delivery }, checkoutItems[1]]
+    };
+    mocks.itemFindById.mockImplementation(id => ({
+      session: async () => ({ _id: id, owner: id === 'ITM-1' ? 'lender1' : 'lender2', delivery: { offered: true } })
+    }));
+
+    await expect(finalizeCardPayment(stripeIntent({ amount: 16250, amount_received: 16250 }))).resolves
+      .toMatchObject({ status: 'completed' });
+    expect(mocks.reservationCreate).toHaveBeenNthCalledWith(1, [expect.objectContaining({
+      delivery: { ...delivery, status: 'preparing', feeCollected: true }
+    })], { session });
+  });
+
   it.each(['member', 'lender'])('creates reservations and completes the card payment for a %s', async (role) => {
     mocks.userFindById.mockImplementationOnce(() => ({
       session: async () => ({ _id: USER, role, suspended: false }),

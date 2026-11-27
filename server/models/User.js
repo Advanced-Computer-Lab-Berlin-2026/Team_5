@@ -68,6 +68,7 @@ const userSchema = new mongoose.Schema(
         item: { type: String, ref: "Item", required: true },
         startDate: { type: Date, required: true },
         endDate: { type: Date, required: true },
+        deliveryAddress: { type: String, trim: true },
         _id: false,
       },
     ],

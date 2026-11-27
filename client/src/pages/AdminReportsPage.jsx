@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { exportDamageReport, exportUsageReport, getDamageReport, getReferralReport, getTierDistribution, getUsageReport } from '../api/reports.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, Message, PageHeader, Row, Select, Spinner, Table } from '../components';
+import { Button, Card, FormField, Message, PageHeader, Row, Select, Spinner, Table } from '../components';
 import { formatDate } from '../utils/format.js';
 import styles from './AdminReportsPage.module.css';
 
@@ -32,9 +32,14 @@ function ExportButtons({ onExport, pending }) {
 export default function AdminReportsPage() {
     const [month, setMonth] = useState(thisMonth());
     const [status, setStatus] = useState('');
+    const [item, setItem] = useState('');
+    const [category, setCategory] = useState('');
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
+    const usageFilters = { ...(from && to ? { from, to } : { month }), item, category };
     const tiers = useAsync(getTierDistribution);
     const referrals = useAsync(getReferralReport);
-    const usage = useAsync(() => getUsageReport({ month }), [month]);
+    const usage = useAsync(() => getUsageReport(usageFilters), [month, from, to, item, category]);
     const damage = useAsync(() => getDamageReport(status), [status]);
     const exporting = useAction();
 
@@ -57,12 +62,28 @@ export default function AdminReportsPage() {
             </div>}
         </Card>
 
-        <Card title="Item usage" footer={<ExportButtons pending={exporting.pending} onExport={format => exporting.run(() => exportUsageReport(format, { month }))} />}>
+        <Card title="Item usage" footer={<ExportButtons pending={exporting.pending} onExport={format => exporting.run(() => exportUsageReport(format, usageFilters))} />}>
             <div className={styles.filter}><Select name="month" aria-label="Month" value={month} options={MONTHS} onChange={event => setMonth(event.target.value)} /></div>
+            <FormField label="Item ID" name="usageItem" value={item} onChange={event => setItem(event.target.value)} />
+            <FormField label="Category" name="usageCategory" value={category} onChange={event => setCategory(event.target.value)} />
+            <Row>
+                <FormField label="From" name="usageFrom" type="date" value={from} onChange={event => { setFrom(event.target.value); setTo(''); }} />
+                <FormField label="To" name="usageTo" type="date" value={to} min={from || undefined} disabled={!from} onChange={event => setTo(event.target.value)} />
+            </Row>
             {usage.loading && !usage.data && <Spinner />}
             <Message type="error">{usage.error}</Message>
             {usage.data && <>
                 <p className={styles.muted}>{usage.data.report.totals.reservations} reservations across {usage.data.report.totals.items} items in {usage.data.report.period.label}</p>
+                <h3>By category</h3>
+                <Table rows={usage.data.report.categories} getRowKey={row => row.category} empty="No category usage in this period."
+                    columns={[
+                        { key: 'category', header: 'Category' },
+                        { key: 'items', header: 'Items' },
+                        { key: 'reservations', header: 'Reservations' },
+                        { key: 'daysReserved', header: 'Days reserved' },
+                        { key: 'deposits', header: 'Deposits', render: row => `${row.deposits} ₥` }
+                    ]} />
+                <h3>By item</h3>
                 <Table rows={usage.data.report.items} getRowKey={row => row.itemId} empty="No reservations in this period."
                     columns={[
                         { key: 'name', header: 'Item' },

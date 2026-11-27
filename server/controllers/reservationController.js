@@ -67,6 +67,23 @@ export async function getMyReservations(req, res, next) {
 }
 
 // POST keeps the checkout contract. PATCH keeps the existing borrower-only API.
+export async function getReservation(req, res, next) {
+    try {
+        const { reservationId } = req.params;
+        if (!RESERVATION_ID_PATTERN.test(reservationId)) {
+            return res.status(404).json({ message: 'Reservation not found' });
+        }
+        const reservation = await Reservation.findOne({
+            _id: reservationId,
+            $or: [{ borrower: req.user.id }, { lender: req.user.id }]
+        }).populate('item', 'name category photos depositAmount pickup').lean();
+        if (!reservation) return res.status(404).json({ message: 'Reservation not found' });
+        return res.json({ reservation });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function cancelReservation(req, res, next) {
     const borrowerOnly = req.method === 'PATCH';
     const { reservationId } = req.params;

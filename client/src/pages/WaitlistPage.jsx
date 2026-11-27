@@ -42,7 +42,7 @@ export default function WaitlistPage() {
                 return <ItemCard key={entry._id} item={entry.item} introDelay={index * 60} plainBack
                     tag={over ? { label: 'Dates passed', tone: 'muted' } : free ? { label: 'Free now', tone: 'amber' } : { label: 'Waiting' }}
                     subtitle={dates} extra={dates}
-                    details={[['Status', over ? 'These dates have passed' : free ? 'The days are free again' : 'Still booked by someone else']]}
+                    details={[['Status', over ? 'These dates have passed' : free ? 'Availability notice sent' : 'Waiting for availability']]}
                     actions={<>
                         {free && !over && <Button size="small" pending={act.pending} onClick={() => reserve(entry)}>Reserve these dates</Button>}
                         <Button variant="destructive" size="small" disabled={act.pending}

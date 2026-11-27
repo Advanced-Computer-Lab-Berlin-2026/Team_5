@@ -38,6 +38,7 @@ const checkoutSchema = new mongoose.Schema(
         },
         promoCode: { type: String, trim: true },
         originalTotal: { type: Number, min: 0 },
+        deliveryFee: { type: Number, min: 0 },
         promoDiscountPercent: { type: Number, min: 0, max: 100 },
 
         remainingBalance: {

@@ -6,6 +6,8 @@ const BASE = '/api/reservations';
 export const createReservation = ({ itemId, startDate, endDate, deliveryFlag = false, deliveryAddress }) =>
     request(BASE, { method: 'POST', body: { itemId, startDate, endDate, deliveryFlag, ...(deliveryFlag ? { deliveryAddress } : {}) } });
 
+export const getReservation = (id) => request(`${BASE}/${encodeURIComponent(id)}`);
+
 export const getDelivery = (id) => request(`${BASE}/${encodeURIComponent(id)}/delivery`);
 
 // lender or admin. status: 'preparing' | 'out-for-delivery' | 'delivered'

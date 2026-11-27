@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { listAcceptedReservations } from '../api/lenderReservations.js';
+import { listAcceptedReservations, listCompletedReservations } from '../api/lenderReservations.js';
 import { useAsync } from '../hooks/useAsync.js';
 import { formatDate } from '../utils/format.js';
 import { Button } from './Button.jsx';
@@ -16,8 +16,8 @@ export const announceLenderBookingsChange = () => window.dispatchEvent(new Event
 
 // Lender: the bookings they approved (still to hand over) and the ones out with a borrower now, as tilting item cards.
 // Opening one leads to its reservation page with the handover, return, chat and delivery steps.
-export function AcceptedBookings() {
-    const { data, error, reload } = useAsync(listAcceptedReservations);
+export function AcceptedBookings({ completed = false }) {
+    const { data, error, reload } = useAsync(completed ? listCompletedReservations : listAcceptedReservations, [completed]);
     useEffect(() => {
         window.addEventListener(LENDER_BOOKINGS_CHANGED, reload);
         return () => window.removeEventListener(LENDER_BOOKINGS_CHANGED, reload);
@@ -25,8 +25,8 @@ export function AcceptedBookings() {
     const bookings = data?.reservations ?? [];
     if (!bookings.length && !error) return null;
     const borrower = booking => booking.borrower?.profile?.name ?? booking.borrower?.username ?? booking.borrower?._id ?? booking.borrower;
-    return <section className={styles.section} aria-label="Accepted bookings">
-        <h2>Accepted <span className={styles.count}>{bookings.length}</span></h2>
+    return <section className={styles.section} aria-label={completed ? 'Completed bookings' : 'Accepted bookings'}>
+        <h2>{completed ? 'Completed' : 'Accepted'} <span className={styles.count}>{bookings.length}</span></h2>
         <Message type="error">{error}</Message>
         <Grid>
             {bookings.map((booking, index) => {

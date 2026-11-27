@@ -11,6 +11,29 @@ import { calculateCancellationRefund } from './cancellationPolicy.js';
 
 const CANCELLABLE_STATUSES = ['pending', 'upcoming'];
 
+function getCancellationActor(reservation, userId, borrowerOnly) {
+    if (userId === reservation.borrower) return 'member';
+    if (!borrowerOnly && userId === reservation.lender) return 'lender';
+    throw new CheckoutError(
+        403,
+        'NOT_RESERVATION_PARTICIPANT',
+        borrowerOnly ? 'You can only cancel your own reservations' : 'Only the borrower or lender may cancel.'
+    );
+}
+
+function getCancellationWindow(reservation, cancelledAt) {
+    const expiredRequest = reservation.status === 'pending' && new Date(reservation.startDate) <= cancelledAt;
+    if (!CANCELLABLE_STATUSES.includes(reservation.status) ||
+        (!expiredRequest && new Date(reservation.startDate) <= cancelledAt) ||
+        reservation.handover?.pickedUpAt) {
+        throw new CheckoutError(409, 'CANCELLATION_NOT_ALLOWED', 'This reservation cannot be cancelled.');
+    }
+    const filter = expiredRequest
+        ? { status: 'pending' }
+        : { status: { $in: CANCELLABLE_STATUSES }, startDate: { $gt: cancelledAt } };
+    return { expiredRequest, filter };
+}
+
 function asCents(value) {
     const scaled = value * 100;
     const cents = Math.round(scaled);
@@ -88,6 +111,14 @@ async function findOriginalPayment(reservation, session) {
                 'Wallet payment amount mismatch.'
             );
         }
+        if (reservation.delivery?.feeCollected) {
+            const deliveryPayments = await Payment.find({
+                ...common, type: 'delivery-fee', reservation: reservation._id
+            }).session(session);
+            if (deliveryPayments.length !== 1 || asCents(deliveryPayments[0].amount) !== asCents(reservation.delivery.fee)) {
+                throw new CheckoutError(409, 'PAYMENT_MISMATCH', 'Wallet delivery payment amount mismatch.');
+            }
+        }
 
     } else {
         const matches = payment.checkoutItems.filter(entry =>
@@ -102,6 +133,7 @@ async function findOriginalPayment(reservation, session) {
         if (
             matches.length !== 1 ||
             asCents(matches[0].depositAmount) !== depositCents ||
+            asCents(matches[0].delivery?.fee ?? 0) !== asCents(reservation.delivery?.feeCollected ? reservation.delivery.fee : 0) ||
             asCents(payment.amount) !== payment.stripeAmountCents
         ) {
             throw new CheckoutError(
@@ -214,7 +246,11 @@ async function existingResult(reservation, session, borrowerOnly) {
     }, borrowerOnly);
 }
 
-export async function cancelReservationWithRefund(reservationId, userId, { borrowerOnly = false } = {}) {
+export function expireUnansweredReservation(reservationId) {
+    return cancelReservationWithRefund(reservationId, null, { automaticExpiry: true });
+}
+
+export async function cancelReservationWithRefund(reservationId, userId, { borrowerOnly = false, automaticExpiry = false } = {}) {
     if (!/^RES-[a-zA-Z0-9_-]{1,100}$/.test(reservationId)) {
         throw new CheckoutError(
             400,
@@ -230,6 +266,10 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
             const reservation = await Reservation.findById(
                 reservationId
             ).session(session);
+            const cancelledAt = new Date();
+            if (automaticExpiry && (reservation?.status !== 'pending' || new Date(reservation.startDate) > cancelledAt)) {
+                return null;
+            }
 
             if (!reservation) {
                 throw new CheckoutError(
@@ -239,63 +279,39 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
                 );
             }
 
-            // Never trust a cancellation actor supplied in req.body.
-            const cancelledBy = userId === reservation.borrower
-                ? 'member'
-                : userId === reservation.lender
-                    ? 'lender'
-                    : null;
-
-            if (!cancelledBy || (borrowerOnly && cancelledBy !== 'member')) {
-                throw new CheckoutError(
-                    403,
-                    'NOT_RESERVATION_PARTICIPANT',
-                    borrowerOnly ? 'You can only cancel your own reservations' : 'Only the borrower or lender may cancel.'
-                );
-            }
+            const cancelledBy = automaticExpiry ? null : getCancellationActor(reservation, userId, borrowerOnly);
 
             // Repeated requests must not refund twice.
             if (reservation.status === 'cancelled') {
                 return existingResult(reservation, session, borrowerOnly);
             }
 
-            const cancelledAt = new Date();
-
-            if (
-                !CANCELLABLE_STATUSES.includes(reservation.status) ||
-                new Date(reservation.startDate) <= cancelledAt ||
-                reservation.handover?.pickedUpAt
-            ) {
-                throw new CheckoutError(
-                    409,
-                    'CANCELLATION_NOT_ALLOWED',
-                    'This reservation cannot be cancelled.'
-                );
-            }
+            const { expiredRequest, filter } = getCancellationWindow(reservation, cancelledAt);
 
             // A direct reservation can be cancelled without refunding its quoted deposit.
             const originalPayment = reservation.payment?.depositCollected === false
                 ? null
                 : await findOriginalPayment(reservation, session);
 
-            const refundAmount = originalPayment
-                ? await getRefundAmount(reservation, cancelledBy, cancelledAt, session)
+            const depositRefund = originalPayment
+                ? (expiredRequest ? reservation.payment.depositAmount : await getRefundAmount(reservation, cancelledBy, cancelledAt, session))
                 : 0;
+            const refundAmount = originalPayment && reservation.delivery?.feeCollected
+                ? (asCents(depositRefund) + asCents(reservation.delivery.fee)) / 100
+                : depositRefund;
 
             // Atomically change the reservation state.
             const updated = await Reservation.findOneAndUpdate(
                 {
                     _id: reservation._id,
-                    status: { $in: CANCELLABLE_STATUSES },
-                    startDate: { $gt: cancelledAt },
+                    ...filter,
                     'handover.pickedUpAt': null
                 },
                 {
                     $set: {
                         status: 'cancelled',
                         cancelledAt,
-                        cancelledBy,
-                        cancelledByUser: userId,
+                        ...(!automaticExpiry && { cancelledBy, cancelledByUser: userId }),
                         cancellationRefundAmount: refundAmount
                     }
                 },
@@ -338,7 +354,7 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
                 direction: 'receive',
                 method: 'wallet',
                 status: 'completed',
-                description: `Reservation cancelled by ${cancelledBy}`
+                description: automaticExpiry ? 'Unanswered reservation expired' : `Reservation cancelled by ${cancelledBy}`
             }], { session });
 
             // Store the refund ID for future idempotent requests.
@@ -369,10 +385,11 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
             }, true);
         });
 
+        if (!result) return null;
         const { reservation, ...response } = result;
         if (!response.replayed) {
             const notifications = await Promise.allSettled([
-                notifyReservationCancelled(reservation),
+                automaticExpiry ? notifyReservationCancelled(reservation, { automaticExpiry: true }) : notifyReservationCancelled(reservation),
                 notifyWishlistItemAvailable(reservation.item),
                 promoteWaitlistAfterCancellation(reservation)
             ]);

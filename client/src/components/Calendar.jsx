@@ -13,7 +13,7 @@ const fromKey = key => { const [y, m, d] = key.split('-').map(Number); return ne
 // readOnly: just shows the month (nothing can be picked, past days are not greyed out and you can page back), with the requested dates
 // in amber: `value` for one range, or `ranges` ([{ id, start, end }], both days included) for several, where the ones in `activeIds`
 // are solid amber and the others are outlined. With `onDayClick(key, rangeIds)`, a day inside a range can be pressed. compact makes the days a little shorter so a whole month fits in a small card.
-export function Calendar({ booked = [], value, onChange, minDate = toKey(new Date()), readOnly = false, compact = false, ranges, activeIds, onDayClick, fixedStart, allowBooked = false }) {
+export function Calendar({ booked = [], value, onChange, minDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10), readOnly = false, compact = false, ranges, activeIds, onDayClick, fixedStart, allowBooked = false }) {
     const shown = ranges ?? (value?.start ? [{ id: 'value', start: value.start, end: value.end || value.start }] : []);
     const [month, setMonth] = useState(() => {
         const first = shown.find(range => activeIds?.includes(range.id)) ?? shown[0];
@@ -24,7 +24,7 @@ export function Calendar({ booked = [], value, onChange, minDate = toKey(new Dat
         const days = new Set();
         for (const range of booked) {
             const last = new Date(range.endDate);
-            for (let day = new Date(range.startDate); day <= last; day.setDate(day.getDate() + 1)) days.add(toKey(new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate())));
+            for (let day = new Date(range.startDate); day < last; day.setUTCDate(day.getUTCDate() + 1)) days.add(toKey(new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate())));
         }
         return days;
     }, [booked]);
@@ -35,6 +35,8 @@ export function Calendar({ booked = [], value, onChange, minDate = toKey(new Dat
     const cells = [...Array(offset).fill(null), ...Array.from({ length: count }, (_, index) => toKey(new Date(month.getFullYear(), month.getMonth(), index + 1)))];
 
     // fixedStart: the first day cannot change (asking for more days on a booking), so every press picks the last day
+    const selectingFrom = fixedStart || (!value?.end && value?.start);
+    const blockedBetween = end => [...blocked].some(day => day >= selectingFrom && day < end);
     function pick(key) {
         if (fixedStart) { if (key > fixedStart) onChange({ start: fixedStart, end: key }); return; }
         if (!value?.start || value.end || key <= value.start) onChange({ start: key, end: '' });
@@ -54,7 +56,10 @@ export function Calendar({ booked = [], value, onChange, minDate = toKey(new Dat
             {DAYS.map(day => <span key={day} className={styles.weekday}>{day}</span>)}
             {cells.map((key, index) => {
                 if (!key) return <span key={`gap${index}`} />;
-                const unavailable = key < firstAllowed || (blocked.has(key) && !allowBooked);
+                const selectingEnd = Boolean(selectingFrom && key > selectingFrom);
+                const unavailable = key < firstAllowed || (!allowBooked && (selectingEnd
+                    ? blockedBetween(key)
+                    : blocked.has(key)));
                 const start = key === value?.start;
                 const end = key === value?.end;
                 const inside = value?.start && value?.end && key > value.start && key < value.end;

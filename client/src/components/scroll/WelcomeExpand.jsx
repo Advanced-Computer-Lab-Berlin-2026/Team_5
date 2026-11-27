@@ -35,8 +35,20 @@ function glideTo(to) {
 }
 
 const topOf = element => element.getBoundingClientRect().top + window.scrollY;
+const beforeAccount = account => Boolean(account && account.getBoundingClientRect().top > 40);
 
 export function WelcomeExpand({ children }) {
+    const [loginCue, setLoginCue] = useState(true);
+    useEffect(() => {
+        const updateCue = () => setLoginCue(beforeAccount(document.getElementById('account-access')));
+        updateCue();
+        window.addEventListener('scroll', updateCue, { passive: true });
+        window.addEventListener('resize', updateCue);
+        return () => {
+            window.removeEventListener('scroll', updateCue);
+            window.removeEventListener('resize', updateCue);
+        };
+    }, []);
     useEffect(() => {
         // always begin at the logo: no remembered scroll position from a reload or the back button
         if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
@@ -65,7 +77,7 @@ export function WelcomeExpand({ children }) {
     function handleCue() {
         // from the logo screen, the first press only goes as far as the login; pressing again carries on to the catalog
         const account = document.getElementById('account-access');
-        if (account && window.scrollY < topOf(account) - 40) { glideTo(topOf(account)); return; }
+        if (beforeAccount(account)) { glideTo(topOf(account)); return; }
         const intro = document.getElementById('guest-intro');
         if (!intro) return;
         glideTo(topOf(document.querySelector('#guest-intro > :first-child') ?? intro) - 24);
@@ -94,7 +106,9 @@ export function WelcomeExpand({ children }) {
         <nav className={styles.shortcuts} aria-label="Skip welcome animation"><a href="#account-access">Skip to log in / register</a></nav>
         {/* one text button through the whole welcome section; it inverts whatever is behind it */}
         <div className={styles.guestDock}>
-            <button type="button" className={styles.guestButton} onClick={handleCue}>Scroll to browse as guest <Icon name="down" size={16} /></button>
+            <button type="button" className={styles.guestButton} onClick={handleCue}>
+                {loginCue ? 'Scroll to login' : 'Scroll to browse as guest'} <Icon name="down" size={16} />
+            </button>
         </div>
     </section>;
 }

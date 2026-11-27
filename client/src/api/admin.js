@@ -1,6 +1,6 @@
 import { request } from './client.js';
 
-export const listUsers = () => request('/api/admin/users');
+export const listUsers = role => request('/api/admin/users', { query: { role } });
 
 // Needs MongoDB Atlas Search; on a plain local MongoDB the server answers with an error.
 export const searchUsers = (name) => request('/api/admin/users/search', { query: { name } });

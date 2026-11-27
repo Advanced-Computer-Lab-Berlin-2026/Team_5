@@ -7,6 +7,8 @@ const ADMIN_BASE = '/api/admin/damage-reports';
 const BASE = '/api/damage-reports';
 const caseUrl = (base, caseNumber) => `${base}/${encodeURIComponent(caseNumber)}`;
 
+export const getDamageCaseForReservation = id => request(`${BASE}/reservation/${encodeURIComponent(id)}`);
+
 // Admin: one case with beforePhotos (pickup), afterPhotos (return) and every step in order
 export const getDamageCase = (caseNumber) =>
     request(caseUrl(ADMIN_BASE, caseNumber));

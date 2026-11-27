@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { listNotifications, markNotificationRead } from '../api/notifications.js';
+import { useAuth } from '../auth/AuthContext.jsx';
 import { formatDateTime } from '../utils/format.js';
 import styles from './NotificationBell.module.css';
 
@@ -9,6 +10,7 @@ const POLL_MS = 60000;
 // A bell in the header. The dot shows when any of the latest notifications is unread; the panel lists them and links to a reservation
 // when a notification belongs to one. The server has no unread count, so only the most recent page is checked.
 export function NotificationBell() {
+    const { isAdmin } = useAuth();
     const navigate = useNavigate();
     const [items, setItems] = useState([]);
     const [open, setOpen] = useState(false);
@@ -35,9 +37,9 @@ export function NotificationBell() {
         setOpen(false);
         if (!item.read) {
             setItems(current => current.map(entry => entry._id === item._id ? { ...entry, read: true } : entry));
-            markNotificationRead(item._id).catch(() => {});
+            markNotificationRead(item._id).catch(load);
         }
-        if (item.reservation) navigate(`/reservations/${item.reservation}`);
+        if (!isAdmin && item.reservation) navigate(`/reservations/${item.reservation}`);
     }
 
     return <div ref={wrapRef} className={styles.wrap}>

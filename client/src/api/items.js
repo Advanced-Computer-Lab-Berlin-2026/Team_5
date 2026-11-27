@@ -1,7 +1,7 @@
 import { request } from './client.js';
 
-export const listItems = ({ page, limit, category, search } = {}) =>
-    request('/api/items', { query: { page, limit, category, search } });
+export const listItems = ({ page, limit, category, search, startDate, endDate } = {}) =>
+    request('/api/items', { query: { page, limit, category, search, startDate, endDate } });
 
 export const getItem = (id) => request(`/api/items/${encodeURIComponent(id)}`);
 
@@ -9,4 +9,4 @@ export const getItem = (id) => request(`/api/items/${encodeURIComponent(id)}`);
 export const getItemCalendar = (id) => request(`/api/items/${encodeURIComponent(id)}/calendar`);
 
 // similar items from the same category, as { items }
-export const getAlternatives = (id) => request(`/api/alternatives/${encodeURIComponent(id)}`);
+export const getAlternatives = (id, query) => request(`/api/alternatives/${encodeURIComponent(id)}`, { query });

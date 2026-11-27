@@ -8,7 +8,8 @@ const entry = (itemId) => `${BASE}/${encodeURIComponent(itemId)}`;
 export const getBorrowList = () => request(BASE);
 
 // dates are YYYY-MM-DD. 409 when the dates are taken or the item is already in the list
-export const addToBorrowList = (itemId, { startDate, endDate }) => request(entry(itemId), { method: 'POST', body: { startDate, endDate } });
+export const addToBorrowList = (itemId, { startDate, endDate, deliveryAddress }) =>
+    request(entry(itemId), { method: 'POST', body: { startDate, endDate, deliveryAddress } });
 
 export const updateBorrowListDates = (itemId, { startDate, endDate }) => request(entry(itemId), { method: 'PATCH', body: { startDate, endDate } });
 

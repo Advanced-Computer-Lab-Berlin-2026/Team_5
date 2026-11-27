@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import joi from 'joi';
 import { Reservation } from '../models/Reservation.js';
+import { Item } from '../models/Item.js';
 import { User } from '../models/User.js';
 import { Payment } from '../models/Payment.js';
 import { DamageReport } from '../models/DamageReport.js';
@@ -30,12 +31,13 @@ async function findLenderReservation(id, lenderId, allowedStatuses, action) {
 const LENDER_VIEWS = {
     pending: { status: 'pending', sort: { createdAt: 1 } },
     accepted: { status: { $in: ['upcoming', 'active'] }, sort: { startDate: 1 } },
+    completed: { status: 'completed', sort: { startDate: -1 } },
 };
 
 export async function listIncomingReservations(req, res, next) {
     try {
         const view = LENDER_VIEWS[req.query.view ?? 'pending'];
-        if (!view) return res.status(400).json({ message: 'view must be pending or accepted' });
+        if (!view) return res.status(400).json({ message: 'view must be pending, accepted or completed' });
         const reservations = await Reservation.find({ lender: req.user.id, status: view.status })
             .sort(view.sort)
             .populate('item', 'name photos')
@@ -57,12 +59,25 @@ async function decideIncomingReservation(req, res, next, decision) {
         if (!reservation) return res.status(status).json({ message });
 
         const approved = decision === 'approved';
+        if (approved && new Date(reservation.startDate) <= new Date()) {
+            return res.status(409).json({ message: 'This request has expired. Decline it to refund the borrower.' });
+        }
         const nextStatus = approved ? 'upcoming' : 'rejected';
-        const refund = reservation.payment.depositCollected === false ? 0 : reservation.payment.depositAmount;
+        const fee = reservation.delivery?.feeCollected ? reservation.delivery.fee : 0;
+        const refund = reservation.payment.depositCollected === false ? 0
+            : Math.round((reservation.payment.depositAmount + fee) * 100) / 100;
         let updated = null;
 
         session = await mongoose.startSession();
         await session.withTransaction(async () => {
+            if (approved) {
+                const locked = await Item.updateOne({ _id: reservation.item }, { $inc: { checkoutVersion: 1 } }, { session });
+                if (!locked.matchedCount || await Reservation.findOverlap(
+                    reservation.item, reservation.startDate, reservation.endDate, session, reservation._id
+                )) {
+                    throw new CheckoutError(409, 'ITEM_ALREADY_RESERVED', 'The item is unavailable for these dates.');
+                }
+            }
             updated = await Reservation.findOneAndUpdate(
                 { _id: reservation._id, lender: req.user.id, status: 'pending' },
                 { $set: { status: nextStatus } },
@@ -90,6 +105,7 @@ async function decideIncomingReservation(req, res, next, decision) {
         );
         res.status(200).json(approved ? { reservation: updated } : { reservation: updated, refunded: refund });
     } catch (error) {
+        if (error instanceof CheckoutError) return res.status(error.statusCode).json({ error: error.code, message: error.message });
         next(error);
     } finally {
         await session?.endSession();

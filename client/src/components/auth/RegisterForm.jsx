@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { register } from '../../api/auth.js';
+import { applyReferralCode } from '../../api/referrals.js';
 import { useAction } from '../../hooks/useAction.js';
 import { Button } from '../Button.jsx';
 import { FormField } from '../FormField.jsx';
@@ -30,7 +31,12 @@ export function RegisterForm() {
         try {
             const user = await login(form.username, form.password);
             setForm(EMPTY_FORM);
-            const destination = getLoginDestination(location.state?.from, user.role);
+            const referral = new URLSearchParams(location.search).get('ref');
+        let destination = getLoginDestination(location.state?.from, user.role);
+        if (referral && ['member', 'lender'].includes(user.role)) {
+            try { await applyReferralCode(referral); }
+            catch { destination = '/profile?ref=' + encodeURIComponent(referral); }
+        }
             await playExplosion({ dark: isDarkPage(user.role, destination) });
                 holdRedirect(false);
                 navigate(destination, { replace: true });

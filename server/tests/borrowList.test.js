@@ -140,7 +140,7 @@ describe('POST /api/borrow-list/:itemId', () => {
 
         expect(Item.findOne).toHaveBeenCalledWith(
             { _id: ITEM_ID, archived: false, flagged: { $ne: true } },
-            'owner',
+            'owner delivery',
             { lean: true, populate: { path: 'owner', select: 'suspended' } }
         );
     });
@@ -335,7 +335,7 @@ describe('GET /api/borrow-list', () => {
 
         expect(User.findById).toHaveBeenCalledWith(USER_ID, 'borrow_list', {
             lean: true,
-            populate: { path: 'borrow_list.item', select: 'name category photos depositAmount pickup owner archived' }
+            populate: { path: 'borrow_list.item', select: 'name category photos depositAmount pickup owner archived delivery' }
         });
     });
 
