@@ -156,6 +156,7 @@ chat, and item manuals are documented in the same table.
 | `PATCH /api/lender/reservations/:id/approve` | None; verified lender only | Changes a pending request to `upcoming` and notifies the borrower. |
 | `PATCH /api/lender/reservations/:id/reject` | None; verified lender only | Changes a pending request to `rejected`, freeing its dates, and credits the deposit to the borrower's wallet. |
 | `GET /api/items?startDate=&endDate=` | None; public; both dates together, `endDate` after `startDate`; works with `category`, `search`, `page`, `limit` | Leaves out items with a pending, upcoming or active reservation that overlaps the dates. |
+| `GET /api/alternatives/:itemId` | Public. Optional ISO `startDate` and `endDate` supplied together | Suggests public listings in the same category, ranked by matching attributes. With dates, excludes listings with overlapping pending, upcoming or active reservations. |
 | `POST /api/borrow-list/:itemId` | `startDate`, `endDate` (not in the past); member or lender | Adds the item to the borrow list if it is free for those dates. `409` if already in the list or booked; `403` for your own item. |
 | `PATCH /api/borrow-list/:itemId` | `startDate`, `endDate` (same rules as adding: ISO dates, end after start, start not in the past); member or lender | Changes the dates of one entry already in the borrow list and leaves the other entries alone. Returns `200` with `{ message, entry }`. `400` for an invalid item id or dates; `404` if the item is not in the borrow list; `409` if the item is reserved for the new dates. |
 | `GET /api/borrow-list` | None; member or lender | Returns the borrow list with each item's name, category, photos, deposit, pickup location and dates. |
@@ -168,7 +169,7 @@ chat, and item manuals are documented in the same table.
 | `GET /api/admin/lender-requests/:username/documents/:slot` | None; admin only; optional `?download=true` | Redirects to a signed Cloudinary link to view or download the document. |
 | `PATCH /api/admin/lender-requests/:username/decision` | `decision` (`accept` or `reject`); `reason` required when rejecting | Accept sets the role to `lender` and status `accepted`; reject sets status `rejected` and saves the reason in `verification.note`. |
 | `GET /api/items/:id/calendar` | None; login required | Returns `{ reservations: [{ startDate, endDate }] }` for the item, sorted by start date. Only `pending`, `upcoming` and `active` reservations are included, and only their dates (no borrower or other details). `400` for an invalid item id; `404` if the item is missing, flagged, or its lender is suspended. |
-| `POST /api/reservations` | `itemId` (`ITM-` id), `startDate`, `endDate` (ISO dates, start must be in the future and before end); optional `deliveryFlag` (boolean); `deliveryAddress` required when `deliveryFlag` is true; CSRF origin required | Creates a reservation for the signed-in member, lender or admin; returns `201` with `{ message, reservationId }`. Deposit is taken from the item, reduced by the best membership discount (the borrower's own tier or an accepted household member's tier, see Membership below), and the payment method defaults to `wallet`; the reply also has `depositAmount` and `discountPercent`; when delivery is requested the item's delivery fee is stored. `400` for missing or invalid fields, past dates, a duration over the item's `maxDurationDays` (default 30), reserving your own item, or delivery on an item that does not offer it. `403` if the borrower's trust score is below the item's minimum or the lender is suspended. `404` if the item is missing, archived or flagged. `409` if the dates overlap an existing reservation. `403` also when the borrower already has as many open (pending, upcoming or active) reservations as their tier allows. |
+| `POST /api/reservations` | `itemId` (`ITM-` id), `startDate`, `endDate` (ISO dates, start must be in the future and before end); optional `deliveryFlag` (boolean); `deliveryAddress` required when `deliveryFlag` is true; CSRF origin required | Creates a reservation for the signed-in member, lender or admin; returns `201` with `{ message, reservationId }`. Deposit is taken from the item, reduced by the best membership discount (the borrower's own tier or an accepted household member's tier, see Membership below), and is charged to the borrower's wallet when the reservation is created. The reservation and its deposit payment are recorded in the same transaction. The reply also has `depositAmount` and `discountPercent`; when delivery is requested the item's delivery fee is stored. `400` for missing or invalid fields, past dates, a duration over the item's `maxDurationDays` (default 30), reserving your own item, or delivery on an item that does not offer it. `403` if the borrower's trust score is below the item's minimum or the lender is suspended. `404` if the item is missing, archived or flagged. `409` if the dates overlap an existing reservation or the wallet payment cannot be made. `403` also when the borrower already has as many open (pending, upcoming or active) reservations as their tier allows. |
 | `GET /api/notifications` | None; login required; optional `?page=` (default 1) and `?limit=` (default 10, max 50) | Returns the caller's in-app notifications newest first, with pagination. |
 | `PATCH /api/notifications/:id/read` | None; login required; CSRF origin required | Marks that notification as read for the caller only; another user's id is `404`. |
 | `GET /api/settings/email-preferences` | None; member or lender cookie | Returns `{ emailPreferences: { reservations, promotions, communityNotices } }` (missing fields default to on). |
@@ -190,7 +191,7 @@ chat, and item manuals are documented in the same table.
 | `GET /api/admin/reports/membership-tiers` | None; admin only | Returns the number and percentage of members and lenders in each tier. |
 | `POST /api/membership/subscribe` | `tier` (`Plus` or `Premium`), `method` (`wallet` or `card`), and an `Idempotency-Key` header. Member or lender session and trusted origin required. | Charges the selected tier's annual fee. Wallet returns `200` with the activated membership or `409` with `INSUFFICIENT_WALLET_BALANCE`. Card returns `202` with `paymentId`, `status`, and a `clientSecret` when Stripe can accept confirmation. The signed Stripe webhook activates the membership after payment. |
 | `POST /api/membership/cancel` | None; member or lender; CSRF origin required | Cancels the paid subscription and returns the user to `Basic`, with `membership.startDate` set to now and `membership.renewalDate` set to `null`. Returns `200` with `{ message, membership }`. `409` if the user is already on Basic (nothing to cancel); `403` for admins. |
-| `GET /api/membership-tiers` | None; member or lender | Lists every membership tier, cheapest first, as `{ tiers: [{ tier, annual_fee, deposit_discount }] }`. `deposit_discount` is a percentage. |
+| `GET /api/membership-tiers` | None; member or lender | Lists every membership tier, cheapest first, as `{ tiers: [{ tier, annual_fee, deposit_discount, waitlistPriority, maxConcurrentReservations }] }`. `deposit_discount` is a percentage. |
 | `GET /api/membership` | None; member or lender | Returns the caller's own `{ membership: { tier, startDate, renewalDate } }`. `renewalDate` defaults to one year after `startDate`; accounts made before the field existed get the same value calculated on the fly. |
 | `GET /api/lender/dashboard` | None; lender only | Returns listed items, times lent, distinct items lent, total deposits collected and the damage incident rate. |
 
@@ -211,6 +212,17 @@ Membership is stored in the user's `membership` field (`tier`, `startDate`,
 `renewalDate`). Everyone starts on `Basic`, which is free and never renews
 (`renewalDate` is `null`). `Plus` and `Premium` last one year from the day the
 user subscribes.
+
+Plus costs 150 EGP per year and lowers deposits by 10%. Premium costs 300 EGP
+per year and lowers deposits by 20%. For a database seeded with the older
+tier values, run `node server/scripts/migrateMembershipTiers.js` from the
+repository root against that database. The migration updates legacy tier values
+and can be rerun without changing existing subscriptions or payment records.
+
+`GET /api/membership-tiers` includes `waitlistPriority` (1 is highest) and
+`maxConcurrentReservations`. When cancellation frees a requested date range,
+the waitlist promotes one eligible entry by active tier and then join time.
+The member receives an availability notification and can submit a reservation.
 
 Use a new `Idempotency-Key` for each subscription attempt and reuse it when
 retrying the same request. A card client confirms the payment with Stripe using

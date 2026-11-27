@@ -91,7 +91,15 @@ describe('POST /api/stripe/payment-intent — SCRUM-431', () => {
     expect(mocks.createCardPaymentIntent).not.toHaveBeenCalled();
   });
 
-  it.each(['lender', 'admin'])('returns 403 for %s', async (role) => {
+  it('lets a lender start card checkout', async () => {
+    const response = await request(app).post(endpoint)
+      .set('X-Test-Role', 'lender')
+      .set('Idempotency-Key', key);
+    expect(response.status).toBe(200);
+    expect(mocks.createCardPaymentIntent).toHaveBeenCalledWith('member1', key, null);
+  });
+
+  it.each(['admin'])('returns 403 for %s', async (role) => {
     const response = await request(app).post(endpoint)
       .set('X-Test-Role', role)
       .set('Idempotency-Key', key);

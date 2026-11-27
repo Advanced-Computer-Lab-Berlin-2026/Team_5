@@ -194,12 +194,13 @@ describe('DELETE /api/waitlist/:itemId', () => {
         );
     });
 
-    it('deletes all waitlist entries when given an item id', async () => {
+    it.each(['member', 'lender', 'admin'])('scopes item-based removal to the signed-in %s', async (role) => {
+        authenticateAs('user123', role);
         const response = await leave(itemId);
 
         expect(response.status).toBe(200);
-        expect(response.body).toEqual({ message: 'Removed all waitlist entries for this item' });
-        expect(Waitlist.deleteMany).toHaveBeenCalledExactlyOnceWith({ item: itemId });
+        expect(response.body).toEqual({ message: 'Left the waitlist' });
+        expect(Waitlist.deleteMany).toHaveBeenCalledExactlyOnceWith({ item: itemId, username: 'user123' });
         expect(Waitlist.deleteOne).not.toHaveBeenCalled();
     });
 
@@ -247,7 +248,7 @@ describe('DELETE /api/waitlist/:itemId', () => {
         const response = await leave(itemId);
 
         expect(response.status).toBe(404);
-        expect(response.body.message).toBe('No waitlist entries found for this item');
+        expect(response.body.message).toBe('You are not on this waitlist');
     });
 
     it('forwards waitlist update errors to the error handler', async () => {

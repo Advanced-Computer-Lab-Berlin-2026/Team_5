@@ -3,14 +3,16 @@ import request from "supertest";
 import app from "../app.js";
 import { User } from "../models/User.js";
 import { Item } from "../models/Item.js";
+import { Payment } from "../models/Payment.js";
 import { requireAuth } from "../middleware/auth.js";
 import { Reservation } from "../models/Reservation.js";
 import { getDepositDiscountPercent, hasReachedReservationLimit } from "../services/membershipService.js";
 import mongoose from "mongoose";
 
 vi.mock('../models/User.js', () => ({
-    User: { findById: vi.fn() }
+    User: { findById: vi.fn(), updateOne: vi.fn() }
 }));
+vi.mock('../models/Payment.js', () => ({ Payment: { create: vi.fn() } }));
 
 vi.mock('../models/Item.js', () => ({
     Item: { findOne: vi.fn(), updateOne: vi.fn() }
@@ -89,6 +91,7 @@ beforeEach(() => {
 
     Item.findOne.mockResolvedValue(makeItem());
     Item.updateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
+    User.updateOne.mockResolvedValue({ matchedCount: 1 });
 
     User.findById.mockResolvedValueOnce({ _id: 'member123', role: 'member', trustScore: 50 });
     User.findById.mockResolvedValueOnce({ _id: 'lender123', role: 'lender', suspended: false });
@@ -214,6 +217,7 @@ describe('POST /api/reservations', () => {
         const response = await post();
         expect(response.status).toBe(409);
         expect(Reservation).not.toHaveBeenCalled();
+        expect(User.updateOne).not.toHaveBeenCalled();
         expect(session.endSession).toHaveBeenCalled();
     });
 
@@ -225,12 +229,31 @@ describe('POST /api/reservations', () => {
             depositAmount: 100,
             discountPercent: 0,
             method: 'wallet',
-            depositCollected: false
+            depositCollected: true
         });
 
         // third argument is the session, either passed directly or as { session }
         const options = Item.updateOne.mock.calls[0][2];
         expect(options?.session ?? options).toBe(session);
+        expect(User.updateOne).toHaveBeenCalledExactlyOnceWith(
+            { _id: 'member123', suspended: { $ne: true }, wallet: { $gte: 100 } },
+            { $inc: { wallet: -100 } },
+            { session }
+        );
+        expect(Payment.create).toHaveBeenCalledExactlyOnceWith([{
+            user: 'member123', reservation: 'RES-12345678', type: 'deposit-paid',
+            amount: 100, direction: 'deduct', method: 'wallet', status: 'completed'
+        }], { session });
+    });
+
+    it('returns 409 without creating a reservation or payment when the wallet cannot cover the deposit', async () => {
+        User.updateOne.mockResolvedValue({ matchedCount: 0 });
+
+        const response = await post();
+
+        expect(response.status).toBe(409);
+        expect(Reservation).not.toHaveBeenCalled();
+        expect(Payment.create).not.toHaveBeenCalled();
     });
 
     it('creates a reservation with delivery', async () => {
@@ -253,7 +276,7 @@ describe('POST /api/reservations', () => {
         const response = await post();
 
         expect(response.status).toBe(201);
-        expect(Reservation.mock.calls[0][0].payment).toEqual({ depositAmount: 100, discountPercent: 0, method: 'wallet', depositCollected: false});
+        expect(Reservation.mock.calls[0][0].payment).toEqual({ depositAmount: 100, discountPercent: 0, method: 'wallet', depositCollected: true });
         expect(response.body).toMatchObject({ depositAmount: 100, discountPercent: 0 });
     });
 

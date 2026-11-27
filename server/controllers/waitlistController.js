@@ -55,11 +55,11 @@ export async function leaveWaitlist(req, res, next) {
     try {
         const { id } = req.params;
         if (ITEM_ID_PATTERN.test(id)) {
-            const result = await Waitlist.deleteMany({ item: id });
+            const result = await Waitlist.deleteMany({ item: id, username: req.user.id });
             if (!result.deletedCount) {
-                return res.status(404).json({ message: 'No waitlist entries found for this item' });
+                return res.status(404).json({ message: 'You are not on this waitlist' });
             }
-            return res.status(200).json({ message: 'Removed all waitlist entries for this item' });
+            return res.status(200).json({ message: 'Left the waitlist' });
         }
 
         if (!WAITLIST_ID_PATTERN.test(id)) {

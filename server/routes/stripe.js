@@ -5,7 +5,7 @@ import { createPaymentIntent, getCardPaymentStatus } from '../controllers/stripe
 
 const router = Router();
 
-router.post( '/payment-intent', requireAuth, requireRole('member'), createPaymentIntent );
-router.get('/payments/:paymentId/status', requireAuth, requireRole('member'), getCardPaymentStatus);
+router.post('/payment-intent', requireAuth, requireRole('member', 'lender'), createPaymentIntent);
+router.get('/payments/:paymentId/status', requireAuth, requireRole('member', 'lender'), getCardPaymentStatus);
 
 export default router;

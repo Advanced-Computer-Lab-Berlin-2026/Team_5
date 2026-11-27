@@ -60,9 +60,9 @@ describe('GET /api/membership-tiers', () => {
         expect(response.status).toBe(200);
         expect(response.body).toEqual({
             tiers: [
-                { tier: 'Basic', annual_fee: 0, deposit_discount: 0 },
-                { tier: 'Plus', annual_fee: 150, deposit_discount: 10 },
-                { tier: 'Premium', annual_fee: 300, deposit_discount: 20 }
+                { tier: 'Basic', annual_fee: 0, deposit_discount: 0, waitlistPriority: 3, maxConcurrentReservations: 2 },
+                { tier: 'Plus', annual_fee: 150, deposit_discount: 10, waitlistPriority: 2, maxConcurrentReservations: 3 },
+                { tier: 'Premium', annual_fee: 300, deposit_discount: 20, waitlistPriority: 1, maxConcurrentReservations: 5 }
             ]
         });
     });

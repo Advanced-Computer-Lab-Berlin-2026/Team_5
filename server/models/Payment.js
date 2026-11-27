@@ -31,6 +31,7 @@ const paymentSchema = new mongoose.Schema(
         startDate: { type: Date, required: true },
         endDate: { type: Date, required: true },
         depositAmount: { type: Number, required: true, min: 0 },
+        discountPercent: { type: Number, min: 0, max: 100 },
         cancellationPolicy: {
             freeDays: { type: Number, min: 0 },
             forfeitPercent: { type: Number, min: 0, max: 100 }
