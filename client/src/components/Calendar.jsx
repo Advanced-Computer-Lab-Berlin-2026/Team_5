@@ -13,7 +13,7 @@ const fromKey = key => { const [y, m, d] = key.split('-').map(Number); return ne
 // readOnly: just shows the month (nothing can be picked, past days are not greyed out and you can page back), with the requested dates
 // in amber: `value` for one range, or `ranges` ([{ id, start, end }], both days included) for several, where the ones in `activeIds`
 // are solid amber and the others are outlined. With `onDayClick(key, rangeIds)`, a day inside a range can be pressed. compact makes the days a little shorter so a whole month fits in a small card.
-export function Calendar({ booked = [], value, onChange, minDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10), readOnly = false, compact = false, ranges, activeIds, onDayClick, fixedStart, allowBooked = false }) {
+export function Calendar({ booked = [], value, onChange, minDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10), readOnly = false, compact = false, ranges, activeIds, onDayClick, fixedStart, allowBooked = false, legend = true }) {
     const shown = ranges ?? (value?.start ? [{ id: 'value', start: value.start, end: value.end || value.start }] : []);
     const [month, setMonth] = useState(() => {
         const first = shown.find(range => activeIds?.includes(range.id)) ?? shown[0];
@@ -80,6 +80,6 @@ export function Calendar({ booked = [], value, onChange, minDate = new Date(Date
                 </button>;
             })}
         </div>
-        <p className={styles.legend}><span className={styles.swatchBooked} /> booked <span className={readOnly ? styles.swatchRequested : styles.swatchPicked} /> {readOnly ? 'requested' : 'your dates'}</p>
+        {legend && <p className={styles.legend}><span className={styles.swatchBooked} /> booked <span className={readOnly ? styles.swatchRequested : styles.swatchPicked} /> {readOnly ? 'requested' : 'your dates'}</p>}
     </div>;
 }

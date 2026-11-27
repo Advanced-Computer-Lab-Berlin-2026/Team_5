@@ -13,3 +13,5 @@
 .tiles div { display: grid; gap: var(--space-1); padding: var(--space-4); border: var(--border-muted); background: var(--color-surface-subtle); }
 .tiles strong { font-family: var(--font-title, inherit); font-size: 1.8rem; line-height: 1; }
 .tiles span { color: var(--color-text-muted); font-size: var(--font-size-small); }
+.usageFilters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: var(--space-3); align-items: center; margin-bottom: var(--space-3); }
+.usageFilters > * { margin: 0 !important; }

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { DateRangeField } from '../components/DateRangeField.jsx';
 import { listCategories } from '../api/categories.js';
 import { listItems } from '../api/items.js';
 import { useAsync } from '../hooks/useAsync.js';
@@ -89,13 +90,12 @@ export default function CatalogPage({ embedded = false, showIntroduction = true 
         {(!embedded || showIntroduction) && <header className={styles.heading}><h2>Find your next possibility.</h2></header>}
         <form className={styles.search} aria-label="Search catalog" onSubmit={event => { event.preventDefault(); update({ search: searchText.trim(), page: '' }); }}>
             <div className={styles.searchField}><Icon name="search" /><Input type="search" name="search" aria-label="Search items by name" placeholder="What are you looking for?" maxLength={100} value={searchText} onCompositionStart={() => setComposing(true)} onCompositionEnd={() => setComposing(false)} onChange={event => setSearchText(event.target.value)} /></div>
+            {/* when you need it: a small calendar button on the same line as the search and the filters */}
+            <DateRangeField compact label="Available dates" value={{ start: startDate, end: endDate }}
+                onChange={({ start, end }) => update({ startDate: start, endDate: end, page: '' })} />
             <FilterToggle open={filtersOpen} activeCount={Number(Boolean(category)) + Number(Boolean(startDate && endDate))} controls="catalog-categories" onToggle={toggleFilters} />
             <Button variant="ghost" className={!search && !category && !startDate && !endDate ? styles.hiddenClear : ''} disabled={!search && (!category || Boolean(categoryId)) && !startDate && !endDate} onClick={reset}>Clear filters</Button>
         </form>
-        {filtersOpen && <div className={styles.searchField}>
-            <label>Available from <Input type="date" value={startDate} onChange={event => update({ startDate: event.target.value, endDate: '', page: '' })} /></label>
-            <label>Available until <Input type="date" value={endDate} disabled={!startDate} min={startDate} onChange={event => { if (!event.target.value || event.target.value > startDate) update({ endDate: event.target.value, page: '' }); }} /></label>
-        </div>}
         {!categoryId && <CategoryRow id="catalog-categories" open={filtersOpen} value={category} loading={categories.loading} options={[{ value: '', label: 'All items' }, ...(categories.data?.categories ?? []).map(entry => ({ value: entry._id, label: entry.name }))]} onChange={value => { update({ category: value, page: '' }); topBefore.current = resultsRef.current?.getBoundingClientRect().top ?? null; setFiltersOpen(false); }} />}
         {categories.error && <Message>Categories could not be loaded. You can still search all items.</Message>}
         {items.loading && !items.data && <Spinner label="Finding possibilities…" />}

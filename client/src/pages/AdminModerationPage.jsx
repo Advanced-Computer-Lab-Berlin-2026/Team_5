@@ -29,7 +29,7 @@ export default function AdminModerationPage() {
     }
 
     return <>
-        <PageHeader title="Mods" />
+        <PageHeader title="Moderation" />
         <div className={styles.filter}><Select name="status" aria-label="Show" value={status} options={STATUSES} onChange={event => setStatus(event.target.value)} /></div>
         {loading && !data && <Spinner />}
         <Message type="error">{error}</Message>

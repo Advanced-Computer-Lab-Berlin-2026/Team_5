@@ -23,16 +23,12 @@ export function FileUploadCard({ title, name, accept, multiple = false, hint, bu
     }
 
     return (
-        <Card title={title}>
+        // the upload button sits in the card's footer at full width, so it lines up with the buttons of the cards beside it
+        <Card title={title} footer={<Button fullWidth disabled={pending || files.length === 0} onClick={handleUpload}>{pending ? 'Uploading...' : buttonText}</Button>}>
             <FileField key={pickerKey} label="File" name={name} accept={accept} multiple={multiple}
                 hint={hint} onChange={setFiles} />
             <Message type="success">{success}</Message>
             <Message type="error">{error}</Message>
-            <div>
-                <Button disabled={pending || files.length === 0} onClick={handleUpload}>
-                    {pending ? 'Uploading...' : buttonText}
-                </Button>
-            </div>
         </Card>
     );
 }

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { exportDamageReport, exportUsageReport, getDamageReport, getReferralReport, getTierDistribution, getUsageReport } from '../api/reports.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, FormField, Message, PageHeader, Row, Select, Spinner, Table } from '../components';
+import { Button, Card, DateRangeField, Message, PageHeader, Row, SearchField, Select, Spinner, Table } from '../components';
+import { listCategories } from '../api/categories.js';
 import { formatDate } from '../utils/format.js';
 import styles from './AdminReportsPage.module.css';
 
@@ -38,6 +39,7 @@ export default function AdminReportsPage() {
     const [to, setTo] = useState('');
     const usageFilters = { ...(from && to ? { from, to } : { month }), item, category };
     const tiers = useAsync(getTierDistribution);
+    const categoryList = useAsync(listCategories);
     const referrals = useAsync(getReferralReport);
     const usage = useAsync(() => getUsageReport(usageFilters), [month, from, to, item, category]);
     const damage = useAsync(() => getDamageReport(status), [status]);
@@ -63,13 +65,14 @@ export default function AdminReportsPage() {
         </Card>
 
         <Card title="Item usage" footer={<ExportButtons pending={exporting.pending} onExport={format => exporting.run(() => exportUsageReport(format, usageFilters))} />}>
-            <div className={styles.filter}><Select name="month" aria-label="Month" value={month} options={MONTHS} onChange={event => setMonth(event.target.value)} /></div>
-            <FormField label="Item ID" name="usageItem" value={item} onChange={event => setItem(event.target.value)} />
-            <FormField label="Category" name="usageCategory" value={category} onChange={event => setCategory(event.target.value)} />
-            <Row>
-                <FormField label="From" name="usageFrom" type="date" value={from} onChange={event => { setFrom(event.target.value); setTo(''); }} />
-                <FormField label="To" name="usageTo" type="date" value={to} min={from || undefined} disabled={!from} onChange={event => setTo(event.target.value)} />
-            </Row>
+            {/* one tidy row of filters: a month (or a date range, which takes over), an item and a category */}
+            <div className={styles.usageFilters}>
+                <Select name="month" aria-label="Month" value={month} options={MONTHS} disabled={Boolean(from && to)} onChange={event => setMonth(event.target.value)} />
+                <DateRangeField label="Usage dates" placeholder="Or pick dates" minDate="" value={{ start: from, end: to }}
+                    onChange={({ start, end }) => { setFrom(start); setTo(end); }} />
+                <Select name="usageCategory" aria-label="Category" value={category} options={[{ value: '', label: 'All categories' }, ...(categoryList.data?.categories ?? []).map(entry => ({ value: entry._id, label: entry.name }))]} onChange={event => setCategory(event.target.value)} />
+                <SearchField label="Item ID" placeholder="Item ID, e.g. ITM-1a2b3c04" onSearch={setItem} />
+            </div>
             {usage.loading && !usage.data && <Spinner />}
             <Message type="error">{usage.error}</Message>
             {usage.data && <>

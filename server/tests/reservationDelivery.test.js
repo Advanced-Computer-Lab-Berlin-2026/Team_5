@@ -8,7 +8,7 @@ import { notifyDeliveryStatus } from '../services/notificationService.js';
 vi.mock('../models/Reservation.js', () => ({
     Reservation: {
         findById: vi.fn(),
-        findByIdAndUpdate: vi.fn()
+        findOneAndUpdate: vi.fn()
     }
 }));
 
@@ -54,7 +54,7 @@ beforeEach(() => {
     vi.resetAllMocks();
     authenticateAs();
     Reservation.findById.mockReturnValue(reservationQuery);
-    Reservation.findByIdAndUpdate.mockReturnValue(updateQuery);
+    Reservation.findOneAndUpdate.mockReturnValue(updateQuery);
     reservationQuery.lean.mockResolvedValue({
         _id: reservationId,
         borrower: 'Youries',
@@ -175,8 +175,8 @@ describe('POST /api/reservations/:reservationId/delivery', () => {
             expect.objectContaining({ _id: reservationId, borrower: 'Youries' }),
             'delivered'
         );
-        expect(Reservation.findByIdAndUpdate).toHaveBeenCalledExactlyOnceWith(
-            reservationId,
+        expect(Reservation.findOneAndUpdate).toHaveBeenCalledExactlyOnceWith(
+            { _id: reservationId, 'delivery.status': { $in: [null, 'preparing', 'out-for-delivery', 'delivered'] } },
             { $set: { 'delivery.status': 'delivered' } },
             { returnDocument: 'before', runValidators: true }
         );
@@ -184,6 +184,8 @@ describe('POST /api/reservations/:reservationId/delivery', () => {
 
     it('does not send a delivery notification for preparing', async () => {
         authenticateAs('martinies', 'lender');
+        // a delivery that has not started yet
+        reservationQuery.lean.mockResolvedValue({ _id: reservationId, borrower: 'Youries', lender: 'martinies', delivery: { fee: 25, address: 'Martin Home' } });
 
         const response = await updateDelivery(reservationId, 'preparing');
 
@@ -210,13 +212,34 @@ describe('POST /api/reservations/:reservationId/delivery', () => {
         expect(notifyDeliveryStatus).not.toHaveBeenCalled();
     });
 
+    it('refuses to move a delivery backwards', async () => {
+        authenticateAs('martinies', 'lender');
+
+        const response = await updateDelivery(reservationId, 'preparing');
+
+        expect(response.status).toBe(409);
+        expect(response.body).toEqual({ message: 'A delivery can only move forward' });
+        expect(Reservation.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(notifyDeliveryStatus).not.toHaveBeenCalled();
+    });
+
+    it('refuses when the status moved on in the meantime (the update matched nothing)', async () => {
+        authenticateAs('martinies', 'lender');
+        updateQuery.lean.mockResolvedValue(null);
+
+        const response = await updateDelivery(reservationId, 'out-for-delivery');
+
+        expect(response.status).toBe(409);
+        expect(notifyDeliveryStatus).not.toHaveBeenCalled();
+    });
+
     it('rejects an invalid status', async () => {
         authenticateAs('martinies', 'lender');
 
         const response = await updateDelivery(reservationId, 'lost');
 
         expect(response.status).toBe(400);
-        expect(Reservation.findByIdAndUpdate).not.toHaveBeenCalled();
+        expect(Reservation.findOneAndUpdate).not.toHaveBeenCalled();
     });
 
     it('forbids an unrelated lender', async () => {
@@ -225,7 +248,7 @@ describe('POST /api/reservations/:reservationId/delivery', () => {
         const response = await updateDelivery(reservationId, 'delivered');
 
         expect(response.status).toBe(403);
-        expect(Reservation.findByIdAndUpdate).not.toHaveBeenCalled();
+        expect(Reservation.findOneAndUpdate).not.toHaveBeenCalled();
     });
 
     it('returns 400 for an invalid reservation id before updating', async () => {
@@ -235,6 +258,6 @@ describe('POST /api/reservations/:reservationId/delivery', () => {
 
         expect(response.status).toBe(400);
         expect(Reservation.findById).not.toHaveBeenCalled();
-        expect(Reservation.findByIdAndUpdate).not.toHaveBeenCalled();
+        expect(Reservation.findOneAndUpdate).not.toHaveBeenCalled();
     });
 });

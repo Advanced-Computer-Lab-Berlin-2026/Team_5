@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { cancelReservation, getMyReservations } from '../api/reservations.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, ConfirmDialog, EmptyState, FormField, Grid, Icon, ItemCard, Message, PageHeader, Select, Spinner } from '../components';
+import { Button, ConfirmDialog, DateRangeField, EmptyState, Grid, Icon, ItemCard, Message, PageHeader, Select, Spinner } from '../components';
 import { STATUS_LABELS } from '../components/ReservationCard.jsx';
 import { toKey } from '../components/Calendar.jsx';
 import { formatDate } from '../utils/format.js';
@@ -47,8 +47,8 @@ export default function MyBookingsPage() {
         <PageHeader title="My bookings" />
         <div className={styles.filter}><Select name="view" aria-label="Show" value={view} options={VIEWS} onChange={event => { setView(event.target.value); setStatus(''); }} />
             <Select name="status" aria-label="Reservation status" value={status} options={[{ value: '', label: 'All statuses' }, ...(view === 'past' ? ['completed', 'cancelled', 'rejected', 'expired'] : ['pending', 'upcoming', 'active']).map(value => ({ value, label: STATUS_LABELS[value] ?? value }))]} onChange={event => setStatus(event.target.value)} />
-            <FormField label="From" name="bookingFrom" type="date" value={from} onChange={event => setFrom(event.target.value)} />
-            <FormField label="To" name="bookingTo" type="date" min={from || undefined} value={to} onChange={event => setTo(event.target.value)} />
+            <DateRangeField className={styles.dates} label="Booking dates" placeholder="Any dates" minDate="" value={{ start: from, end: to }}
+                onChange={({ start, end }) => { setFrom(start); setTo(end); }} />
         </div>
         {loading && !data && <Spinner />}
         <Message type="error">{error || cancel.error}</Message>

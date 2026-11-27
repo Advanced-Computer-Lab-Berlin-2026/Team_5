@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { createPromoCode, getPromoUsage, listPromoCodes } from '../api/adminPromo.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, FormField, Message, PageHeader, Spinner, Table } from '../components';
+import { Button, Card, DateField, DateRangeField, FormField, Message, PageHeader, Spinner, Table } from '../components';
 import { formatDate, formatDateTime } from '../utils/format.js';
 import styles from './AdminPromoCodesPage.module.css';
 
@@ -37,7 +37,10 @@ export default function AdminPromoCodesPage() {
                 <div className={styles.fields}>
                     <FormField label="Code" name="code" value={form.code} required minLength={3} maxLength={32} pattern="[A-Za-z0-9_-]+" hint="Letters, numbers, - and _" onChange={set('code')} />
                     <FormField label="Discount (%)" name="discountPercent" type="number" min="1" max="100" value={form.discountPercent} required onChange={set('discountPercent')} />
-                    <FormField label="Last day (optional)" name="expiresAt" type="date" value={form.expiresAt} onChange={set('expiresAt')} />
+                    <div className={styles.dateField}>
+                        <label htmlFor="expiresAt">Last day (optional)</label>
+                        <DateField id="expiresAt" label="Last day" placeholder="No end" value={form.expiresAt} onChange={day => setForm(current => ({ ...current, expiresAt: day }))} />
+                    </div>
                     <FormField label="Max uses (optional)" name="maxUses" type="number" min="1" value={form.maxUses} onChange={set('maxUses')} />
                     <FormField label="Minimum deposit (optional)" name="minimumDeposit" type="number" min="0" step="0.01" value={form.minimumDeposit} onChange={set('minimumDeposit')} />
                 </div>
@@ -61,11 +64,8 @@ export default function AdminPromoCodesPage() {
                 ]} />}
         </Card>
 
-        <Card title="Usage">
-            <div className={styles.range}>
-                <FormField label="From" name="usageFrom" type="date" value={range.from} onChange={event => setRange(current => ({ ...current, from: event.target.value }))} />
-                <FormField label="To" name="usageTo" type="date" value={range.to} onChange={event => setRange(current => ({ ...current, to: event.target.value }))} />
-            </div>
+        {/* like Discover: a small calendar button at the top right; once dates are chosen it shows them, with a clear button */}
+        <Card title="Usage" actions={<DateRangeField compact label="Usage dates" minDate="" value={{ start: range.from, end: range.to }} onChange={({ start, end }) => setRange({ from: start, to: end })} />}>
             {usage.loading && !usage.data && <Spinner />}
             <Message type="error">{usage.error}</Message>
             {usage.data && <>

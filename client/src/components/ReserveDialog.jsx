@@ -83,22 +83,21 @@ export function ReserveDialog({ item, open, onClose, onDatesChange }) {
             onCancel={event => { event.preventDefault(); onClose(); }} onClose={onClose}>
             <form onSubmit={handleReserve}>
                 <h2>Reserve {item.name}</h2>
-                <Calendar booked={booked} value={range} onChange={next => { setRange(next); if (next.start && next.end) onDatesChange?.({ startDate: next.start, endDate: next.end }); }} allowBooked={waitMode} />
+                <Calendar compact booked={booked} value={range} onChange={next => { setRange(next); if (next.start && next.end) onDatesChange?.({ startDate: next.start, endDate: next.end }); }} allowBooked={waitMode} />
                 {waitMode && <p>Pick the days you want, including red ones. You will hear if they free up.</p>}
                 <Message type="error">{calendarError}</Message>
-                {offersDelivery && (
-                    <label className={styles.toggle}>
-                        <input type="checkbox" checked={delivery} onChange={event => setDelivery(event.target.checked)} />
-                        Deliver it to me ({item.delivery.fee} ₥ delivery fee)
-                    </label>
-                )}
-                {offersDelivery && delivery && <>
-                    <FormField label="Delivery address" name="deliveryAddress" value={address} required onChange={event => setAddress(event.target.value)} />
-                </>}
+                {offersDelivery && <div className={styles.deliveryBox}>
+                    {/* a clear on/off button instead of a small checkbox; the address field opens under it when it is on */}
+                    <button type="button" className={`${styles.deliveryToggle} ${delivery ? styles.deliveryOn : ''}`} aria-pressed={delivery} onClick={() => setDelivery(current => !current)}>
+                        <span className={styles.check} aria-hidden="true">{delivery ? '✓' : ''}</span>
+                        <span className={styles.deliveryText}><strong>Deliver it to me</strong><small>{item.delivery.fee ? `${item.delivery.fee} ₥ delivery fee, paid at checkout` : 'Free delivery'}</small></span>
+                    </button>
+                    {delivery && <FormField label="Delivery address" name="deliveryAddress" value={address} required placeholder="Street, number, city" onChange={event => setAddress(event.target.value)} />}
+                </div>}
                 <Message type="error">{reserve.error || waitlist.error}</Message>
                 <Message type="success">{waitlist.success}</Message>
                 {sent && <Message type="success">Added to your borrow list. <Link to="/borrow-list">Go to checkout</Link> when you are ready to pay.</Message>}
-                {alreadyListed && <Message type="info">It is on your borrow list already. <Link to="/borrow-list">Change its dates there</Link>.</Message>}
+                {alreadyListed && <Message type="info">It is on your borrow list already. <Link to={`/borrow-list?edit=${encodeURIComponent(item._id)}`}>Change its dates</Link>.</Message>}
                 {sent ? null : (clash || waitMode)
                     ? <Button type="button" fullWidth pending={waitlist.pending} disabled={!complete || Boolean(waitlist.success)}
                         onClick={() => waitlist.run(() => joinWaitlist(item._id, { startDate: range.start, endDate: range.end }), 'You are on the waitlist. If those days free up you get a notification (Premium members are told first, then Plus, then Basic).')}>
@@ -107,10 +106,11 @@ export function ReserveDialog({ item, open, onClose, onDatesChange }) {
                     : <Button type="submit" fullWidth pending={reserve.pending} disabled={!canBook || !complete || (delivery && !address.trim())}>
                         Reserve
                     </Button>}
-                {!sent && !clash && <button type="button" className={styles.textButton} onClick={() => { setWaitMode(mode => !mode); setRange({ start: '', end: '' }); waitlist.reset(); reserve.reset(); }}>
-                    {waitMode ? 'Back to reserving' : 'Dates taken? Join the waitlist'}
-                </button>}
-                <div className={styles.footer}>
+                {/* the waitlist switch and Cancel share one line, so the card stays short enough to fit without scrolling */}
+                <div className={`${styles.footer} ${styles.footerRow}`}>
+                    {!sent && !clash ? <button type="button" className={styles.textButton} onClick={() => { setWaitMode(mode => !mode); setRange({ start: '', end: '' }); waitlist.reset(); reserve.reset(); }}>
+                        {waitMode ? 'Back to reserving' : 'Dates taken? Join the waitlist'}
+                    </button> : <span />}
                     <button type="button" className={styles.textButton} onClick={onClose}>Cancel</button>
                 </div>
             </form>

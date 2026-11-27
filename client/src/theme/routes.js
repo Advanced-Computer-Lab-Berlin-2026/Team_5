@@ -2,10 +2,12 @@ export function getHomeForRole(role) {
     return role === 'admin' ? '/admin' : '/items';
 }
 
+// After logging in you land on Discover (admins on their Users page). The only exception is when you were on an item page and
+// pressed something that needs an account there (Add to wishlist, Reserve): then you go back to that item to finish it.
+// Other pages you happened to have open before (the browser's last page, or a page that asked you to log in) are not reopened.
 export function getLoginDestination(from, role) {
-    return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') && !/^\/(login|register)(?:[/?#]|$)/.test(from)
-        && (role !== 'admin' || /^\/admin(?:[/?#]|$)/.test(from))
-        ? from : getHomeForRole(role);
+    const backToItem = typeof from === 'string' && /^\/items\/[^/?#]+(\?[^#]*)?$/.test(from);
+    return backToItem && role !== 'admin' ? from : getHomeForRole(role);
 }
 
 // Which pages are shown on the dark theme for a given role. The layout and the login explosion both use this,

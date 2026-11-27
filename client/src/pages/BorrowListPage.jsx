@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getBorrowList, removeFromBorrowList, updateBorrowListDates } from '../api/borrowList.js';
 import { getCardPaymentStatus, newIdempotencyKey, payWithWallet, startCardPayment, quoteCheckout } from '../api/checkout.js';
 import { getWalletBalance } from '../api/wallet.js';
@@ -31,6 +32,9 @@ export default function BorrowListPage() {
     const promo = useAction();
     const pay = useAction();
     const [editing, setEditing] = useState(null);
+    // ?edit=ITEM-ID (from "Change its dates" in the reserve card) opens that item's change-dates card straight away
+    const [params, setParams] = useSearchParams();
+    const editId = params.get('edit');
     const [promoText, setPromoText] = useState('');
     const [applied, setApplied] = useState(null); // { code, percent }
     const [attemptKey, setAttemptKey] = useState(null);
@@ -41,6 +45,12 @@ export default function BorrowListPage() {
 
     const { depositOf, rateOf } = useDepositRates();
     const entries = useMemo(() => list.data?.borrowList ?? [], [list.data]);
+    useEffect(() => {
+        if (!editId || !list.data) return;
+        const match = entries.find(entry => entry.item._id === editId);
+        if (match) setEditing(match);
+        setParams(current => { const next = new URLSearchParams(current); next.delete('edit'); return next; }, { replace: true });
+    }, [editId, list.data, entries, setParams]);
     // each item's deposit as it will be charged: the listed deposit × its category's deposit rate (before any membership discount)
     const priceOf = entry => depositOf(entry.item);
     const listed = entries.reduce((sum, entry) => sum + (entry.item.depositAmount ?? 0), 0);

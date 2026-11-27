@@ -134,6 +134,8 @@ function canUpdateDelivery(user, reservation) {
     return user.role === 'admin' || reservation.lender === user.id;
 }
 
+const DELIVERY_STEPS = ['preparing', 'out-for-delivery', 'delivered'];
+
 export async function updateDeliveryStatus(req, res, next) {
     try {
         const { reservationId } = req.params;
@@ -157,14 +159,22 @@ export async function updateDeliveryStatus(req, res, next) {
             return res.status(403).json({ message: 'Forbidden' });
         }
 
-        const previousReservation = await Reservation.findByIdAndUpdate(
-            reservationId,
+        // a delivery only moves forward: preparing -> out for delivery -> delivered (setting the same step again is harmless)
+        const order = DELIVERY_STEPS.indexOf(value.status);
+        const allowedBefore = [null, ...DELIVERY_STEPS.slice(0, order + 1)];
+        if (DELIVERY_STEPS.indexOf(reservation.delivery?.status) > order) {
+            return res.status(409).json({ message: 'A delivery can only move forward' });
+        }
+
+        // the status check is part of the update, so two updates at once cannot move it backwards either
+        const previousReservation = await Reservation.findOneAndUpdate(
+            { _id: reservationId, 'delivery.status': { $in: allowedBefore } },
             { $set: { 'delivery.status': value.status } },
             { returnDocument: 'before', runValidators: true }
         ).lean();
 
         if (!previousReservation) {
-            return res.status(404).json({ message: 'Reservation not found' });
+            return res.status(409).json({ message: 'A delivery can only move forward' });
         }
 
         if (
