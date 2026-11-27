@@ -125,10 +125,16 @@ describe('GET Stripe payment status — SCRUM-431', () => {
         expect(mocks.findOne).not.toHaveBeenCalled();
     });
 
-    it('returns 403 for non-members', async () => {
+    it('lets a lender read their own card payment', async () => {
+        const response = await request(app).get(endpoint).set('X-Test-Role', 'lender');
+        expect(response.status).toBe(200);
+        expect(mocks.findOne).toHaveBeenCalledWith({ _id: paymentId, user: 'elBary', method: 'card' });
+    });
+
+    it('returns 403 for admins', async () => {
         const response = await request(app)
             .get(endpoint)
-            .set('X-Test-Role', 'lender');
+            .set('X-Test-Role', 'admin');
 
         expect(response.status).toBe(403);
         expect(mocks.findOne).not.toHaveBeenCalled();

@@ -5,7 +5,8 @@ import { User } from '../models/User.js';
 
 vi.mock('../models/User.js', () => ({
   User: {
-    aggregate: vi.fn()
+    aggregate: vi.fn(),
+    find: vi.fn()
   }
 }));
 
@@ -188,12 +189,32 @@ describe('searchUsers', () => {
       await searchUsers(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
+      expect(User.find).not.toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         error: 'An error occurred while searching users.'
       });
     } finally {
       consoleSpy.mockRestore();
     }
+  });
+
+  it.each([
+    { code: 31082 },
+    { code: 40324, message: "Unrecognized pipeline stage name: '$search'" }
+  ])('falls back to literal case-insensitive searching when MongoDB lacks Atlas Search', async (error) => {
+    req.query = { name: '  Ali.*  ' };
+    User.aggregate.mockRejectedValueOnce(error);
+    User.find.mockResolvedValue(mockUsers);
+
+    await searchUsers(req, res);
+
+    expect(User.find).toHaveBeenCalledExactlyOnceWith(
+      { role: { $in: ['member', 'lender'] }, 'profile.name': { $regex: 'Ali\\.\\*', $options: 'i' } },
+      expect.objectContaining({ 'profile.name': 1, 'verification.status': 1 }),
+      { sort: { 'profile.name': 1, _id: 1 }, lean: true }
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({ users: mockUsers });
   });
 
 });

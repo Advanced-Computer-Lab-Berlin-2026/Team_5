@@ -136,6 +136,47 @@ async function removeUser(req, res) {
   }
 }
 
+const searchableUserRoles = { role: { $in: ['member', 'lender'] } };
+const userSearchFields = {
+    username: 1,
+    role: 1,
+    'profile.name': 1,
+    'profile.email': 1,
+    'profile.phone': 1,
+    'verification.status': 1,
+    suspended: 1
+};
+
+async function findUsersByName(name) {
+    try {
+        return await User.aggregate([
+            {
+                $search: {
+                    index: 'user_name_search',
+                    autocomplete: {
+                        query: name,
+                        path: 'profile.name',
+                        tokenOrder: 'sequential',
+                        fuzzy: { maxEdits: 1, prefixLength: 0 }
+                    }
+                }
+            },
+            { $match: searchableUserRoles },
+            { $project: { ...userSearchFields, score: { $meta: 'searchScore' } } },
+            { $sort: { score: -1 } }
+        ]);
+    } catch (error) {
+        const unsupportedStage = error.code === 40324 && error.message?.includes("'$search'");
+        if (error.code !== 31082 && error.codeName !== 'SearchNotEnabled' && !unsupportedStage) throw error;
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return User.find(
+            { ...searchableUserRoles, 'profile.name': { $regex: escaped, $options: 'i' } },
+            userSearchFields,
+            { sort: { 'profile.name': 1, _id: 1 }, lean: true }
+        );
+    }
+}
+
 async function searchUsers(req,res){
     try {
         const { name } = req.query;
@@ -144,42 +185,7 @@ async function searchUsers(req,res){
                 error: 'Name must be a non-empty string.'
             });
         }
-        const users = await User.aggregate([
-            {
-                $search: {
-                    index: 'user_name_search',
-                    autocomplete: {
-                        query: name.trim(),
-                        path: 'profile.name',
-                        tokenOrder: 'sequential',
-                        fuzzy: {
-                            maxEdits: 1,
-                            prefixLength: 0
-                        }
-                    }
-                }
-            },
-            {
-                $match: {
-                    role: { $in: ['member', 'lender'] }
-                }
-            },
-            {
-                $project: {
-                    username: 1,
-                    role: 1,
-                    'profile.name': 1,
-                    'profile.email': 1,
-                    'profile.phone': 1,
-                    'verification.status': 1,
-                    suspended: 1,
-                    score: { $meta: 'searchScore' }
-                }
-            },
-            {
-                $sort: { score: -1 }
-            }
-        ]);
+        const users = await findUsersByName(name.trim());
         res.status(200).json({ users });
     } catch (error) {
         console.error('Error searching users:', error);

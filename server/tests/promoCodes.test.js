@@ -7,11 +7,16 @@ import { Item } from '../models/Item.js';
 import { PromoCode } from '../models/PromoCode.js';
 import { PromoCodeUsage } from '../models/PromoCodeUsage.js';
 import { User } from '../models/User.js';
+import { getDepositDiscountPercent } from '../services/membershipService.js';
 
 vi.mock('../models/Item.js', () => ({ Item: { findOne: vi.fn() } }));
 vi.mock('../models/PromoCode.js', () => ({ PromoCode: { findOne: vi.fn(), find: vi.fn(), create: vi.fn() } }));
 vi.mock('../models/PromoCodeUsage.js', () => ({ PromoCodeUsage: { countDocuments: vi.fn(), find: vi.fn(), aggregate: vi.fn() } }));
 vi.mock('../models/User.js', () => ({ User: { findById: vi.fn() } }));
+vi.mock('../services/membershipService.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    getDepositDiscountPercent: vi.fn(),
+}));
 
 const ORIGIN = 'http://localhost:3000';
 const token = (id) => jwt.sign({ id }, env.jwtSecret, { expiresIn: '15m' });
@@ -35,6 +40,7 @@ beforeEach(() => {
     Item.findOne.mockResolvedValue(item);
     PromoCode.findOne.mockResolvedValue(promoCode);
     PromoCodeUsage.countDocuments.mockResolvedValue(0);
+    getDepositDiscountPercent.mockResolvedValue(0);
 });
 
 describe('POST /api/promo-codes/validate', () => {
@@ -78,6 +84,17 @@ describe('POST /api/promo-codes/validate', () => {
     it('rejects deposits below the promo minimum', async () => {
         const cookie = cookieFor('member1', 'member');
         PromoCode.findOne.mockResolvedValue({ ...promoCode, minimumDeposit: 100 });
+
+        const response = await applyPromo(cookie);
+
+        expect(response.status).toBe(400);
+        expect(response.body.message).toBe('Deposit does not meet the promo code minimum');
+    });
+
+    it('checks the promo minimum against the deposit after the membership discount', async () => {
+        const cookie = cookieFor('member1', 'member');
+        getDepositDiscountPercent.mockResolvedValue(20);
+        PromoCode.findOne.mockResolvedValue({ ...promoCode, minimumDeposit: 70 });
 
         const response = await applyPromo(cookie);
 

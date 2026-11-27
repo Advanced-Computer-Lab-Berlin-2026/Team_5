@@ -1,7 +1,8 @@
 import joi from 'joi';
-import { Item, User } from '../models/index.js';
+import { Item } from '../models/index.js';
 import { Reservation, BLOCKING_STATUSES } from '../models/index.js'
 import { getSignedManualUrl } from '../services/itemManualStorage.js';
+import { availabilityDates, findBookedItemIds, getPublicItemFilter } from '../services/catalogAvailability.js';
 
 // only the fields the list card needs, I keep the full details for the item page
 const LIST_FIELDS = { name: 1, category: 1, photos: 1, depositAmount: 1 };
@@ -27,8 +28,7 @@ const listItemsSchema = joi.object({
     category: joi.string().trim(),
     // no archived param, archived items never show in the list, search or filter (SCRUM-298). passing it is a 400 like any unknown param
     search: joi.string().trim().max(100),
-    startDate: joi.date().iso(),
-    endDate: joi.date().iso().greater(joi.ref('startDate'))
+    ...availabilityDates
 }).and('startDate', 'endDate');
 
 
@@ -41,7 +41,7 @@ export async function listItems(req, res, next) {
         // flagged items are hidden here too, same as the details page
         // "available" means not archived and not flagged, and with startDate/endDate also not booked for those dates
 
-        const filter = { archived: false, flagged: { $ne: true } };
+        const filter = await getPublicItemFilter();
         // exact match, categories come from a dropdown. also keeps the category + archived index usable
         // an unknown category just gives an empty list, the ticket doesn't ask for an error
         if (value.category) filter.category = value.category;
@@ -51,17 +51,9 @@ export async function listItems(req, res, next) {
             const escaped = value.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             filter.name = { $regex: escaped, $options: 'i' };
         }
-        // suspended lenders' items act like they don't exist. I filter them in the query, not after, so total and totalPages stay right
-        const suspendedOwners = await User.distinct('_id', { suspended: true });
-        if (suspendedOwners.length) filter.owner = { $nin: suspendedOwners };
-        
         // Same overlap rule as Reservation.findOverlap, so an item shown as available can really be reserved
         if (value.startDate) {
-            const bookedItems = await Reservation.distinct('item', {
-                status: { $in: BLOCKING_STATUSES },
-                startDate: { $lt: value.endDate },
-                endDate: { $gt: value.startDate }
-            });
+            const bookedItems = await findBookedItemIds(value.startDate, value.endDate);
             if (bookedItems.length) filter._id = { $nin: bookedItems };
         }
 

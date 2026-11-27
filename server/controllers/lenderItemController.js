@@ -6,6 +6,11 @@ import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js'
 import { uploadItemManual, deleteItemManual } from '../services/itemManualStorage.js'
 import { notifyWishlistItemAvailable, notifyWaitlistItemAvailable } from '../services/notificationService.js'
 
+const deliveryFields = {
+    offered: joi.boolean(),
+    fee: joi.number().min(0),
+    details: joi.string().trim().allow('')
+}
 
 const itemSchema = joi.object(
     {
@@ -17,9 +22,8 @@ const itemSchema = joi.object(
         pickupLocation: joi.string().trim().required(),
         pickupInstructions: joi.string().trim().allow(''),
         delivery: joi.object({
-            offered: joi.boolean().default(true),
-            fee: joi.number().min(0),
-            details: joi.string().trim().allow('')
+            ...deliveryFields,
+            offered: deliveryFields.offered.default(true)
         }).min(1),
         borrowingRules: joi.object({
             maxDurationDays: joi.number().integer().min(1),
@@ -43,6 +47,7 @@ const updateSchema = joi.object(
         conditionNotes: joi.array().items(joi.string().trim().min(1)),
         pickupLocation: joi.string().trim(),
         pickupInstructions: joi.string().trim().allow(''),
+        delivery: joi.object(deliveryFields).min(1),
         borrowingRules: joi.object({
             maxDurationDays: joi.number().integer().min(1),
             minTrustScore: joi.number().min(0).max(100),
@@ -170,6 +175,7 @@ export async function updateItem(req, res, next){
             pickupInstructions,
             borrowingRules,
             cancellation,
+            delivery,
             ...rest
         } = value;
         
@@ -182,6 +188,7 @@ export async function updateItem(req, res, next){
         applyPickup(item, pickupLocation, pickupInstructions)
         applyBorrowingRules(item, borrowingRules)
         applyCancellation(item, cancellation)
+        if (delivery) Object.assign(item.delivery ??= {}, delivery)
         await item.save()
         res.status(200).json({ item })
     }

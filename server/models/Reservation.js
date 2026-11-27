@@ -64,7 +64,7 @@ const reservationSchema = new mongoose.Schema(
       depositAmount: { type: Number, required: true, min: 0 }, // already reduced by the membership discount
       discountPercent: { type: Number, default: 0, min: 0, max: 100 }, // SCRUM-495: the membership discount that was applied
       method: { type: String, enum: ["wallet", "card"], required: true },
-      // Direct reservation creation quotes the deposit without collecting it.
+      // Older direct reservations may have quoted a deposit without collecting it.
       depositCollected: { type: Boolean },
       stripePaymentIntentId: { type: String },
       lateFee: { type: Number, default: 0, min: 0 },

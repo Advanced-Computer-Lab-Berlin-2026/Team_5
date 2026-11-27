@@ -9,6 +9,7 @@ import { Reservation } from '../models/Reservation.js';
 import { lockAndCheckAvailability, removeConflictingBorrowListEntries} from './checkoutService.js';
 import { calculateCheckoutPricing, normalizePromoCode } from './checkoutPricingService.js';
 import { redeemCheckoutPromo } from './checkoutPromoRedemption.js';
+import { validateBorrowingRules } from './reservationRules.js';
 
 export async function createCardPaymentIntent(userId, idempotencyKey, promoCode = null) {
 
@@ -218,6 +219,9 @@ export async function createCardPaymentIntent(userId, idempotencyKey, promoCode 
 
 
 const UNAVAILABLE_CODES = new Set([
+    'BORROW_DURATION_EXCEEDED',
+    'MINIMUM_TRUST_SCORE',
+    'RESERVATION_START_IN_PAST',
     'ITEM_UNAVAILABLE',
     'ITEM_ALREADY_RESERVED',
     'MEMBER_UNAVAILABLE',
@@ -238,6 +242,7 @@ function readCheckoutItems(payment) {
         startDate: new Date(entry.startDate),
         endDate: new Date(entry.endDate),
         depositAmount: entry.depositAmount,
+        ...(entry.discountPercent !== undefined && { discountPercent: entry.discountPercent }),
         cancellationPolicy: entry.cancellationPolicy
     }));
 
@@ -483,12 +488,12 @@ export async function finalizeCardPayment(paymentIntent) {
             if (
                 !borrower ||
                 borrower.suspended ||
-                borrower.role !== 'member'
+                !['member', 'lender'].includes(borrower.role)
             ) {
                 throw new CheckoutError(
                     409,
                     'MEMBER_UNAVAILABLE',
-                    'Member can no longer checkout.'
+                    'Borrower can no longer check out.'
                 );
             }
 
@@ -525,6 +530,7 @@ export async function finalizeCardPayment(paymentIntent) {
                         'Item lender is unavailable.'
                     );
                 }
+                validateBorrowingRules(item, borrower, entry.startDate, entry.endDate);
             }
 
             const reservations = [];
@@ -540,6 +546,7 @@ export async function finalizeCardPayment(paymentIntent) {
                         status: 'pending',
                         payment: {
                             depositAmount: entry.depositAmount,
+                            ...(entry.discountPercent !== undefined && { discountPercent: entry.discountPercent }),
                             method: 'card',
                             stripePaymentIntentId: paymentIntent.id
                         },

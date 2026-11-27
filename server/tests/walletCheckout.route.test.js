@@ -112,7 +112,16 @@ describe('POST /api/wallet/checkout — SCRUM-428', () => {
     expect(mocks.checkoutWithWallet).not.toHaveBeenCalled();
   });
 
-  it.each(['lender', 'admin'])(
+  it('lets a lender pay with their wallet', async () => {
+    const response = await request(app)
+      .post(endpoint)
+      .set('X-Test-Role', 'lender')
+      .set('Idempotency-Key', key);
+    expect(response.status).toBe(201);
+    expect(mocks.checkoutWithWallet).toHaveBeenCalledWith('member1', key, null);
+  });
+
+  it.each(['admin'])(
     'returns 403 for a %s', async (role) => {
       const response = await request(app)
         .post(endpoint)

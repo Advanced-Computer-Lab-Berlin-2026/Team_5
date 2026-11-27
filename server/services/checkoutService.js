@@ -6,6 +6,9 @@ import { Checkout } from '../models/Checkout.js';
 import mongoose from 'mongoose';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { calculateCheckoutPricing, normalizePromoCode } from './checkoutPricingService.js';
+import { getReservationDeposit } from './reservationDeposit.js';
+import { getDepositDiscountPercent } from './membershipService.js';
+import { validateBorrowingRules } from './reservationRules.js';
 import { redeemCheckoutPromo } from './checkoutPromoRedemption.js';
 export function validateBorrowList(borrowList) {
     if (!Array.isArray(borrowList) || borrowList.length === 0) {
@@ -124,7 +127,7 @@ export async function lockAndCheckAvailability(checkoutItems, session) {
 export async function prepareCheckout(userId, session = null) {
 
     const user = await User.findById(userId)
-        .select('borrow_list')
+        .select('borrow_list membership trustScore')
         .session(session);
 
     if (!user) {
@@ -135,6 +138,7 @@ export async function prepareCheckout(userId, session = null) {
     validateBorrowList(borrowList);
 
     const checkoutItems = [];
+    const membershipDiscount = await getDepositDiscountPercent(user, new Date(), session);
 
     for (const entry of borrowList) {
 
@@ -192,12 +196,16 @@ export async function prepareCheckout(userId, session = null) {
             );
         }
 
+        const startDate = new Date(entry.startDate);
+        const endDate = new Date(entry.endDate);
+        validateBorrowingRules(item, user, startDate, endDate);
         checkoutItems.push({
             itemId: item._id,
             lenderId: item.owner,
-            startDate: new Date(entry.startDate),
-            endDate: new Date(entry.endDate),
-            depositAmount: item.depositAmount,
+            startDate,
+            endDate,
+            depositAmount: await getReservationDeposit(item, membershipDiscount, session),
+            ...(membershipDiscount > 0 && { discountPercent: membershipDiscount }),
             cancellationPolicy: {
                 freeDays: item.cancellation?.freeDays ?? 0,
                 forfeitPercent: item.cancellation?.forfeitPercent ?? 0
@@ -337,7 +345,7 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
             const user = await User.findOneAndUpdate(
                 {
                     _id: userId,
-                    role: 'member',
+                    role: { $in: ['member', 'lender'] },
                     suspended: { $ne: true },
                     wallet: { $gte: totalDeposit }
                 },
@@ -354,7 +362,7 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
                 throw new CheckoutError(
                     409,
                     'WALLET_PAYMENT_FAILED',
-                    'Insufficient wallet balance or member not eligible.'
+                    'Insufficient wallet balance or borrower not eligible.'
                 );
             }
 
@@ -374,6 +382,7 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
                         status: 'pending',
                         payment: {
                             depositAmount: entry.depositAmount,
+                            ...(entry.discountPercent !== undefined && { discountPercent: entry.discountPercent }),
                             method: 'wallet'
                         },
                         cancellationPolicy: entry.cancellationPolicy,
