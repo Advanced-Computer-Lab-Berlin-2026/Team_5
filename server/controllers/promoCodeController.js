@@ -2,6 +2,9 @@ import joi from 'joi';
 import { Item } from '../models/Item.js';
 import { PromoCode } from '../models/PromoCode.js';
 import { PromoCodeUsage } from '../models/PromoCodeUsage.js';
+import { User } from '../models/User.js';
+import { getDepositDiscountPercent } from '../services/membershipService.js';
+import { getReservationDeposit } from '../services/reservationDeposit.js';
 
 const validatePromoCodeSchema = joi.object({
     code: joi.string().trim().uppercase().required(),
@@ -144,11 +147,14 @@ export async function validatePromoCode(req, res, next) {
         const promoCode = await PromoCode.findOne({ code: value.code });
         const promoCodeError = await getPromoCodeError(promoCode);
         if (promoCodeError) return res.status(400).json({ message: promoCodeError });
-        if (item.depositAmount < promoCode.minimumDeposit) {
+        const borrower = await User.findById(req.user.id);
+        if (!borrower) return res.status(401).json({ message: 'User not found' });
+        const membershipDiscount = await getDepositDiscountPercent(borrower);
+        const originalDeposit = await getReservationDeposit(item, membershipDiscount);
+        if (originalDeposit < promoCode.minimumDeposit) {
             return res.status(400).json({ message: 'Deposit does not meet the promo code minimum' });
         }
 
-        const originalDeposit = item.depositAmount;
         const discountAmount = Math.round(originalDeposit * promoCode.discountPercent) / 100;
         const discountedDeposit = Math.round((originalDeposit - discountAmount) * 100) / 100;
 

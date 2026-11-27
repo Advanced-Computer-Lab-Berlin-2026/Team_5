@@ -2,12 +2,15 @@ import mongoose from 'mongoose';
 import joi from 'joi';
 import { Reservation } from '../models/Reservation.js';
 import { Item } from '../models/Item.js';
+import { Payment } from '../models/Payment.js';
 import { User } from '../models/User.js';
 import { notifyDeliveryStatus } from '../services/notificationService.js';
 import { cancelReservationWithRefund } from '../services/reservationCancellationService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { requestExtension } from '../services/extensionService.js';
-import { applyDiscount, getDepositDiscountPercent, hasReachedReservationLimit } from '../services/membershipService.js';
+import { getDepositDiscountPercent, hasReachedReservationLimit } from '../services/membershipService.js';
+import { getReservationDeposit } from '../services/reservationDeposit.js';
+import { validateBorrowingRules } from '../services/reservationRules.js';
 
 const RESERVATION_ID_PATTERN = /^RES-[0-9a-f]{8}$/;
 const DELIVERY_STATUSES = ['preparing', 'out-for-delivery', 'delivered'];
@@ -137,21 +140,21 @@ export async function updateDeliveryStatus(req, res, next) {
             return res.status(403).json({ message: 'Forbidden' });
         }
 
-        const updatedReservation = await Reservation.findByIdAndUpdate(
+        const previousReservation = await Reservation.findByIdAndUpdate(
             reservationId,
             { $set: { 'delivery.status': value.status } },
-            { new: true, runValidators: true }
+            { returnDocument: 'before', runValidators: true }
         ).lean();
 
-        if (!updatedReservation) {
+        if (!previousReservation) {
             return res.status(404).json({ message: 'Reservation not found' });
         }
 
         if (
-            reservation.delivery?.status !== value.status &&
+            previousReservation.delivery?.status !== value.status &&
             ['out-for-delivery', 'delivered'].includes(value.status)
         ) {
-            await notifyDeliveryStatus(reservation, value.status);
+            await notifyDeliveryStatus(previousReservation, value.status);
         }
 
         return res.status(200).json({
@@ -184,19 +187,13 @@ function parseReservationInput({ itemId, startDate, endDate, deliveryFlag, deliv
     return { start, end };
 }
 
-function validateReservationItem(item, borrowerId, deliveryFlag, requestedDuration) {
+function validateReservationItem(item, borrowerId, deliveryFlag) {
     if (item.owner.toString() === borrowerId) {
         return 'Cannot reserve your own item';
     }
 
     if (deliveryFlag && !item.delivery.offered) {
         return 'Item does not allow delivery';
-    }
-
-    const maxReservationDuration = item.borrowingRules.maxDurationDays || 30; // default to 30 days if not set
-
-    if (requestedDuration > maxReservationDuration) {
-        return `Reservation duration exceeds maximum allowed of ${maxReservationDuration} days`;
     }
 }
 
@@ -216,8 +213,7 @@ export async function createReservation(req, res, next) {
             return res.status(404).json({ message: 'Item not found or unavailable' });
         }
 
-        const durationDays = (end - start) / (1000 * 60 * 60 * 24);
-        const itemError = validateReservationItem(item, req.user.id, deliveryFlag, durationDays);
+        const itemError = validateReservationItem(item, req.user.id, deliveryFlag);
         if (itemError) {
             return res.status(400).json({ message: itemError });
         }
@@ -227,12 +223,7 @@ export async function createReservation(req, res, next) {
             return res.status(404).json({ message: 'Borrower not found' });
         }
 
-        const borrowerTrustScore = borrower.trustScore || 0;
-        const requiredTrustScore = item.borrowingRules.minTrustScore || 0;
-
-        if (borrowerTrustScore < requiredTrustScore) {
-            return res.status(403).json({ message: 'Borrower does not meet the minimum trust score requirement for this item' });
-        }
+        validateBorrowingRules(item, borrower, start, end);
 
         // item owner is the lender, check if they are suspended
         const lender = await User.findById(item.owner);
@@ -244,15 +235,9 @@ export async function createReservation(req, res, next) {
             return res.status(403).json({ message: 'Lender is suspended, cannot create reservation' });
         }
 
-        // check if item startdate is in the past
-        const now = new Date();
-        if (start < now) {
-            return res.status(400).json({ message: 'Start date cannot be in the past' });
-        }
-
         // SCRUM-495 / 496: the borrower's own tier or an accepted household member's tier lowers the deposit
         const discountPercent = await getDepositDiscountPercent(borrower);
-        const depositAmount = applyDiscount(item.depositAmount || 0, discountPercent);
+        const depositAmount = await getReservationDeposit(item, discountPercent);
 
         let conflict = false;
         let limit = null;
@@ -271,8 +256,15 @@ export async function createReservation(req, res, next) {
                     return;
                 }
 
-                // write to item and reservation in a transaction to ensure consistency
-                await Item.updateOne({ _id: itemId }, { $set: { updatedAt: new Date() } }, { session });
+                // Use the same item lock as checkout before checking for overlap.
+                const locked = await Item.updateOne(
+                    { _id: itemId, archived: false, flagged: { $ne: true } },
+                    { $inc: { checkoutVersion: 1 } },
+                    { session }
+                );
+                if (locked.matchedCount !== 1) {
+                    throw new CheckoutError(409, 'ITEM_UNAVAILABLE', 'Item is no longer available.');
+                }
 
                 // Check for overlapping reservations
                 const overlappingReservation = await Reservation.findOverlap(itemId, start, end, session);
@@ -281,16 +273,29 @@ export async function createReservation(req, res, next) {
                     return;
                 }
 
-                // Create the reservation
+                const debit = await User.updateOne(
+                    { _id: borrower._id, suspended: { $ne: true }, wallet: { $gte: depositAmount } },
+                    { $inc: { wallet: -depositAmount } },
+                    { session }
+                );
+                if (debit.matchedCount !== 1) {
+                    throw new CheckoutError(409, 'WALLET_PAYMENT_FAILED',
+                        'Insufficient wallet balance or borrower not eligible.');
+                }
+
                 reservation = new Reservation({
                     item: itemId,
                     borrower: req.user.id,
                     lender: item.owner,
-                    payment:{
-                        depositAmount,         
-                        discountPercent,    
+                    payment: {
+                        depositAmount,
+                        discountPercent,
                         method: 'wallet',
-                        depositCollected: false,
+                        depositCollected: true
+                    },
+                    cancellationPolicy: {
+                        freeDays: item.cancellation?.freeDays ?? 0,
+                        forfeitPercent: item.cancellation?.forfeitPercent ?? 0
                     },
                     startDate: start,
                     endDate: end,
@@ -298,6 +303,15 @@ export async function createReservation(req, res, next) {
                 });
 
                 await reservation.save({ session });
+                await Payment.create([{
+                    user: req.user.id,
+                    reservation: reservation._id,
+                    type: 'deposit-paid',
+                    amount: depositAmount,
+                    direction: 'deduct',
+                    method: 'wallet',
+                    status: 'completed'
+                }], { session });
             });
         } finally {
             await session.endSession();
@@ -320,6 +334,9 @@ export async function createReservation(req, res, next) {
             discountPercent
         });
     } catch (error) {
+        if (error instanceof CheckoutError) {
+            return res.status(error.statusCode).json({ message: error.message });
+        }
         next(error);
     }
 }

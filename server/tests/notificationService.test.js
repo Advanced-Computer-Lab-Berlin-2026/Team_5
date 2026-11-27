@@ -525,13 +525,13 @@ describe('notifyDeliveryStatus', () => {
     beforeEach(() => {
         Item.findById.mockResolvedValue({ _id: 'ITEM-1', name: 'Drill' });
         Notification.create.mockImplementation(async (doc) => ({ _id: 'NOT-1a2b3c4d', ...doc }));
-        User.findById.mockImplementation(async () => ({ profile: { email: 'yara@example.com' } }));
+        User.findById.mockImplementation(async username => ({ profile: { email: `${username}@example.com` } }));
     });
 
     it.each([
         ['out-for-delivery', 'Item out for delivery', 'Your "Drill" is out for delivery'],
         ['delivered', 'Item delivered', 'Your "Drill" has been delivered']
-    ])('notifies the borrower when status becomes %s', async (status, subject, message) => {
+    ])('notifies both parties when status becomes %s', async (status, subject, message) => {
         await notifyDeliveryStatus(reservation, status);
 
         expect(Notification.create).toHaveBeenCalledWith({
@@ -544,6 +544,13 @@ describe('notifyDeliveryStatus', () => {
             'yara@example.com',
             subject,
             message
+        ));
+        const lenderMessage = `"Drill" for yara is ${status.replaceAll('-', ' ')}`;
+        expect(Notification.create).toHaveBeenCalledWith({
+            username: 'martin', type: 'delivery', message: lenderMessage, reservation: 'RES-1a2b3c4d'
+        });
+        await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledWith(
+            'martin@example.com', subject, lenderMessage
         ));
     });
 

@@ -344,7 +344,10 @@ describe('createCardPaymentIntent — SCRUM-431', () => {
 });
 
 describe('finalizeCardPayment — SCRUM-431', () => {
-  it('creates pending reservations and completes one aggregate card payment', async () => {
+  it.each(['member', 'lender'])('creates reservations and completes the card payment for a %s', async (role) => {
+    mocks.userFindById.mockImplementationOnce(() => ({
+      session: async () => ({ _id: USER, role, suspended: false }),
+    }));
     const result = await finalizeCardPayment(stripeIntent());
 
     expect(result).toEqual({
@@ -514,6 +517,21 @@ describe('finalizeCardPayment — SCRUM-431', () => {
 
     const result = await finalizeCardPayment(stripeIntent());
     expect(result.status).toBe('refunded');
+    expect(mocks.refundCreate).toHaveBeenCalledOnce();
+  });
+
+  it('refunds a card charge when a lender shortens the borrowing limit before finalization', async () => {
+    mocks.itemFindById.mockImplementation((id) => ({
+      session: async () => ({
+        _id: id,
+        owner: checkoutItems.find(item => item.itemId === id).lenderId,
+        borrowingRules: { maxDurationDays: 4 },
+      }),
+    }));
+    mocks.paymentFindOneAndUpdate.mockResolvedValue({ ...pendingPayment(), status: 'refund_pending' });
+
+    await expect(finalizeCardPayment(stripeIntent())).resolves.toMatchObject({ status: 'refunded' });
+    expect(mocks.reservationCreate).not.toHaveBeenCalled();
     expect(mocks.refundCreate).toHaveBeenCalledOnce();
   });
 

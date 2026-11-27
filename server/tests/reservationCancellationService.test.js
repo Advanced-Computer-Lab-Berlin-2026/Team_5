@@ -47,9 +47,11 @@ vi.mock('../models/User.js', () => ({
     }
 }));
 
-vi.mock('../models/Notification.js', () => ({
-    Notification: { create: vi.fn() }
+vi.mock('../services/notificationService.js', () => ({
+    notifyReservationCancelled: vi.fn(),
+    notifyWishlistItemAvailable: vi.fn()
 }));
+vi.mock('../services/waitlistPromotion.js', () => ({ promoteWaitlistAfterCancellation: vi.fn() }));
 
 import { cancelReservationWithRefund } from '../services/reservationCancellationService.js';
 

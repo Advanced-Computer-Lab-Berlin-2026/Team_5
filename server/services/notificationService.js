@@ -112,7 +112,6 @@ function notifyOrLog(username, label, details, about = details.reservation) {
 
 // caller rule for confirm/cancel/reject: unpopulated status-guarded doc, after commit, only when non-null
 
-// nothing calls this yet — SCRUM-352 approve (pending -> upcoming)
 export async function notifyReservationConfirmed(reservation) {
     try {
         const { _id, borrower, lender } = reservation;
@@ -139,16 +138,18 @@ export async function notifyReservationConfirmed(reservation) {
     }
 }
 
-// nothing calls this yet — SCRUM-351 borrower cancel; wording assumes it was them
 export async function notifyReservationCancelled(reservation) {
     try {
         const { _id, borrower, lender } = reservation;
         const { name, dates } = await itemAndDates(reservation, 'cancellation');
         // the notification model has no cancelled type, so I send it as other instead of touching the shared enum
         const details = { type: 'other', subject: 'Reservation cancelled', reservation: _id };
+        const lenderCancelled = reservation.cancelledBy === 'lender';
         const borrowerDetails = {
             ...details,
-            message: `You cancelled your reservation for ${name ?? 'the item'} ${dates}`
+            message: lenderCancelled
+                ? `${lender} cancelled your reservation for ${name ?? 'the item'} ${dates}`
+                : `You cancelled your reservation for ${name ?? 'the item'} ${dates}`
         };
         if (borrower === lender) {
             await notifyOrLog(borrower, 'cancellation', borrowerDetails);
@@ -158,7 +159,9 @@ export async function notifyReservationCancelled(reservation) {
             notifyOrLog(borrower, 'cancellation', borrowerDetails),
             notifyOrLog(lender, 'cancellation', {
                 ...details,
-                message: `${borrower} cancelled their reservation for your ${name ?? 'item'} ${dates}`
+                message: lenderCancelled
+                    ? `You cancelled ${borrower}'s reservation for your ${name ?? 'item'} ${dates}`
+                    : `${borrower} cancelled their reservation for your ${name ?? 'item'} ${dates}`
             })
         ]);
     } catch (error) {
@@ -166,15 +169,15 @@ export async function notifyReservationCancelled(reservation) {
     }
 }
 
-// nothing calls this yet — SCRUM-352 lender reject (pending -> rejected)
-export async function notifyReservationRejected(reservation) {
+export async function notifyReservationRejected(reservation, refund = 0) {
     try {
         const { _id, borrower, lender } = reservation;
         const { name, dates } = await itemAndDates(reservation, 'rejection');
         const details = { type: 'rejected', subject: 'Reservation request rejected', reservation: _id };
         const borrowerDetails = {
             ...details,
-            message: `${lender} rejected your reservation request for ${name ?? 'their item'} ${dates}`
+            message: `${lender} rejected your reservation request for ${name ?? 'their item'} ${dates}` +
+                (refund > 0 ? `. Your deposit of ${refund} was added to your wallet.` : '')
         };
         if (borrower === lender) {
             await notifyOrLog(borrower, 'rejection', borrowerDetails);
@@ -242,12 +245,14 @@ export async function notifyDeliveryStatus(reservation, status) {
             ? `Your ${name} has been delivered`
             : `Your ${name} is out for delivery`;
 
-        await notifyOrLog(reservation.borrower, 'delivery status', {
-            type: 'delivery',
-            subject,
-            reservation: reservation._id,
-            message
-        });
+        const details = { type: 'delivery', subject, reservation: reservation._id };
+        const recipients = new Set([reservation.borrower, reservation.lender].filter(Boolean));
+        await Promise.all([...recipients].map(username =>
+            notifyOrLog(username, 'delivery status', {
+                ...details,
+                message: username === reservation.borrower ? message : `${name} for ${reservation.borrower} is ${status.replaceAll('-', ' ')}`
+            })
+        ));
     } catch (error) {
         console.error(`failed to send the delivery status for ${reservation?._id}`, error);
     }

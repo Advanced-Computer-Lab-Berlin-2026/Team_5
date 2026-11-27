@@ -4,7 +4,8 @@ import { Reservation } from '../models/Reservation.js';
 import { Payment } from '../models/Payment.js';
 import { Item } from '../models/Item.js';
 import { User } from '../models/User.js';
-import { Notification } from '../models/Notification.js';
+import { notifyReservationCancelled, notifyWishlistItemAvailable } from './notificationService.js';
+import { promoteWaitlistAfterCancellation } from './waitlistPromotion.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { calculateCancellationRefund } from './cancellationPolicy.js';
 
@@ -225,7 +226,7 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
     const session = await mongoose.startSession();
 
     try {
-        return await session.withTransaction(async () => {
+        const result = await session.withTransaction(async () => {
             const reservation = await Reservation.findById(
                 reservationId
             ).session(session);
@@ -309,17 +310,8 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
                 );
             }
 
-            if (borrowerOnly) {
-                await Notification.create([{
-                    username: reservation.lender,
-                    reservation: reservation._id,
-                    type: 'rejected',
-                    message: `Reservation ${reservation._id} was cancelled by the borrower.`
-                }], { session });
-            }
-
             if (!originalPayment) {
-                return cancellationResult(updated, { refundAmount, replayed: false }, borrowerOnly);
+                return cancellationResult(updated, { refundAmount, replayed: false }, true);
             }
 
             // Credit the MEMBER, regardless of who cancelled.
@@ -374,8 +366,23 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
                 refundAmount,
                 refundPaymentId: refund._id,
                 replayed: false
-            }, borrowerOnly);
+            }, true);
         });
+
+        const { reservation, ...response } = result;
+        if (!response.replayed) {
+            const notifications = await Promise.allSettled([
+                notifyReservationCancelled(reservation),
+                notifyWishlistItemAvailable(reservation.item),
+                promoteWaitlistAfterCancellation(reservation)
+            ]);
+            for (const notification of notifications) {
+                if (notification.status === 'rejected') {
+                    console.error(`Cancellation notification failed for ${reservationId}`, notification.reason);
+                }
+            }
+        }
+        return borrowerOnly ? result : response;
 
     } catch (error) {
         // Handle an idempotent retry after a unique-index race.

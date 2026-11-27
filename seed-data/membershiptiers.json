@@ -14,7 +14,7 @@
   {
     "_id": "Plus",
     "tier": "Plus",
-    "annual_fee": 300,
+    "annual_fee": 150,
     "deposit_discount": 10,
     "createdAt": {
       "$date": "2026-01-01T10:00:00.000Z"
@@ -26,8 +26,8 @@
   {
     "_id": "Premium",
     "tier": "Premium",
-    "annual_fee": 800,
-    "deposit_discount": 25,
+    "annual_fee": 300,
+    "deposit_discount": 20,
     "createdAt": {
       "$date": "2026-01-01T10:00:00.000Z"
     },

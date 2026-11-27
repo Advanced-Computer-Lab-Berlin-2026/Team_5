@@ -8,6 +8,7 @@ export const PAID_TIERS = ['Plus', 'Premium'];
 // SCRUM-497: how many reservations a member can have open (pending, upcoming or active) at once.
 // Only Premium (5) comes from the ticket; Basic and Plus are our choice, change them here.
 export const MAX_CONCURRENT_RESERVATIONS = { Basic: 2, Plus: 3, Premium: 5 };
+export const WAITLIST_PRIORITY = { Basic: 3, Plus: 2, Premium: 1 };
 const OPEN_STATUSES = ['pending', 'upcoming', 'active'];
 
 // A paid tier counts only until its renewal date. Older users have no renewalDate, so they count as active.
@@ -19,22 +20,23 @@ export function activeTier(membership, now = new Date()) {
 }
 
 // SCRUM-495 / 496: the best deposit discount (in %) the borrower gets, from their own tier or from an accepted household member's tier
-export async function getDepositDiscountPercent(borrower, now = new Date()) {
+export async function getDepositDiscountPercent(borrower, now = new Date(), session = null) {
     const tierNames = new Set([activeTier(borrower.membership, now)]);
 
     const links = await FriendLink.find(
         { status: 'accepted', $or: [{ requester: borrower._id }, { recipient: borrower._id }] },
-        { requester: 1, recipient: 1 }
+        { requester: 1, recipient: 1 },
+        { session }
     ).lean();
 
     if (links.length > 0) {
         const householdIds = links.map((link) => (link.requester === borrower._id ? link.recipient : link.requester));
-        const household = await User.find({ _id: { $in: householdIds } }, { membership: 1 }).lean();
+        const household = await User.find({ _id: { $in: householdIds } }, { membership: 1 }, { session }).lean();
         for (const member of household) tierNames.add(activeTier(member.membership, now));
     }
 
     // the percentages live in the MembershipTier collection, so an admin can change them without a code change
-    const tiers = await MembershipTier.find({ _id: { $in: [...tierNames] } }).lean();
+    const tiers = await MembershipTier.find({ _id: { $in: [...tierNames] } }, null, { session }).lean();
     return Math.max(0, ...tiers.map((tier) => tier.deposit_discount ?? 0));
 }
 

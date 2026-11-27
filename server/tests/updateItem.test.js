@@ -18,6 +18,24 @@ beforeEach(() => {
 });
 
 describe('PATCH /api/lender/items/:id', () => {
+    it.each([
+        [{ fee: 0 }, { offered: true, fee: 0, details: 'Doorstep' }],
+        [{ offered: false, details: '' }, { offered: false, fee: 20, details: '' }]
+    ])('applies delivery edits without replacing omitted fields', async (delivery, expected) => {
+        User.findById.mockResolvedValue({ id: 'lender1', role: 'lender' });
+        const token = jwt.sign({ id: 'lender1' }, env.jwtSecret);
+        const item = { owner: 'lender1', delivery: { offered: true, fee: 20, details: 'Doorstep' }, save: vi.fn() };
+        vi.spyOn(Item, 'findById').mockResolvedValue(item);
+
+        const response = await request(app).patch('/api/lender/items/itemId')
+            .set('Origin', 'http://localhost:3000')
+            .set('Cookie', 'accessToken=' + token)
+            .send({ delivery });
+
+        expect(response.status).toBe(200);
+        expect(response.body.item.delivery).toEqual(expected);
+        expect(item.save).toHaveBeenCalledOnce();
+    });
     it('no cookie should return 401', async () => {
         const response = await request(app).patch('/api/lender/items/itemId').set('Origin', 'http://localhost:3000');
         expect(response.status).toBe(401);

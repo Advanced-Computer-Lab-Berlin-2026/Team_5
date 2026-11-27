@@ -6,7 +6,15 @@ import { Reservation } from '../models/Reservation.js';
 import { Item } from '../models/Item.js';
 import { User } from '../models/User.js';
 import { Payment } from '../models/Payment.js';
-import { Notification } from '../models/Notification.js';
+import { notifyReservationCancelled, notifyWishlistItemAvailable } from '../services/notificationService.js';
+import { promoteWaitlistAfterCancellation } from '../services/waitlistPromotion.js';
+
+vi.mock('../services/notificationService.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    notifyReservationCancelled: vi.fn(),
+    notifyWishlistItemAvailable: vi.fn()
+}));
+vi.mock('../services/waitlistPromotion.js', () => ({ promoteWaitlistAfterCancellation: vi.fn() }));
 import { requireAuth } from '../middleware/auth.js';
 
 vi.mock('../middleware/auth.js', async (importOriginal) => ({
@@ -226,7 +234,6 @@ describe('PATCH /api/reservations/:reservationId/cancel', () => {
         vi.spyOn(Reservation, 'updateOne').mockResolvedValue({ matchedCount: 1 });
         const updateUser = vi.spyOn(User, 'findOneAndUpdate').mockResolvedValue({ _id: 'member1' });
         const createPayment = vi.spyOn(Payment, 'create').mockResolvedValue([{ _id: 'PAY-REFUND' }]);
-        const createNotification = vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
 
         const res = await request(app)
             .patch(`/api/reservations/${validResId}/cancel`)
@@ -245,7 +252,8 @@ describe('PATCH /api/reservations/:reservationId/cancel', () => {
         expect(createPayment).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({
             sourcePaymentId: 'PAY-ORIGINAL', refundKey: `cancellation:${validResId}`, amount: 80
         })], { session });
-        expect(createNotification).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({ username: 'lender1' })], { session });
+        expect(notifyReservationCancelled).toHaveBeenCalledWith(expect.objectContaining({ _id: validResId }));
+        expect(promoteWaitlistAfterCancellation).toHaveBeenCalledWith(expect.objectContaining({ _id: validResId }));
     });
 
     it('lets the lender cancel through POST while keeping PATCH borrower-only', async () => {
@@ -275,7 +283,9 @@ describe('PATCH /api/reservations/:reservationId/cancel', () => {
         const updateReservation = vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ ...unpaid, status: 'cancelled' });
         const credit = vi.spyOn(User, 'findOneAndUpdate');
         const pay = vi.spyOn(Payment, 'create');
-        vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
+        notifyReservationCancelled.mockClear();
+        notifyWishlistItemAvailable.mockClear();
+        promoteWaitlistAfterCancellation.mockClear();
 
         const res = await request(app).patch(url).set('Origin', ORIGIN);
 
@@ -297,6 +307,9 @@ describe('PATCH /api/reservations/:reservationId/cancel', () => {
             refundPaymentId: null, replayed: true
         });
         expect(updateReservation).toHaveBeenCalledOnce();
+        expect(notifyReservationCancelled).toHaveBeenCalledOnce();
+        expect(notifyWishlistItemAvailable).toHaveBeenCalledExactlyOnceWith(unpaid.item);
+        expect(promoteWaitlistAfterCancellation).toHaveBeenCalledOnce();
     });
 });
 

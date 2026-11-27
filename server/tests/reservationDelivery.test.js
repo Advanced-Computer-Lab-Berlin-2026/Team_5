@@ -63,7 +63,9 @@ beforeEach(() => {
     });
     updateQuery.lean.mockResolvedValue({
         _id: reservationId,
-        delivery: { status: 'delivered', fee: 25, address: 'Martin Home' }
+        borrower: 'Youries',
+        lender: 'martinies',
+        delivery: { status: 'out-for-delivery', fee: 25, address: 'Martin Home' }
     });
 });
 
@@ -176,7 +178,7 @@ describe('POST /api/reservations/:reservationId/delivery', () => {
         expect(Reservation.findByIdAndUpdate).toHaveBeenCalledExactlyOnceWith(
             reservationId,
             { $set: { 'delivery.status': 'delivered' } },
-            { new: true, runValidators: true }
+            { returnDocument: 'before', runValidators: true }
         );
     });
 
@@ -193,6 +195,16 @@ describe('POST /api/reservations/:reservationId/delivery', () => {
         authenticateAs('martinies', 'lender');
 
         const response = await updateDelivery(reservationId, 'out-for-delivery');
+
+        expect(response.status).toBe(200);
+        expect(notifyDeliveryStatus).not.toHaveBeenCalled();
+    });
+
+    it('uses the status immediately before the update to suppress duplicate notifications', async () => {
+        authenticateAs('martinies', 'lender');
+        updateQuery.lean.mockResolvedValue({ delivery: { status: 'delivered' } });
+
+        const response = await updateDelivery(reservationId, 'delivered');
 
         expect(response.status).toBe(200);
         expect(notifyDeliveryStatus).not.toHaveBeenCalled();

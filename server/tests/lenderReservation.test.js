@@ -7,11 +7,10 @@ import { env } from '../config/env.js';
 import { User } from '../models/User.js';
 import { Reservation } from '../models/Reservation.js';
 import { Payment } from '../models/Payment.js';
-import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js';
 import { rewardReferralIfEligible } from '../services/referralService.js';
-import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
+import { notify, notifyReservationConfirmed, notifyReservationRejected, notifyWishlistItemAvailable } from '../services/notificationService.js';
 import { chargeLateFeeForReturn } from '../services/lateFeeService.js';
 import { decideExtension, getPendingExtensions, requestExtension } from '../services/extensionService.js';
 vi.mock('../models/User.js', () => ({
@@ -40,6 +39,8 @@ vi.mock('../services/referralService.js', () => ({
 
 vi.mock('../services/notificationService.js', () => ({
     notify: vi.fn(),
+    notifyReservationConfirmed: vi.fn(),
+    notifyReservationRejected: vi.fn(),
     notifyWishlistItemAvailable: vi.fn(),
 }));
 
@@ -132,7 +133,6 @@ describe('PATCH /api/lender/reservations/:id/approve', () => {
         vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ status: 'pending' }));
         vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ _id: 'RES-1', status: 'upcoming' });
         const pay = vi.spyOn(Payment, 'create').mockResolvedValue([{}]);
-        const notify = vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
 
         const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
 
@@ -145,7 +145,9 @@ describe('PATCH /api/lender/reservations/:id/approve', () => {
         );
         expect(User.updateOne).not.toHaveBeenCalled();
         expect(pay).not.toHaveBeenCalled();
-        expect(notify).toHaveBeenCalledWith([expect.objectContaining({ username: 'borrower1' })], { session });
+        expect(notifyReservationConfirmed).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ _id: 'RES-1', status: 'upcoming' })
+        );
         expect(session.endSession).toHaveBeenCalled();
     });
 
@@ -176,7 +178,6 @@ describe('PATCH /api/lender/reservations/:id/reject', () => {
         vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ _id: 'RES-1', status: 'rejected' });
         User.updateOne.mockResolvedValue({});
         const pay = vi.spyOn(Payment, 'create').mockResolvedValue([{}]);
-        const notify = vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
 
         const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
 
@@ -187,7 +188,9 @@ describe('PATCH /api/lender/reservations/:id/reject', () => {
         expect(pay).toHaveBeenCalledWith([expect.objectContaining({
             type: 'deposit-refund', amount: 100, direction: 'receive', method: 'wallet',
         })], { session });
-        expect(notify).toHaveBeenCalledWith([expect.objectContaining({ username: 'borrower1' })], { session });
+        expect(notifyReservationRejected).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ _id: 'RES-1', status: 'rejected' }), 100
+        );
         expect(session.endSession).toHaveBeenCalled();
     });
 
@@ -214,7 +217,6 @@ describe('PATCH /api/lender/reservations/:id/reject', () => {
         }));
         vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ _id: 'RES-1', status: 'rejected' });
         const pay = vi.spyOn(Payment, 'create');
-        const notification = vi.spyOn(Notification, 'create').mockResolvedValue([{}]);
 
         const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
 
@@ -222,9 +224,9 @@ describe('PATCH /api/lender/reservations/:id/reject', () => {
         expect(res.body.refunded).toBe(0);
         expect(User.updateOne).not.toHaveBeenCalled();
         expect(pay).not.toHaveBeenCalled();
-        expect(notification).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({
-            message: 'Your reservation request was rejected.'
-        })], { session });
+        expect(notifyReservationRejected).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ _id: 'RES-1', status: 'rejected' }), 0
+        );
     });
 });
 

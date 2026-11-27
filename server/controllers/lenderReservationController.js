@@ -3,13 +3,12 @@ import joi from 'joi';
 import { Reservation } from '../models/Reservation.js';
 import { User } from '../models/User.js';
 import { Payment } from '../models/Payment.js';
-import { Notification } from '../models/Notification.js';
 import { DamageReport } from '../models/DamageReport.js';
 import { uploadPhotos, deletePhotos } from '../services/photoUpload.js';
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js';
 import { recalculateTrustScore } from '../services/trustScoreService.js';
 import { rewardReferralIfEligible } from '../services/referralService.js';
-import { notify, notifyWishlistItemAvailable } from '../services/notificationService.js';
+import { notify, notifyReservationConfirmed, notifyReservationRejected, notifyWishlistItemAvailable } from '../services/notificationService.js';
 import { decideExtension, getPendingExtensions } from '../services/extensionService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { chargeLateFeeForReturn } from '../services/lateFeeService.js';
@@ -83,21 +82,12 @@ async function decideIncomingReservation(req, res, next, decision) {
                     description: `Deposit returned for rejected reservation ${reservation._id}`,
                 }], { session });
             }
-
-            const rejectionMessage = refund > 0
-                ? `Your reservation request was rejected. Your deposit of ${refund} was added to your wallet.`
-                : 'Your reservation request was rejected.';
-            await Notification.create([{
-                username: reservation.borrower,
-                reservation: reservation._id,
-                type: 'other',
-                message: approved
-                    ? 'Your reservation request was approved.'
-                    : rejectionMessage,
-            }], { session });
         });
 
         if (!updated) return res.status(409).json({ message: 'Only pending reservations can be approved or rejected' });
+        await notifyAfterCommit(`notify reservation ${decision}`, updated._id, () =>
+            approved ? notifyReservationConfirmed(updated) : notifyReservationRejected(updated, refund)
+        );
         res.status(200).json(approved ? { reservation: updated } : { reservation: updated, refunded: refund });
     } catch (error) {
         next(error);

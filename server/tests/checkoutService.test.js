@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MongoClient, MongoServerError } from 'mongodb';
 import { CheckoutError } from '../utils/CheckoutError.js';
+import { Category } from '../models/Category.js';
+import { FriendLink } from '../models/FriendLink.js';
+import { MembershipTier } from '../models/MembershipTier.js';
 
 // These are unit-test doubles. No MongoDB connection is required.
 const db = vi.hoisted(() => ({
@@ -23,6 +26,9 @@ const db = vi.hoisted(() => ({
 vi.mock('mongoose', () => ({
   default: { startSession: db.startSession },
 }));
+vi.mock('../models/Category.js', () => ({ Category: { findById: vi.fn() } }));
+vi.mock('../models/FriendLink.js', () => ({ FriendLink: { find: vi.fn() } }));
+vi.mock('../models/MembershipTier.js', () => ({ MembershipTier: { find: vi.fn() } }));
 vi.mock('../services/promoCodeService.js', () => ({
   validatePromoCode: db.validatePromoCode,
   recordPromoRedemption: db.recordPromoRedemption,
@@ -30,6 +36,7 @@ vi.mock('../services/promoCodeService.js', () => ({
 vi.mock('../models/User.js', () => ({
   User: {
     findById: db.userFindById,
+    find: vi.fn(() => ({ lean: async () => [{ membership: { tier: 'Plus' } }] })),
     findOneAndUpdate: db.userFindOneAndUpdate,
     updateOne: db.userUpdateOne,
     updateMany: db.userUpdateMany,
@@ -88,6 +95,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   db.validatePromoCode.mockReset();
   db.recordPromoRedemption.mockReset();
+  FriendLink.find.mockReturnValue({ lean: async () => [] });
+  MembershipTier.find.mockReturnValue({ lean: async () => [] });
+  Category.findById.mockReturnValue({ lean: async () => null });
 
   session = {
     inTransaction: vi.fn(() => true),
@@ -111,7 +121,7 @@ beforeEach(() => {
   db.userFindById.mockImplementation((id) => ({
     select: () => ({
       session: async () => (id === 'member1'
-        ? { borrow_list: borrowList }
+        ? { _id: id, borrow_list: borrowList, trustScore: 50 }
         : { suspended: false }),
     }),
   }));
@@ -216,6 +226,30 @@ describe('availability and locks — SCRUM-425', () => {
 });
 
 describe('prepareCheckout — SCRUM-424', () => {
+  it.each([
+    [{ maxDurationDays: 4 }, 'BORROW_DURATION_EXCEEDED'],
+    [{ minTrustScore: 51 }, 'MINIMUM_TRUST_SCORE'],
+  ])('rejects entries that violate item borrowing rules', async (borrowingRules, code) => {
+    items['ITM-1'].borrowingRules = borrowingRules;
+    await expect(checkoutWithWallet('member1', 'rules')).rejects.toMatchObject({ code });
+    expect(db.userFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('applies the category multiplier and accepted household discount before charging the wallet', async () => {
+    items['ITM-1'].category = 'Tools';
+    Category.findById.mockReturnValue({ lean: async () => ({ depositMultiplier: 1.5 }) });
+    FriendLink.find.mockReturnValue({ lean: async () => [{ requester: 'member1', recipient: 'housemate' }] });
+    MembershipTier.find.mockReturnValue({ lean: async () => [{ deposit_discount: 10 }] });
+
+    await checkoutWithWallet('member1', 'discount');
+
+    expect(db.userFindOneAndUpdate).toHaveBeenCalledWith(
+      expect.anything(), { $inc: { wallet: -135 } }, expect.anything()
+    );
+    expect(db.reservationCreate.mock.calls[0][0][0].payment).toMatchObject({
+      depositAmount: 135, discountPercent: 10,
+    });
+  });
   it('constructs entries using server-side item prices and lender IDs', async () => {
     const result = await prepareCheckout('member1', session);
     expect(result).toEqual([{
@@ -273,7 +307,7 @@ describe('checkoutWithWallet — SCRUM-424 / SCRUM-428', () => {
     });
     expect(db.userFindOneAndUpdate).toHaveBeenCalledWith(
       {
-        _id: 'member1', role: 'member', suspended: { $ne: true },
+        _id: 'member1', role: { $in: ['member', 'lender'] }, suspended: { $ne: true },
         wallet: { $gte: 100 },
       },
       { $inc: { wallet: -100 } },
