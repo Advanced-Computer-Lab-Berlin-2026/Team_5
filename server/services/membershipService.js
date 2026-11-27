@@ -49,8 +49,16 @@ export function applyDiscount(deposit, percent) {
 export async function hasReachedReservationLimit(borrower, session, now = new Date()) {
     const tier = activeTier(borrower.membership, now);
     const limit = MAX_CONCURRENT_RESERVATIONS[tier];
+    // a request the owner never answered stops counting once its start date has passed: it can no longer be approved or cancelled,
+    // so counting it would use up the borrower's slot forever
     const open = await Reservation.countDocuments(
-        { borrower: borrower._id, status: { $in: OPEN_STATUSES } },
+        {
+            borrower: borrower._id,
+            $or: [
+                { status: { $in: OPEN_STATUSES.filter((status) => status !== 'pending') } },
+                { status: 'pending', startDate: { $gt: now } }
+            ]
+        },
         { session }
     );
     return { reached: open >= limit, limit, tier };

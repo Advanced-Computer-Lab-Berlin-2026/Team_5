@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createAdmin } from '../api/admin.js';
 import { useAction } from '../hooks/useAction.js';
 import { Button, Card, FormField, Message } from '../components';
+import styles from './AdminCreateAdminPage.module.css';
 
 const EMPTY_FORM = { username: '', email: '', password: '' };
 
@@ -22,8 +23,8 @@ export default function AdminCreateAdminPage() {
     }
 
     return (
-        <Card title="Create an admin">
-            <form onSubmit={handleSubmit}>
+        <Card title="Create an admin" className={styles.card}>
+            <form className={styles.wide} onSubmit={handleSubmit}>
                 <FormField label="Username" hint="4 to 20 characters" required {...bind('username')} />
                 <FormField label="Email" type="email" required {...bind('email')} />
                 <FormField label="Password" type="password" hint="6 to 40 characters" required {...bind('password')} />

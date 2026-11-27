@@ -1,0 +1,19 @@
+/* the question form runs the full width (the layout normally limits forms to 44rem) */
+.form { border-top: 4px solid var(--color-amber); }
+.form > div > form.wide { max-width: none; }
+/* earlier questions stack like the notices */
+.stack > div { padding-inline: 0; }
+.ticket { display: flex; flex-direction: column; gap: var(--space-3); height: auto; padding: var(--space-5); border: var(--border-muted); border-radius: var(--radius-card); background: var(--color-surface); color: var(--color-text); box-shadow: 0 -10px 30px -18px rgb(0 0 0 / 35%), 0 20px 40px -24px rgb(0 0 0 / 35%); }
+.summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-3); width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.summary .when { grid-column: 1 / -1; }
+.open { border-color: var(--color-amber); }
+.thread { animation: unfold 260ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes unfold { from { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .thread { animation: none; } }
+.subject { margin: 0; font-size: var(--font-size-title); overflow-wrap: anywhere; }
+.status { flex: none; padding: 2px var(--space-2); border: 1px solid var(--color-border); font-size: 0.72rem; font-weight: var(--font-weight-bold); text-transform: uppercase; }
+.answered { background: var(--color-amber); border-color: var(--color-amber); color: #141414; }
+.resolved { background: var(--color-text); border-color: var(--color-text); color: var(--color-surface); }
+/* a long conversation scrolls inside its card */
+.thread { max-height: 18rem; }
+.when { color: var(--color-text-muted); font-size: var(--font-size-small); }

@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { getItem } from '../api/items.js';
+import { getAlternatives, getItem } from '../api/items.js';
 import { addToWishlist } from '../api/wishlist.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { BackLink, Button, Card, DetailList, Message, PageHeader, PageSection, PhotoGallery, Spinner } from '../components';
+import { BackLink, Button, Card, DetailList, ItemCard, Message, PageHeader, PageSection, PhotoGallery, Spinner } from '../components';
+import { ReserveDialog } from '../components/ReserveDialog.jsx';
+import { ReportDialog } from '../components/ReportDialog.jsx';
+import { useDepositRates } from '../hooks/useDepositRates.js';
 import { cameFromGuestPage, clearGuestSpot } from '../components/scroll/transition.js';
 import styles from './ItemDetailPage.module.css';
 
@@ -16,9 +19,14 @@ export default function ItemDetailPage() {
     useEffect(() => clearGuestSpot, []);
     const navigate = useNavigate();
     const [params, setParams] = useSearchParams();
-    const { isLoggedIn, isAdmin } = useAuth();
+    const { isLoggedIn, isAdmin, role } = useAuth();
+    const [reporting, setReporting] = useState(false);
+    const { rateOf, depositOf } = useDepositRates();
     const { data, error, loading } = useAsync(() => getItem(id), [id]);
     const wishlist = useAction();
+    const [reserving, setReserving] = useState(false);
+    // similar items from the same category, shown under the details. A failure here just hides the row
+    const alternatives = useAsync(() => getAlternatives(id), [id]);
     const autoAddDone = useRef(false);
     const itemId = data?.item._id;
 
@@ -45,23 +53,35 @@ export default function ItemDetailPage() {
         wishlist.run(() => addToWishlist(item._id), 'Added to wishlist.');
     }
 
+    function handleReserve() {
+        if (!isLoggedIn) {
+            navigate('/login#account-access', { state: { from: `/items/${item._id}` } });
+            return;
+        }
+        setReserving(true);
+    }
+
+    const similar = (alternatives.data?.items ?? []).slice(0, 3);
+    // the stored file address may not open for a private upload, so the server's manual link (a fresh signed address) is used
     const manual = item.documents?.[0];
 
     return (
         <>
-            <PageSection contentClassName={styles.gallerySection} aria-label="Item photos">
+            <PageSection className={styles.enter} contentClassName={styles.gallerySection} aria-label="Item photos">
                 <div className={styles.intro}>
                     <PageHeader title={item.name} backTo="/items" backLabel={fromGuest ? 'Back' : 'Back to catalog'} backHistory={fromGuest} />
                 </div>
                 <PhotoGallery key={item._id} photos={item.photos} alt={item.name} edgeToEdge />
             </PageSection>
 
-            <PageSection contentClassName={styles.details} aria-label="Item details">
+            <PageSection className={`${styles.enter} ${styles.enterLater}`} contentClassName={styles.details} aria-label="Item details">
             <Card title="Details">
                 <p>{item.description}</p>
                 <DetailList rows={[
                     ['Category', item.category],
-                    ['Deposit', `${item.depositAmount} ₥`],
+                    ['Listed deposit', `${item.depositAmount} ₥`],
+                    ['Deposit rate', `× ${rateOf(item.category)} (${item.category})`],
+                    ['Deposit you pay', `${depositOf(item)} ₥`],
                     ['Lender', item.owner && `${item.owner.name} (trust score ${item.owner.trustScore})`],
                     ['Condition', item.conditionNotes?.length ? item.conditionNotes.join('. ') : ''],
                     ['Pickup', item.pickup?.location],
@@ -79,14 +99,28 @@ export default function ItemDetailPage() {
                 <Message type="success">{wishlist.success}</Message>
                 <Message type="error">{wishlist.error}</Message>
                 <div className={styles.actions}>
-                    <Button className={styles.manual} fullWidth href={manual?.url} disabled={!manual} target="_blank" rel="noreferrer">{manual ? 'See the manual' : 'No manual'}</Button>
+                    <Button className={styles.manual} fullWidth href={manual ? `/api/items/${encodeURIComponent(item._id)}/manual` : undefined} disabled={!manual} target="_blank" rel="noreferrer">{manual ? 'See the manual' : 'No manual'}</Button>
                     {!isAdmin && <>
                         <Button fullWidth disabled={wishlist.pending} onClick={handleWishlist}>Add to wishlist</Button>
-                        <Button className={styles.reserve} fullWidth>Reserve</Button>
+                        <Button className={styles.reserve} fullWidth onClick={handleReserve}>Reserve</Button>
                     </>}
                 </div>
             </div>
+            {similar.length > 0 && (
+                <section className={styles.similar} aria-label="Similar items">
+                    <h2>You might also like</h2>
+                    <div className={styles.similarGrid}>
+                        {similar.map((other, index) => <ItemCard key={other._id} item={other} introDelay={index * 60} openOnClick />)}
+                    </div>
+                </section>
+            )}
             </PageSection>
+            {!isAdmin && <ReserveDialog item={item} open={reserving} onClose={() => setReserving(false)} />}
+            {/* members can flag an item to the admins (the server only takes reports from members) */}
+            {role === 'member' && <>
+                <button type="button" className={styles.report} onClick={() => setReporting(true)}>Report this item</button>
+                <ReportDialog open={reporting} targetType="item" targetId={item._id} name={item.name} onClose={() => setReporting(false)} />
+            </>}
         </>
     );
 }

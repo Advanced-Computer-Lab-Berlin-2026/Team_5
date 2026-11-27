@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { listMyItems, toggleArchive } from '../api/lenderItems.js';
+import { getLenderDashboard, listMyItems, toggleArchive } from '../api/lenderItems.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
 import { Button, Icon, ItemCard, Message, PageHeader, Spinner } from '../components';
@@ -8,6 +8,7 @@ import styles from './LenderItemsPage.module.css';
 
 export default function LenderItemsPage() {
     const { data, error, loading, reload } = useAsync(listMyItems);
+    const dashboard = useAsync(getLenderDashboard);
     const archive = useAction();
     const navigate = useNavigate();
 
@@ -21,6 +22,18 @@ export default function LenderItemsPage() {
             <PageHeader title="My items" />
             {loading && !data && <Spinner />}
             <Message type="error">{error || archive.error}</Message>
+            {dashboard.data && (() => {
+                const stats = dashboard.data.dashboard;
+                const tiles = [
+                    [stats.listedItems, 'Items listed'],
+                    [stats.itemsLent.timesLent, `Times lent · ${stats.itemsLent.distinctItems} different items`],
+                    [`${stats.totalDepositsCollected} ₥`, 'Deposits collected'],
+                    [`${stats.damageIncidents}`, `Damage incidents · ${stats.damageIncidentRate}%`, stats.damageIncidents > 0]
+                ];
+                return <div className={styles.stats}>
+                    {tiles.map(([value, label, warn]) => <div key={label} className={`${styles.stat} ${warn ? styles.warn : ''}`}><strong>{value}</strong><span>{label}</span></div>)}
+                </div>;
+            })()}
             {data && (
                 <div className={styles.grid}>
                     {data.items.map((item) => (

@@ -1,8 +1,8 @@
 /* One fixed layer behind the whole entry page: black, with the stickers circling on it. Everything above it is transparent. */
 .field { position: fixed; inset: 0; z-index: -1; overflow: hidden; background: var(--color-black, #141414); pointer-events: none; }
 /* the white burst: a circle that opens from the middle until it covers the screen */
-.white { position: absolute; inset: 0; background: var(--color-background, #faf8f4); clip-path: circle(0px at 50% 50%); will-change: clip-path; }
+.white { position: absolute; inset: 0; background: var(--color-background, #f9ede0); clip-path: circle(0px at 50% 50%); will-change: clip-path; }
 .sticker { position: absolute; left: 0; top: 0; display: block; max-width: none; height: auto; opacity: 0; user-select: none; filter: drop-shadow(0 10px 16px rgb(0 0 0 / 40%)); will-change: transform, opacity; }
 .pixel { image-rendering: pixelated; }
 /* empty scroll space that gives the circling, meeting and bursting room to play out */
-.spacer { height: 300svh; }
+.spacer { height: 190svh; }

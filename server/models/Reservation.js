@@ -102,7 +102,9 @@ reservationSchema.index({ lender: 1, status: 1 });
 reservationSchema.index({ status: 1, startDate: 1, endDate: 1, item: 1 });
 
 
-export const BLOCKING_STATUSES = ["pending", "upcoming", "active"];
+// Only approved bookings block dates. Several people can have a pending request for the same dates; once the lender approves one
+// (it becomes "upcoming"), those dates are taken. The approve step must therefore re-check for overlaps when it runs.
+export const BLOCKING_STATUSES = ["upcoming", "active"];
 
 // Finds a reservation that overlaps the dates.
 

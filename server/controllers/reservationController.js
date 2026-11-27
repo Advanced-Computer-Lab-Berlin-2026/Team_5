@@ -25,9 +25,10 @@ const listMyReservationsSchema = joi.object({
     to: joi.date().iso().when('from', { is: joi.exist(), then: joi.date().min(joi.ref('from')) })
 });
 
+// the borrower, the item's lender (who also updates it) and admins can see a delivery
 function canViewDelivery(user, reservation) {
     if (user.role === 'admin') return true;
-    return reservation.borrower === user.id;
+    return reservation.borrower === user.id || reservation.lender === user.id;
 }
 
 function buildReservationFilter(userId, query) {

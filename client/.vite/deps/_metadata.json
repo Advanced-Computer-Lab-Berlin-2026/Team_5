@@ -1,0 +1,49 @@
+{
+  "hash": "1a477c65",
+  "configHash": "7326796c",
+  "lockfileHash": "6e060abf",
+  "browserHash": "e23bcd55",
+  "optimized": {
+    "react-router-dom": {
+      "src": "../../node_modules/react-router-dom/dist/index.mjs",
+      "file": "react-router-dom.js",
+      "fileHash": "888c399e",
+      "needsInterop": false
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "e497dc36",
+      "needsInterop": true
+    },
+    "gsap": {
+      "src": "../../node_modules/gsap/index.js",
+      "file": "gsap.js",
+      "fileHash": "6af5071e",
+      "needsInterop": false
+    },
+    "gsap/ScrollTrigger": {
+      "src": "../../node_modules/gsap/ScrollTrigger.js",
+      "file": "gsap_ScrollTrigger.js",
+      "fileHash": "0bad3139",
+      "needsInterop": false
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "b9772de1",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "chunk-Y2PSLASY": {
+      "file": "chunk-Y2PSLASY.js"
+    },
+    "chunk-H4CAG2HV": {
+      "file": "chunk-H4CAG2HV.js"
+    },
+    "chunk-YLJ4XMA6": {
+      "file": "chunk-YLJ4XMA6.js"
+    }
+  }
+}

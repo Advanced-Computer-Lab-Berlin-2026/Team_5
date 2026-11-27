@@ -32,3 +32,4 @@
 .themeBridge { display: block; }
 .catalog { max-width: var(--content-width); width: 100%; margin: auto; padding: 0 var(--space-5) var(--space-7); display: grid; gap: var(--space-4); }
 @media (max-width: 760px) { .auth { padding: var(--space-4); } .catalog { padding: 0 var(--space-3) var(--space-6); } }
+

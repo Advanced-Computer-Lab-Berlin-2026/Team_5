@@ -7,7 +7,7 @@
     -webkit-font-smoothing: antialiased;
     --color-black: #141414;
     --color-white: #ffffff;
-    --color-porcelain: #faf8f4;
+    --color-porcelain: #f9ede0; /* the warm cream of the guest catalog, now the light background everywhere */
     --color-amber: #f3a348;
     --color-amber-hover: #e99432;
     --color-amber-pressed: #dc8526;
@@ -30,6 +30,7 @@
     --color-focus: var(--color-blue);
     --color-disabled: #e2dfd8;
     --color-disabled-text: #626262;
+    --color-accent-text: #9a5a0c; /* amber dark enough to read as text on the light pages */
     --color-selection: #e6edff;
     --color-selection-text: #244eb3;
     --color-error: #a92c2c;
@@ -69,7 +70,7 @@
     --duration-fast: 160ms;
     --duration-layout: 420ms;
     --ease-layout: cubic-bezier(0.22, 1, 0.36, 1);
-    --gradient-entry-bridge: linear-gradient(180deg, #141414 0%, #242424 20%, #64635f 45%, #c9c6bf 74%, #faf8f4 100%);
+    --gradient-entry-bridge: linear-gradient(180deg, #141414 0%, #242424 20%, #64635f 45%, #c9c6bf 74%, #f9ede0 100%);
 }
 
 [data-theme='dark'] {
@@ -83,6 +84,7 @@
     --color-surface-subtle: #1b1b1b;
     --color-inverse-background: var(--color-white);
     --color-inverse-text: var(--color-black);
+    --color-accent-text: var(--color-amber);
     --color-link: #91b0ff;
     --color-focus: #91b0ff;
     --color-disabled: #353535;

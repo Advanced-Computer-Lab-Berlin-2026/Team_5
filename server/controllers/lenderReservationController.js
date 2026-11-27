@@ -25,11 +25,19 @@ async function findLenderReservation(id, lenderId, allowedStatuses, action) {
     return { reservation };
 }
 
-// GET /api/lender/reservations
+// GET /api/lender/reservations            pending requests to approve or reject (oldest first)
+// GET /api/lender/reservations?view=accepted   approved and in-progress bookings of the lender's items (soonest first)
+const LENDER_VIEWS = {
+    pending: { status: 'pending', sort: { createdAt: 1 } },
+    accepted: { status: { $in: ['upcoming', 'active'] }, sort: { startDate: 1 } },
+};
+
 export async function listIncomingReservations(req, res, next) {
     try {
-        const reservations = await Reservation.find({ lender: req.user.id, status: 'pending' })
-            .sort({ createdAt: 1 })
+        const view = LENDER_VIEWS[req.query.view ?? 'pending'];
+        if (!view) return res.status(400).json({ message: 'view must be pending or accepted' });
+        const reservations = await Reservation.find({ lender: req.user.id, status: view.status })
+            .sort(view.sort)
             .populate('item', 'name photos')
             .populate('borrower', 'username profile.name')
             .lean();

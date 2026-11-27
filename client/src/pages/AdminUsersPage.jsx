@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { deleteUser, listUsers, searchUsers, setSuspension } from '../api/admin.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
+import styles from './AdminUsersPage.module.css';
 import { Button, Message, PageHeader, Row, SearchField, Spinner, Table } from '../components';
 
 export default function AdminUsersPage() {
@@ -46,11 +47,11 @@ export default function AdminUsersPage() {
                             key: 'actions', header: '',
                             render: (user) => (
                                 <Row>
-                                    <Button variant="secondary" disabled={action.pending}
+                                    <Button className={styles.suspend} disabled={action.pending}
                                         onClick={() => change(() => setSuspension(user.username, !user.suspended))}>
                                         {user.suspended ? 'Unsuspend' : 'Suspend'}
                                     </Button>
-                                    <Button variant="secondary" disabled={action.pending} onClick={() => handleDelete(user)}>
+                                    <Button className={styles.delete} disabled={action.pending} onClick={() => handleDelete(user)}>
                                         Delete
                                     </Button>
                                 </Row>

@@ -37,7 +37,7 @@ describe('GET /api/categories', () => {
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual({ categories });
-        expect(Category.find).toHaveBeenCalledExactlyOnceWith({}, { name: 1 }, { sort: { name: 1 }, lean: true });
+        expect(Category.find).toHaveBeenCalledExactlyOnceWith({}, { name: 1, depositMultiplier: 1 }, { sort: { name: 1 }, lean: true });
     });
 
     it('returns 500 when the database fails', async () => {

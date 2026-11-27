@@ -1,7 +1,9 @@
 .trigger { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--control-height); padding: var(--space-2) var(--space-4); border: var(--border); background: var(--color-surface); color: var(--color-text); font-size: var(--font-size-small); font-weight: var(--font-weight-bold); cursor: pointer; }
 .trigger svg { transition: transform var(--duration-fast); }
 .trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
-.badge { color: var(--color-link); }
+.trigger { transition: border-color var(--duration-fast); }
+.trigger:hover, .trigger[aria-expanded="true"] { border-color: var(--color-amber); }
+.badge { color: var(--color-accent-text); }
 .wrap { display: grid; grid-template-rows: 0fr; margin-top: calc(var(--space-4) * -1); }
 .wrap[data-open] { grid-template-rows: 1fr; margin-top: calc(var(--space-2) * -1); }
 /* the padding keeps focus outlines from being clipped by overflow */
@@ -11,7 +13,7 @@
 .wrap[data-open] .row { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .wrap, .row { transition: none; } }
 .chip { transition: background var(--duration-fast, 160ms); min-height: var(--control-height); padding: var(--space-2) var(--space-4); border: var(--border); border-radius: 0; background: var(--color-surface); color: var(--color-text); font-size: var(--font-size-small); font-weight: var(--font-weight-bold); cursor: pointer; }
-.chip:hover:not(:disabled) { background: var(--color-surface-subtle); }
-.active:hover:not(:disabled) { background: var(--color-inverse-background); }
+.chip:hover:not(:disabled) { background: var(--color-surface-subtle); border-color: var(--color-amber); }
+.active:hover:not(:disabled) { background: var(--color-amber-hover); }
 .chip:disabled { cursor: default; opacity: 0.6; }
-.active { background: var(--color-inverse-background); border-color: var(--color-inverse-background); color: var(--color-inverse-text); }
+.active { background: var(--color-amber); border-color: var(--color-amber); color: #141414; }

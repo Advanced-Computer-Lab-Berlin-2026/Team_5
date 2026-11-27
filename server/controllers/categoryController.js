@@ -1,10 +1,11 @@
 import { Category } from '../models/index.js';
 
 // GET /api/categories
-// gives back { _id, name } for each category. _id is what items store, name is for showing
+// gives back { _id, name, depositMultiplier } for each category. _id is what items store, name is for showing,
+// depositMultiplier is what an item's deposit is multiplied by when it is booked (so the frontend can show the real deposit)
 export async function listCategories(req, res, next) {
     try {
-        const categories = await Category.find({}, { name: 1 }, { sort: { name: 1 }, lean: true });
+        const categories = await Category.find({}, { name: 1, depositMultiplier: 1 }, { sort: { name: 1 }, lean: true });
         res.status(200).json({ categories });
     } catch (error) {
         next(error);

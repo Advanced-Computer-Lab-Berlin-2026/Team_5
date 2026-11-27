@@ -1,0 +1,2 @@
+/* the layout limits forms to 44rem; this one runs the full width of the page */
+.card > div > form.wide { max-width: none; }

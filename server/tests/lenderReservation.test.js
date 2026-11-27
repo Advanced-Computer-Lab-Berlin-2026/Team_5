@@ -85,6 +85,40 @@ describe('GET /api/lender/reservations', () => {
     });
 });
 
+describe('GET /api/lender/reservations?view=accepted', () => {
+    const mockQuery = (result) => {
+        const query = { sort: vi.fn(), populate: vi.fn(), lean: vi.fn().mockResolvedValue(result) };
+        query.sort.mockReturnValue(query);
+        query.populate.mockReturnValue(query);
+        vi.spyOn(Reservation, 'find').mockReturnValue(query);
+        return query;
+    };
+
+    it('lists the lender approved and in-progress bookings, soonest first', async () => {
+        const cookie = asLender();
+        const query = mockQuery([mockReservation({ status: 'upcoming' })]);
+
+        const res = await request(app).get('/api/lender/reservations?view=accepted')
+            .set('Origin', ORIGIN).set('Cookie', cookie);
+
+        expect(res.status).toBe(200);
+        expect(res.body.reservations).toHaveLength(1);
+        expect(Reservation.find).toHaveBeenCalledWith({ lender: 'lender1', status: { $in: ['upcoming', 'active'] } });
+        expect(query.sort).toHaveBeenCalledWith({ startDate: 1 });
+    });
+
+    it('rejects an unknown view with 400', async () => {
+        const cookie = asLender();
+        const find = vi.spyOn(Reservation, 'find');
+
+        const res = await request(app).get('/api/lender/reservations?view=everything')
+            .set('Origin', ORIGIN).set('Cookie', cookie);
+
+        expect(res.status).toBe(400);
+        expect(find).not.toHaveBeenCalled();
+    });
+});
+
 describe('PATCH /api/lender/reservations/:id/approve', () => {
     const url = '/api/lender/reservations/RES-1/approve';
     const session = { withTransaction: vi.fn(), endSession: vi.fn() };

@@ -5,10 +5,11 @@ import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
 import { Button, Card, DetailList, FileUploadCard, Message, PageHeader, Spinner } from '../components';
 import { formatDateTime } from '../utils/format.js';
+import styles from './BecomeLenderPage.module.css';
 
 const SLOTS = [
-    { slot: 'id', title: 'ID document' },
-    { slot: 'addressProof', title: 'Proof of address' }
+    { slot: 'id', title: 'ID document', noun: 'ID document' },
+    { slot: 'addressProof', title: 'Proof of address', noun: 'proof of address' }
 ];
 // The member can change the documents until the request is submitted, and again after a rejection.
 const EDITABLE = ['none', 'rejected', 'retry'];
@@ -58,10 +59,10 @@ export default function BecomeLenderPage() {
             <Message type="success">{action.success}</Message>
             <Message type="error">{action.error}</Message>
 
-            {SLOTS.map(({ slot, title }) => {
+            {SLOTS.map(({ slot, title, noun }) => {
                 const document = documentFor(slot);
                 return (
-                    <div key={slot}>
+                    <div key={slot} className={styles.slot}>
                         <Card title={title}
                             footer={editable && document && (
                                 <Button variant="secondary" disabled={action.pending}
@@ -70,7 +71,7 @@ export default function BecomeLenderPage() {
                             <p>{document ? `Uploaded: ${document.originalName}` : 'Nothing uploaded yet.'}</p>
                         </Card>
                         {editable && (
-                            <FileUploadCard title={document ? `Replace ${title.toLowerCase()}` : `Upload ${title.toLowerCase()}`}
+                            <FileUploadCard title={document ? `Replace ${noun}` : `Upload ${noun}`}
                                 name={slot} accept="application/pdf,image/jpeg,image/png"
                                 hint="PDF, JPG or PNG, up to 5 MB." onUpload={(files) => uploadDocument(slot, files[0])} onDone={reload} />
                         )}
@@ -79,7 +80,7 @@ export default function BecomeLenderPage() {
             })}
 
             {editable && (
-                <div>
+                <div className={styles.submit}>
                     <Button disabled={!ready || action.pending}
                         onClick={() => change(submitRequest, 'Request submitted.')}>Submit request</Button>
                     {!ready && <p>Upload both documents to submit.</p>}

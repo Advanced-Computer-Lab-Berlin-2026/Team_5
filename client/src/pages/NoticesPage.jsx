@@ -29,8 +29,8 @@ export default function NoticesPage() {
         <>
             <PageHeader title="Community notices" />
             {isAdmin && (
-                <Card title="Post a notice">
-                    <form onSubmit={handleSubmit}>
+                <Card title="Post a notice" className={styles.postCard}>
+                    <form className={styles.wide} onSubmit={handleSubmit}>
                         <FormField label="Title" name="title" value={title} required
                             onChange={(event) => setTitle(event.target.value)} />
                         <FormField label="Message" name="body" as="textarea" value={body} required

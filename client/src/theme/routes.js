@@ -12,5 +12,5 @@ export function getLoginDestination(from, role) {
 export function isDarkPage(role, pathname) {
     // only lenders get dark pages; members and admins stay light
     if (role !== 'lender') return false;
-    return /^\/(items(\/[^/]+)?|lender\/items|wishlist|household|notices|profile|wallet|change-password)\/?(\/|$)/.test(pathname);
+    return /^\/(items(\/[^/]+)?|lender\/items|wishlist|household|notices|notifications|reservations(\/[^/]+)?|bookings|membership|support|borrow-list|waitlist|settings\/email|profile|wallet|change-password)\/?(\/|$)/.test(pathname);
 }

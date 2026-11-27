@@ -9,6 +9,9 @@
 .ghost:hover { background: var(--color-surface-subtle); }
 .danger { background: var(--color-error-surface); color: var(--color-error); border-color: var(--color-error); }
 .danger:hover { text-decoration: underline; }
+/* solid red, for the button that actually does something that cannot be undone */
+.destructive { background: #c0392b; border-color: #c0392b; color: #fff; }
+.destructive:hover:not(:disabled) { background: #a32f23; border-color: #a32f23; }
 .small { min-height: 2.5rem; padding: var(--space-2) var(--space-3); }
 .fullWidth { width: 100%; }
 .button:disabled, .button[aria-disabled='true'] { background: var(--color-disabled); color: var(--color-disabled-text); border-color: var(--color-border-muted); cursor: not-allowed; }

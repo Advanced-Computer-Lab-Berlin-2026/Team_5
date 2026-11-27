@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
     getIncomingRequests, getLinks, removeLink, respondToRequest, searchMember, sendHouseholdRequest
 } from '../api/household.js';
+import { useCardTilt } from '../hooks/useCardTilt.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
 import { Button, FormField, Icon, Message, PageHeader, Spinner } from '../components';
@@ -44,6 +45,7 @@ export default function HouseholdPage() {
     const [relation, setRelation] = useState(RELATIONS[0].value);
     const [found, setFound] = useState(null);
     const dialog = useRef(null);
+    useCardTilt(dialog);
 
     useEffect(() => {
         const element = dialog.current;

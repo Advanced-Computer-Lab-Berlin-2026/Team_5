@@ -1,0 +1,7 @@
+.stack > div { padding-inline: 0; }
+.note { display: flex; flex-direction: column; gap: var(--space-3); height: auto; min-height: 8rem; padding: var(--space-5); border: var(--border-muted); border-left: 4px solid transparent; border-radius: var(--radius-card); background: var(--color-surface); color: var(--color-text); box-shadow: 0 -10px 30px -18px rgb(0 0 0 / 35%), 0 20px 40px -24px rgb(0 0 0 / 35%); }
+.unread { border-left-color: var(--color-amber); }
+.message { margin: 0; overflow-wrap: anywhere; }
+.foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-top: auto; }
+.foot small { color: var(--color-text-muted); }
+.actions { display: flex; align-items: center; gap: var(--space-3); }

@@ -10,6 +10,9 @@ const TRUSTED_ORIGIN = 'http://localhost:3000';
 
 export default defineConfig({
     plugins: [react()],
+    // read VITE_* settings (e.g. VITE_STRIPE_PUBLISHABLE_KEY) from the shared .env at the project root, like the server does.
+    // Only VITE_ names reach the browser, so the server's secrets stay out of the bundle.
+    envDir: '..',
     server: {
         port: 5173,
         strictPort: true,

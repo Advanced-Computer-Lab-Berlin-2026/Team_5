@@ -12,7 +12,7 @@ vi.mock('../models/Item.js', () => ({
 
 vi.mock('../models/Reservation.js', () => ({
     Reservation: { find: vi.fn() },
-    BLOCKING_STATUSES: ['pending', 'active', 'upcoming']
+    BLOCKING_STATUSES: ['active', 'upcoming']
 }));
 
 
@@ -109,7 +109,7 @@ describe('GET /api/items/:id/calendar', () => {
         mockQuery(mockReservations);
         await request(app).get(`/api/items/${validItemId}/calendar`);
         expect(Reservation.find).toHaveBeenCalledWith(
-            { item: validItemId, status: { $in: ['pending', 'active', 'upcoming'] } },
+            { item: validItemId, status: { $in: ['active', 'upcoming'] } },
             { startDate: 1, endDate: 1, _id: 0 },
             { sort: { startDate: 1 } }
         );

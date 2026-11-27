@@ -53,31 +53,35 @@ async function readBody(response) {
 }
 
 // FormData (file uploads) is sent as is, so the browser sets the multipart boundary itself.
-function send(path, { method, body, query }) {
+// headers: extra request headers, e.g. { 'Idempotency-Key': ... } for payments.
+function send(path, { method, body, query, headers }) {
     const isForm = body instanceof FormData;
     const hasBody = body !== undefined;
+    const all = { ...(hasBody && !isForm ? { 'Content-Type': 'application/json' } : {}), ...headers };
     return fetch(buildUrl(path, query), {
         method,
         credentials: 'include',
-        headers: hasBody && !isForm ? { 'Content-Type': 'application/json' } : undefined,
+        headers: Object.keys(all).length ? all : undefined,
         body: !hasBody || isForm ? body : JSON.stringify(body)
     });
 }
 
 // The server reports errors as { message } on most routes and { error } on the admin routes.
+// The payment routes also send a machine-readable code, as { error: CODE, message } or { code, message }; it is kept on error.code.
 function toError(response, data) {
     const error = new Error(data.message ?? data.error ?? 'Something went wrong');
     error.status = response.status;
+    error.code = data.code ?? (data.message && typeof data.error === 'string' ? data.error : undefined);
     return error;
 }
 
-export async function request(path, { method = 'GET', body, query } = {}) {
-    let response = await send(path, { method, body, query });
+export async function request(path, { method = 'GET', body, query, headers } = {}) {
+    let response = await send(path, { method, body, query, headers });
 
     if (response.status === 401 && !NO_REFRESH_PATHS.includes(path)) {
         // The access cookie lives 15 minutes, so a 401 here usually just means it lapsed.
         if (await refreshSession()) {
-            response = await send(path, { method, body, query });
+            response = await send(path, { method, body, query, headers });
         } else {
             onSessionExpired();
         }
@@ -86,4 +90,19 @@ export async function request(path, { method = 'GET', body, query } = {}) {
     const data = await readBody(response);
     if (!response.ok) throw toError(response, data);
     return data;
+}
+
+// Fetches a file (CSV or PDF) and hands it to the browser as a download.
+export async function download(path, { query, filename } = {}) {
+    let response = await send(path, { method: 'GET', query });
+    if (response.status === 401 && await refreshSession()) response = await send(path, { method: 'GET', query });
+    if (!response.ok) throw toError(response, await readBody(response));
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename ?? 'download';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 }

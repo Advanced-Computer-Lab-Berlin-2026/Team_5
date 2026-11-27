@@ -1,0 +1,4 @@
+.filter { max-width: 14rem; }
+.reply { display: grid; gap: var(--space-2); }
+.reply textarea { min-height: 6rem; padding: var(--space-3); border: var(--border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text); font: inherit; resize: vertical; }
+.buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }

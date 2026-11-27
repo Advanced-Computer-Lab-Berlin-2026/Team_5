@@ -27,3 +27,6 @@ export function uploadManual(id, file) {
     form.append('manual', file);
     return request(`${BASE}/${encodeURIComponent(id)}/manual`, { method: 'PUT', body: form });
 }
+
+// totals for the lender's own items: { dashboard: { listedItems, itemsLent, totalDepositsCollected, damageIncidents, damageIncidentRate } }
+export const getLenderDashboard = () => request('/api/lender/dashboard');
