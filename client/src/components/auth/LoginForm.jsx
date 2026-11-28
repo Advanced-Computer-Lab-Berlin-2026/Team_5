@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext.jsx';
+import { applyReferralCode } from '../../api/referrals.js';
 import { useAction } from '../../hooks/useAction.js';
 import { getLoginDestination, isDarkPage } from '../../theme/routes.js';
 import { Button } from '../Button.jsx';
@@ -24,7 +25,12 @@ export function LoginForm({ onForgot }) {
         holdRedirect(true); // keep this page on screen while the explosion plays
         const user = await action.run(() => login(username, password));
         if (!user) { holdRedirect(false); return; }
-        const destination = getLoginDestination(location.state?.from, user.role);
+        const referral = new URLSearchParams(location.search).get('ref');
+        let destination = getLoginDestination(location.state?.from, user.role);
+        if (referral && ['member', 'lender'].includes(user.role)) {
+            try { await applyReferralCode(referral); }
+            catch { destination = '/profile?ref=' + encodeURIComponent(referral); }
+        }
         await playExplosion({ dark: isDarkPage(user.role, destination) });
         holdRedirect(false);
         navigate(destination, { replace: true });

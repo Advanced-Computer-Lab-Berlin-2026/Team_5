@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext.jsx';
 import { listNotifications, markNotificationRead } from '../api/notifications.js';
 import { useAsync } from '../hooks/useAsync.js';
 import { Button, EmptyState, Message, PageHeader, Pagination, Spinner } from '../components';
@@ -10,13 +11,17 @@ import styles from './NotificationsPage.module.css';
 const PAGE_SIZE = 10;
 
 export default function NotificationsPage() {
+    const { isAdmin } = useAuth();
     const [page, setPage] = useState(1);
     const { data, error, loading, reload } = useAsync(() => listNotifications({ page, limit: PAGE_SIZE }), [page]);
     const [read, setRead] = useState(() => new Set());
 
     async function markRead(id) {
         setRead(current => new Set(current).add(id));
-        try { await markNotificationRead(id); } catch { reload(); }
+        try { await markNotificationRead(id); } catch {
+            setRead(current => new Set([...current].filter(value => value !== id)));
+            reload();
+        }
     }
 
     return <>
@@ -34,7 +39,7 @@ export default function NotificationsPage() {
                         <div className={styles.foot}>
                             <small>{formatDateTime(notification.createdAt)}</small>
                             <span className={styles.actions}>
-                                {notification.reservation && <Link to={`/reservations/${notification.reservation}`}>Open reservation</Link>}
+                                {!isAdmin && notification.reservation && <Link to={`/reservations/${notification.reservation}`}>Open reservation</Link>}
                                 {!isRead && <Button variant="secondary" size="small" onClick={() => markRead(notification._id)}>Mark as read</Button>}
                             </span>
                         </div>

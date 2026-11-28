@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getAlternatives, getItem } from '../api/items.js';
 import { addToWishlist } from '../api/wishlist.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -26,7 +26,9 @@ export default function ItemDetailPage() {
     const wishlist = useAction();
     const [reserving, setReserving] = useState(false);
     // similar items from the same category, shown under the details. A failure here just hides the row
-    const alternatives = useAsync(() => getAlternatives(id), [id]);
+    const [alternativeDates, setAlternativeDates] = useState(null);
+    const dates = alternativeDates?.item === id ? alternativeDates.range : undefined;
+    const alternatives = useAsync(() => getAlternatives(id, dates), [id, dates]);
     const autoAddDone = useRef(false);
     const itemId = data?.item._id;
 
@@ -78,7 +80,7 @@ export default function ItemDetailPage() {
             <Card title="Details">
                 <p>{item.description}</p>
                 <DetailList rows={[
-                    ['Category', item.category],
+                    ['Category', <Link to={`/categories/${encodeURIComponent(item.category)}`}>{item.category}</Link>],
                     ['Listed deposit', `${item.depositAmount} ₥`],
                     ['Deposit rate', `× ${rateOf(item.category)} (${item.category})`],
                     ['Deposit you pay', `${depositOf(item)} ₥`],
@@ -90,7 +92,10 @@ export default function ItemDetailPage() {
                     ['Minimum trust score', item.borrowingRules?.minTrustScore || ''],
                     ['Extra rules', item.borrowingRules?.custom?.join('. ')],
                     ['Delivery', item.delivery?.offered ? `${item.delivery.fee} ₥. ${item.delivery.details ?? ''}` : ''],
-                    ['Free cancellation', item.cancellation?.freeDays ? `${item.cancellation.freeDays} days, then ${item.cancellation.forfeitPercent}% of the deposit is kept` : ''],
+                    ['Late fee', item.borrowingRules?.lateFeePerDay > 0 ? `${item.borrowingRules.lateFeePerDay} ₥ per day` : ''],
+                    ['Free cancellation', item.cancellation?.freeDays > 0 && item.cancellation.forfeitPercent > 0
+                        ? `Until ${item.cancellation.freeDays} days before pickup, then ${item.cancellation.forfeitPercent}% of the deposit is kept`
+                        : 'Until pickup starts'],
                     ...(item.attributes ?? []).map(({ key, value }) => [key, value])
                 ]} />
             </Card>
@@ -115,7 +120,7 @@ export default function ItemDetailPage() {
                 </section>
             )}
             </PageSection>
-            {!isAdmin && <ReserveDialog item={item} open={reserving} onClose={() => setReserving(false)} />}
+            {!isAdmin && <ReserveDialog item={item} open={reserving} onDatesChange={range => setAlternativeDates({ item: id, range })} onClose={() => setReserving(false)} />}
             {/* members can flag an item to the admins (the server only takes reports from members) */}
             {role === 'member' && <>
                 <button type="button" className={styles.report} onClick={() => setReporting(true)}>Report this item</button>

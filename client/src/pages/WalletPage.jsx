@@ -10,7 +10,7 @@ export default function WalletPage() {
     const { role } = useAuth();
     const { data, error, loading } = useAsync(getWalletBalance);
     // late fees are a member thing (the server answers 403 to anyone else), so only members ask for them
-    const fees = useAsync(() => (role === 'member' ? getLateFees() : Promise.resolve({ fees: [] })), [role]);
+    const fees = useAsync(() => (['member', 'lender'].includes(role) ? getLateFees() : Promise.resolve({ fees: [] })), [role]);
     const lateFees = fees.data?.fees ?? [];
 
     return (

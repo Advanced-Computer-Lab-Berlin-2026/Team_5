@@ -6,6 +6,7 @@ import { env } from "../config/env.js";
 import { User } from "../models/User.js";
 import { Item } from "../models/Item.js";
 import { Reservation } from "../models/Reservation.js";
+import { Payment } from '../models/Payment.js';
 import { DamageReport } from "../models/DamageReport.js";
 
 vi.mock('../models/User.js', () => ({
@@ -24,6 +25,8 @@ vi.mock('../models/Reservation.js', () => ({
 vi.mock('../models/DamageReport.js', () => ({
     DamageReport: { distinct: vi.fn() }
 }));
+
+vi.mock('../models/Payment.js', () => ({ Payment: { find: vi.fn() } }));
 
 const LENDER_ID = 'martinies';
 const BASE_URL = '/api/lender/dashboard';
@@ -64,6 +67,7 @@ beforeEach(() => {
     Item.countDocuments.mockResolvedValue(4);
     Reservation.find.mockReturnValue(fakeQuery(lentReservations));
     DamageReport.distinct.mockResolvedValue(['RES-3']);
+    Payment.find.mockReturnValue(fakeQuery([{ reservation: 'RES-1' }, { reservations: ['RES-2', 'RES-3'] }]));
 });
 
 describe('Lender access', () => {

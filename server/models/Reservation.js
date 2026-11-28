@@ -57,6 +57,7 @@ const reservationSchema = new mongoose.Schema(
       status: { type: String, enum: ["preparing", "out-for-delivery", "delivered"] },
       fee: { type: Number, default: 0, min: 0 },
       address: { type: String },
+      feeCollected: { type: Boolean },
     },
 
     // ---- group: payment ----
@@ -102,9 +103,8 @@ reservationSchema.index({ lender: 1, status: 1 });
 reservationSchema.index({ status: 1, startDate: 1, endDate: 1, item: 1 });
 
 
-// Only approved bookings block dates. Several people can have a pending request for the same dates; once the lender approves one
-// (it becomes "upcoming"), those dates are taken. The approve step must therefore re-check for overlaps when it runs.
-export const BLOCKING_STATUSES = ["upcoming", "active"];
+const APPROVED_STATUSES = ["upcoming", "active"];
+export const BLOCKING_STATUSES = ["pending", ...APPROVED_STATUSES];
 
 // Finds a reservation that overlaps the dates.
 
@@ -113,11 +113,12 @@ reservationSchema.statics.findOverlap = function (
     start,
     end,
     session,
-    excludeReservationId = null
+    excludeReservationId = null,
+    includePending = true
 ) {
     const filter = {
         item: itemId,
-        status: { $in: BLOCKING_STATUSES },
+        status: { $in: includePending ? BLOCKING_STATUSES : APPROVED_STATUSES },
         startDate: { $lt: end },
         endDate: { $gt: start }
     };

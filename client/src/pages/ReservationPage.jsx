@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { disputeDamageCase, damageCasePdfUrl } from '../api/damageReports.js';
+import { disputeDamageCase, damageCasePdfUrl, getDamageCaseForReservation } from '../api/damageReports.js';
 import { markPickedUp, markReturnedGood, reportDamage, uploadConditionPhotos } from '../api/lenderReservations.js';
-import { cancelReservation, getDelivery, getMyReservations, listMessages, requestExtension, sendMessage, updateDelivery } from '../api/reservations.js';
+import { cancelReservation, getDelivery, getReservation, listMessages, requestExtension, sendMessage, updateDelivery } from '../api/reservations.js';
 import { reviewBorrower, reviewLender } from '../api/reviews.js';
 import { getItemCalendar } from '../api/items.js';
 import { toKey } from '../components/Calendar.jsx';
@@ -15,10 +15,11 @@ import styles from './ReservationPage.module.css';
 
 const STEPS = [['preparing', 'Preparing'], ['out-for-delivery', 'Out for delivery'], ['delivered', 'Delivered']];
 const POLL_MS = 8000;
-const CHAT_CLOSED = 'Chat is only available for upcoming or active reservations';
+const isClosedChat = error => error.status === 403 && error.message === 'Chat is only available for upcoming or active reservations';
 
 // Where a delivery is, as a line of three steps that fills in amber as it moves along.
-// The lender (and admins) move it along by pressing a step; the borrower just watches it.
+// The lender (and admins) move it along by pressing a later step; it only goes forward, so steps already passed are locked.
+// The borrower just watches it.
 function DeliveryTracker({ id, data, canUpdate, reload }) {
     const change = useAction();
     const current = Math.max(0, STEPS.findIndex(([value]) => value === data.status));
@@ -26,7 +27,7 @@ function DeliveryTracker({ id, data, canUpdate, reload }) {
         <ol className={`${styles.steps} ${canUpdate ? styles.editable : ''}`} style={{ '--progress': current / (STEPS.length - 1) }}>
             {STEPS.map(([value, label], index) => <li key={value} className={`${styles.step} ${index <= current ? styles.done : ''}`} aria-current={index === current ? 'step' : undefined}>
                 {canUpdate
-                    ? <button type="button" className={styles.stepButton} disabled={change.pending || value === data.status} aria-label={`Set the delivery to ${label}`}
+                    ? <button type="button" className={styles.stepButton} disabled={change.pending || index <= current} aria-label={index < current ? `${label} (done)` : `Set the delivery to ${label}`}
                         onClick={async () => { if (await change.run(() => updateDelivery(id, value))) reload(); }}>
                         <span className={styles.stepDot} /> {label}
                     </button>
@@ -39,13 +40,18 @@ function DeliveryTracker({ id, data, canUpdate, reload }) {
 }
 
 // The chat between the borrower and the lender. It checks for new messages every few seconds.
-function Chat({ id, me, first }) {
+function Chat({ id, me, first, onClosed }) {
     const [messages, setMessages] = useState(first);
     const [error, setError] = useState('');
     const [text, setText] = useState('');
     const send = useAction();
     const endRef = useRef(null);
-    const load = useCallback(() => listMessages(id).then(data => { setMessages(data.messages ?? []); setError(''); }).catch(failure => setError(failure.message)), [id]);
+    const load = useCallback(() => listMessages(id)
+        .then(data => { setMessages(data.messages ?? []); setError(''); })
+        .catch(failure => {
+            if (isClosedChat(failure)) onClosed();
+            else setError(failure.message);
+        }), [id, onClosed]);
     useEffect(() => {
         const timer = window.setInterval(load, POLL_MS);
         return () => window.clearInterval(timer);
@@ -55,7 +61,16 @@ function Chat({ id, me, first }) {
     async function handleSend(event) {
         event.preventDefault();
         if (!text.trim()) return;
-        if (await send.run(() => sendMessage(id, text.trim()))) { setText(''); load(); }
+        const sent = await send.run(async () => {
+            try {
+                return await sendMessage(id, text.trim());
+            } catch (failure) {
+                if (!isClosedChat(failure)) throw failure;
+                onClosed();
+                return false;
+            }
+        });
+        if (sent) { setText(''); load(); }
     }
 
     return <div className={styles.chat}>
@@ -105,24 +120,33 @@ function ReviewCard({ id, about, send }) {
     </Card>;
 }
 
+// how a damage case reads to the borrower
+const CASE_STATUS = { report: 'waiting for an admin', decision: 'decided, you can still dispute', dispute: 'disputed, waiting for the final ruling', resolution: 'final' };
+const CASE_STEP = { report: 'Lender reported damage', decision: 'Admin decided', dispute: 'You disputed', resolution: 'Final ruling' };
+
 // Borrower: the lender reported damage. The case number is the lender's report id; once the admin has ruled, the borrower
 // has 7 days to dispute it with a message and photos. (The server does not show the case number to the borrower, so it is typed in.)
 function DamageCase({ reservationId }) {
     const dispute = useAction();
-    const [caseNumber, setCaseNumber] = useState('');
+    const { data: damageCase, error, reload } = useAsync(() => getDamageCaseForReservation(reservationId), [reservationId]);
+    const caseNumber = damageCase?.id ?? '';
     const [message, setMessage] = useState('');
     const [files, setFiles] = useState([]);
-    const valid = /^DMG-[0-9a-f]{8}$/.test(caseNumber.trim());
+    const valid = Boolean(caseNumber);
     return <Card title="Damage report" className={styles.damage}>
         <p className={styles.muted}>The lender reported damage when this item came back. Your deposit is held until an admin rules. If you disagree with the ruling you can dispute it within 7 days.</p>
-        <form onSubmit={async event => { event.preventDefault(); if (await dispute.run(() => disputeDamageCase(caseNumber.trim(), message.trim(), files), 'Dispute sent. An admin will make the final ruling.')) { setMessage(''); setFiles([]); } }}>
-            <FormField label="Case number" name="caseNumber" value={caseNumber} placeholder="DMG-1a2b3c4d" required onChange={event => setCaseNumber(event.target.value)} />
-            <FormField label="Why do you disagree" name="disputeMessage" as="textarea" value={message} required onChange={event => setMessage(event.target.value)} />
-            <FileField label="Photos (optional)" name="disputePhotos" accept="image/jpeg,image/png" multiple onChange={setFiles} />
+        <form onSubmit={async event => { event.preventDefault(); if (await dispute.run(() => disputeDamageCase(caseNumber.trim(), message.trim(), files), 'Dispute sent. An admin will make the final ruling.')) { setMessage(''); setFiles([]); reload(); } }}>
+            <Message type="error">{error}</Message>
+            {damageCase && <>
+                <p className={styles.muted}>Case {caseNumber} · {CASE_STATUS[damageCase.status] ?? damageCase.status}</p>
+                <ol className={styles.caseSteps}>{damageCase.steps.map(step => <li key={step.type}><strong>{CASE_STEP[step.type] ?? step.type}</strong>{step.message ? ` — ${step.message}` : ''}{step.depositForfeit != null ? ` (${step.depositForfeit} ₥ kept from the deposit)` : ''}</li>)}</ol>
+            </>}
+            {damageCase?.canDispute && <><FormField label="Why do you disagree" name="disputeMessage" as="textarea" value={message} required onChange={event => setMessage(event.target.value)} />
+            <FileField label="Photos (optional)" name="disputePhotos" accept="image/jpeg,image/png" multiple onChange={setFiles} /></>}
             <Message type="success">{dispute.success}</Message>
             <Message type="error">{dispute.error}</Message>
             <div className={styles.row}>
-                <Button type="submit" pending={dispute.pending} disabled={!valid || !message.trim()}>Dispute the ruling</Button>
+                {damageCase?.canDispute && <Button type="submit" pending={dispute.pending} disabled={!message.trim()}>Dispute the ruling</Button>}
                 <Button variant="secondary" href={valid ? damageCasePdfUrl(caseNumber.trim()) : undefined} disabled={!valid} target="_blank" rel="noreferrer">Download the case PDF</Button>
             </div>
         </form>
@@ -145,7 +169,7 @@ function ExtensionCard({ reservation }) {
     return <Card title="Need it longer?" className={styles.extension}>
         <form onSubmit={async event => { event.preventDefault(); await ask.run(() => requestExtension(reservation._id, range.end), 'Asked. The lender will accept or decline, and you will get a notification.'); }}>
             <p className={styles.muted}>It is due back on {formatDate(reservation.endDate)}. Press the day you would like to bring it back instead.</p>
-            <div className={styles.smallCalendar}><Calendar compact fixedStart={lastDay} minDate={lastDay} booked={others} value={range} onChange={setRange} /></div>
+            <div className={styles.smallCalendar}><Calendar compact fixedStart={lastDay} minDate={lastDay} booked={others} held={calendar.data?.waitlistHolds} value={range} onChange={setRange} /></div>
             {clash && <Message type="error">Someone has booked days before your new last day. Pick an earlier day.</Message>}
             <Message type="success">{ask.success}</Message>
             <Message type="error">{ask.error}</Message>
@@ -160,7 +184,7 @@ function BorrowerPanel({ reservation, reload }) {
     const [reviewsOf, setReviewsOf] = useState('');
     const cancel = useAction();
     const [confirming, setConfirming] = useState(false);
-    const cancellable = ['pending', 'upcoming'].includes(reservation.status) && new Date(reservation.startDate) > new Date();
+    const cancellable = reservation.status === 'pending' || (reservation.status === 'upcoming' && new Date(reservation.startDate) > new Date());
     const reviewed = reservation.reviews?.lenderRating !== undefined;
     return <>
         <ReservationCard reservation={reservation} who={`Lent by ${reservation.lender}`}>
@@ -173,7 +197,7 @@ function BorrowerPanel({ reservation, reload }) {
         </ConfirmDialog>
         <Message type="success">{cancel.success}</Message>
         <UserReviewsDialog username={reviewsOf} onClose={() => setReviewsOf('')} />
-        {reservation.status === 'active' && role === 'member' && reservation.handover?.returnCondition !== 'damaged' && <ExtensionCard reservation={reservation} />}
+        {reservation.status === 'active' && ['member', 'lender'].includes(role) && reservation.handover?.returnCondition !== 'damaged' && <ExtensionCard reservation={reservation} />}
         {reservation.status === 'completed' && !reviewed && <ReviewCard id={reservation._id} about={reservation.lender} send={reviewLender} />}
         {reservation.status === 'completed' && reviewed && <Card title={`Your review of ${reservation.lender}`}><StarRating readOnly value={reservation.reviews.lenderRating} label="Your rating" /><p className={styles.muted}>{reservation.reviews.lenderReview}</p></Card>}
         {reservation.handover?.returnCondition === 'damaged' && <DamageCase reservationId={reservation._id} />}
@@ -183,13 +207,10 @@ function BorrowerPanel({ reservation, reload }) {
 // Lender only: the steps of handing the item over and getting it back. Only the step that is relevant now is shown:
 //   upcoming -> hand over (pickup + pickup photos), active -> get it back (return, return photos, report damage), then done.
 // The server has no "get one reservation", so the stage is remembered here and corrected when the server says it is wrong.
-const stageKey = id => `acl.reservation-stage.${id}`;
-const readStage = id => { try { return window.localStorage.getItem(stageKey(id)) || 'upcoming'; } catch { return 'upcoming'; } };
-const saveStage = (id, stage) => { try { window.localStorage.setItem(stageKey(id), stage); } catch { /* the page still works without it */ } };
-
-function LenderActions({ id, delivery, reloadDelivery }) {
-    const [stage, setStageState] = useState(() => readStage(id));
-    const setStage = next => { saveStage(id, next); setStageState(next); };
+function LenderActions({ reservation, reload, delivery, reloadDelivery }) {
+    const id = reservation._id;
+    const stage = reservation.handover?.returnCondition === 'damaged' ? 'reported' : reservation.status;
+    const [reviewsOpen, setReviewsOpen] = useState(false);
     const pickup = useAction();
     const giveBack = useAction();
     const damage = useAction();
@@ -204,37 +225,40 @@ function LenderActions({ id, delivery, reloadDelivery }) {
             await markPickedUp(id);
             if (needsDelivery) await updateDelivery(id, 'delivered');
         }, needsDelivery ? 'Marked as picked up and delivered.' : 'Marked as picked up.');
-        if (ok) { setStage('active'); if (needsDelivery) reloadDelivery(); }
+        if (ok) { reload(); if (needsDelivery) reloadDelivery(); }
     }
     // "Only upcoming reservations can ..." means it is already past pickup, so move on to the return step
-    useEffect(() => { if (/only upcoming/i.test(pickup.error)) setStage('active'); }, [pickup.error]);
+
 
     if (stage === 'reported') return <Card title="Damage reported"><p className={styles.muted}>The deposit stays held until an admin rules on the report.</p></Card>;
-    if (stage === 'done') return <>
+    if (stage === 'completed') return <>
         <Card title="All done"><p className={styles.muted}>This reservation is complete.</p></Card>
-        <ReviewCard id={id} about="the borrower" send={reviewBorrower} />
+        <Button variant="secondary" onClick={() => setReviewsOpen(true)}>Borrower's reviews</Button>
+        <UserReviewsDialog username={reviewsOpen ? reservation.borrower : ''} onClose={() => setReviewsOpen(false)} />
+        {reservation.reviews?.borrowerRating == null ? <ReviewCard id={id} about="the borrower" send={reviewBorrower} /> : <Card title="Your review"><StarRating readOnly value={reservation.reviews.borrowerRating} label="Your rating" /><p>{reservation.reviews.borrowerReview}</p></Card>}
     </>;
 
     if (stage === 'upcoming') return <div className={styles.actionsGrid}>
-        <Card title="Hand over">
+        <Card title="Hand over" footer={<Button fullWidth pending={pickup.pending} onClick={handlePickup}>Mark as picked up</Button>}>
+            <p className={styles.muted}>When the borrower has the item{delivery ? ', or it has been delivered' : ''}, mark it here.</p>
             <Message type="success">{pickup.success}</Message>
             <Message type="error">{pickup.error}</Message>
-            <Button fullWidth pending={pickup.pending} onClick={handlePickup}>Mark as picked up</Button>
         </Card>
         <FileUploadCard title="Photos at pickup" name="pickup-photos" accept="image/jpeg,image/png" multiple hint="JPG or PNG, up to 5 MB each, at most 5."
             buttonText="Upload photos" onUpload={list => uploadConditionPhotos(id, 'pickup', list)} />
     </div>;
 
+    if (stage !== 'active') return null;
     return <div className={styles.actionsGrid}>
-        <Card title="Returned in good condition">
+        <Card title="Returned in good condition" footer={<Button fullWidth pending={giveBack.pending} onClick={async () => { if (await giveBack.run(() => markReturnedGood(id), 'Marked as returned. The deposit goes back to the borrower.')) reload(); }}>Mark as returned</Button>}>
+            <p className={styles.muted}>When it is back and nothing is wrong. The deposit goes back to the borrower.</p>
             <Message type="success">{giveBack.success}</Message>
             <Message type="error">{giveBack.error}</Message>
-            <Button fullWidth pending={giveBack.pending} onClick={async () => { if (await giveBack.run(() => markReturnedGood(id), 'Marked as returned. The deposit goes back to the borrower.')) setStage('done'); }}>Mark as returned</Button>
         </Card>
         <FileUploadCard title="Photos at return" name="return-photos" accept="image/jpeg,image/png" multiple hint="JPG or PNG, up to 5 MB each, at most 5."
             buttonText="Upload photos" onUpload={list => uploadConditionPhotos(id, 'return', list)} />
         <Card title="Report damage" className={styles.damage}>
-            <form onSubmit={async event => { event.preventDefault(); if (await damage.run(() => reportDamage(id, { returnCondition: condition, message }, files), 'Damage reported. The deposit stays held.')) setStage('reported'); }}>
+            <form onSubmit={async event => { event.preventDefault(); if (await damage.run(() => reportDamage(id, { returnCondition: condition, message }, files), 'Damage reported. The deposit stays held.')) reload(); }}>
                 <FormField label="What is wrong" name="returnCondition" value={condition} required placeholder="Lens is scratched" onChange={event => setCondition(event.target.value)} />
                 <FormField label="Details" name="damageMessage" as="textarea" value={message} required onChange={event => setMessage(event.target.value)} />
                 <FileField label="Extra photos (optional)" name="damagePhotos" accept="image/jpeg,image/png" multiple onChange={setFiles} />
@@ -249,27 +273,36 @@ function LenderActions({ id, delivery, reloadDelivery }) {
 export default function ReservationPage() {
     const { id } = useParams();
     const { role, user } = useAuth();
-    // Chat only works for upcoming or active reservations (the server answers 403 otherwise), and a delivery only exists for
-    // reservations that asked for one (404 otherwise). So a section is shown only when the server says it can be used.
-    const chat = useAsync(() => listMessages(id), [id]);
+    const mine = useAsync(() => getReservation(id), [id]);
+    const reservation = mine.data?.reservation;
+    const chatAvailable = reservation?._id === id && ['upcoming', 'active'].includes(reservation.status);
+    const chat = useAsync(() => chatAvailable
+        ? listMessages(id).catch(error => {
+            if (!isClosedChat(error)) throw error;
+            mine.reload();
+            return null;
+        })
+        : Promise.resolve(null), [id, chatAvailable, mine.reload]);
     const delivery = useAsync(() => getDelivery(id), [id]);
-    // the borrower's own list is the only place a reservation's status can be read, so find this one in it (a lender or admin will not find it)
-    const mine = useAsync(() => getMyReservations(), [id]);
-    const reservation = mine.data?.reservations.find(entry => entry._id === id);
+    const borrowerView = Boolean(reservation && reservation.borrower === user?.username);
+    const lenderView = Boolean(reservation && reservation.lender === user?.username);
     // only the very first load shows a spinner; later reloads (after changing a delivery status) keep the page as it is
     if ((chat.loading && !chat.data && !chat.error) || (delivery.loading && !delivery.data && !delivery.error) || (mine.loading && !mine.data && !mine.error)) return <Spinner />;
-    const chatOpen = Boolean(chat.data);
-    const hasDelivery = Boolean(delivery.data);
-    const notFound = !reservation && chat.error && chat.error !== CHAT_CLOSED && /not found/i.test(chat.error);
-    const waiting = !chatOpen && !hasDelivery && !notFound && (!reservation || reservation.status === 'pending');
+    // only a booking that asked for delivery (it has an address) gets the delivery bar
+    const hasDelivery = Boolean(delivery.data?.address);
+    const notFound = Boolean(mine.error) && role !== 'admin';
+    const waiting = !notFound && reservation?.status === 'pending';
     return <>
-        <PageHeader title="Your reservation" backTo={reservation ? '/bookings' : role === 'lender' ? '/reservations' : '/items'} backLabel={reservation ? 'Back to my bookings' : role === 'lender' ? 'Back to reservations' : 'Back to catalog'} />
+        <PageHeader title="Your reservation" backTo={borrowerView ? '/bookings' : role === 'lender' ? '/reservations' : '/items'} backLabel={borrowerView ? 'Back to my bookings' : role === 'lender' ? 'Back to reservations' : 'Back to catalog'} />
         <p className={styles.muted}>Reservation {id}</p>
         {notFound && <Message type="error">This reservation could not be found.</Message>}
-        {reservation && <BorrowerPanel reservation={reservation} reload={mine.reload} />}
+        {borrowerView && reservation && <BorrowerPanel reservation={reservation} reload={mine.reload} />}
         {waiting && <Card title="Nothing to do yet"><p className={styles.muted}>Messages and delivery open once the owner approves the reservation, and close again when it is finished.</p></Card>}
-        {hasDelivery && <Card title="Delivery"><DeliveryTracker id={id} data={delivery.data} canUpdate={role === 'admin' || (role === 'lender' && !reservation)} reload={delivery.reload} /></Card>}
-        {chatOpen && <Card title="Messages"><Chat id={id} me={user?.username} first={chat.data.messages ?? []} /></Card>}
-        {chatOpen && role === 'lender' && !reservation && <LenderActions id={id} delivery={delivery.data} reloadDelivery={delivery.reload} />}
+        {hasDelivery && <Card title="Delivery"><DeliveryTracker id={id} data={delivery.data} canUpdate={role === 'admin' || lenderView} reload={delivery.reload} /></Card>}
+        {chatAvailable && chat.data && <Card title="Messages">
+            <Chat key={id} id={id} me={user?.username} first={chat.data.messages ?? []} onClosed={mine.reload} />
+        </Card>}
+        {chatAvailable && chat.error && <Message type="error">{chat.error}</Message>}
+        {lenderView && <LenderActions key={id} reservation={reservation} reload={mine.reload} delivery={delivery.data} reloadDelivery={delivery.reload} />}
     </>;
 }

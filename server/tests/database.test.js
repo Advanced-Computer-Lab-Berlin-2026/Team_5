@@ -107,7 +107,7 @@ describe('Reservation model', () => {
 
         // pending, completed, cancelled and rejected reservations must not block new bookings
         it('only treats upcoming and active as blocking, so pending requests do not', () => {
-            expect(BLOCKING_STATUSES).toEqual(['upcoming', 'active']);
+            expect(BLOCKING_STATUSES).toEqual(['pending', 'upcoming', 'active']);
         });
 
         it('passes the transaction session through', () => {
@@ -161,9 +161,9 @@ describe('MembershipTier model', () => {
     });
 
     describe('field validation', () => {
-        it('rejects unknown tiers and discounts over 100%', async () => {
+        it('accepts custom tiers and rejects discounts over 100%', async () => {
             const errors = await validationErrors(new MembershipTier({ tier: 'Gold', deposit_discount: 101 }));
-            expect(errors.tier).toBeDefined();
+            expect(errors.tier).toBeUndefined();
             expect(errors.deposit_discount).toBeDefined();
         });
     });

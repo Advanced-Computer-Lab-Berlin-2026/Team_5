@@ -97,7 +97,10 @@ describe('POST /api/membership/subscribe', () => {
         expect(startDate).toBeInstanceOf(Date);
         expect(renewalDate.getTime()).toBe(new Date(startDate).setUTCFullYear(startDate.getUTCFullYear() + 1));
         expect(options).toEqual({ session });
-        expect(filter).toEqual({ _id: 'member123', 'membership.tier': { $ne: 'Plus' }, wallet: { $gte: 300 } });
+        expect(filter).toEqual({ _id: 'member123', wallet: { $gte: 300 }, $or: [
+            { 'membership.tier': { $ne: 'Plus' } },
+            { 'membership.renewalDate': { $type: 'date', $lte: startDate } }
+        ] });
         expect(update.$inc).toEqual({ wallet: -300 });
         expect(Payment.create).toHaveBeenCalledWith([expect.objectContaining({
             user: 'member123', checkoutKey: 'membership-test-key', type: 'membership-fee', method: 'wallet', direction: 'deduct', amount: 300
@@ -128,8 +131,6 @@ describe('POST /api/membership/subscribe', () => {
 
     it.each([
         ['Basic', { tier: 'Basic' }],
-        ['an unknown tier', { tier: 'Gold' }],
-        ['a lowercase tier', { tier: 'plus' }],
         ['a missing tier', {}],
         ['a non-string tier', { tier: 5 }]
     ])('returns 400 for %s', async (_name, body) => {
@@ -147,10 +148,10 @@ describe('POST /api/membership/subscribe', () => {
         expect(User.findOneAndUpdate).not.toHaveBeenCalled();
     });
 
-    it('returns 404 when the tier is missing from the database', async () => {
+    it.each(['Gold', 'plus'])('returns 404 when %s is missing from the database', async (tier) => {
         mockTierLookup(null);
 
-        const response = await subscribe(wallet);
+        const response = await subscribe({ ...wallet, tier });
 
         expect(response.status).toBe(404);
         expect(User.findOneAndUpdate).not.toHaveBeenCalled();
@@ -341,7 +342,7 @@ describe('POST /api/membership/cancel', () => {
         expect(update.$set['membership.startDate']).toBeInstanceOf(Date);
         expect(options).toEqual({ returnDocument: 'after' });
         // only updates a user who is on a paid tier
-        expect(filter).toEqual({ _id: 'member123', 'membership.tier': { $in: ['Plus', 'Premium'] } });
+        expect(filter).toEqual({ _id: 'member123', 'membership.tier': { $exists: true, $nin: ['Basic', null] } });
     });
 
     it('works for lenders', async () => {

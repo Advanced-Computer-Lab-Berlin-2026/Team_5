@@ -4,3 +4,19 @@
 .delete { background: #c0392b; border-color: #c0392b; color: #fff; }
 .delete:hover:not(:disabled) { background: #a32f23; border-color: #a32f23; }
 .suspend:disabled, .delete:disabled { opacity: 0.55; }
+/* the buttons stay on one line and keep their width when Suspend turns into Unsuspend, so the table does not jump */
+.actions { display: flex; flex-wrap: nowrap; gap: var(--space-2); justify-content: flex-end; }
+.actions > * { white-space: nowrap; flex: none; }
+.suspend { min-width: 7.5rem; justify-content: center; }
+.status { display: inline-block; padding: 2px var(--space-2); border: 1px solid var(--color-border); font-size: 0.72rem; font-weight: var(--font-weight-bold); text-transform: uppercase; white-space: nowrap; }
+.suspended { background: #c0392b; border-color: #c0392b; color: #fff; }
+.filters { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.filters > :first-child { flex: 0 1 16rem; }
+.filters > :last-child:not(:first-child) { flex: 1 1 18rem; }
+/* words are never cut in the middle: short columns stay on one line, names wrap only between words, and only a very long
+   email address may break (the table scrolls sideways on narrow screens) */
+.usersTable td { overflow-wrap: normal; word-break: normal; white-space: nowrap; vertical-align: middle; }
+.usersTable td:nth-child(3) { white-space: normal; min-width: 8rem; }
+.usersTable td:nth-child(4) { white-space: normal; overflow-wrap: anywhere; min-width: 12rem; }
+.details { display: grid; gap: var(--space-3); max-width: 44rem; }
+.details h3 { margin: 0; }

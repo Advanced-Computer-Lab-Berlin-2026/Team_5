@@ -34,3 +34,5 @@ export { ConfirmDialog } from './ConfirmDialog.jsx';
 export { AmberDialog } from './AmberDialog.jsx';
 export { ReportDialog } from './ReportDialog.jsx';
 export { UserReviewsDialog } from './UserReviewsDialog.jsx';
+export { DateRangeField } from './DateRangeField.jsx';
+export { DateField } from './DateField.jsx';

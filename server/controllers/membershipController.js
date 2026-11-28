@@ -3,13 +3,10 @@ import { User } from '../models/User.js';
 import { MembershipTier } from '../models/MembershipTier.js';
 import { oneYearAfter, payForMembership } from '../services/membershipPaymentService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
-
-const PAID_TIERS = ['Plus', 'Premium'];
+import { activeTier } from '../services/membershipService.js';
 
 const subscribeSchema = joi.object({
-    tier: joi.string().valid(...PAID_TIERS).required().messages({
-        'any.only': `tier must be one of: ${PAID_TIERS.join(', ')} (Basic is the default; cancel to return to it)`
-    }),
+    tier: joi.string().trim().max(80).invalid('Basic').required(),
     method: joi.string().valid('wallet', 'card').required()
 });
 
@@ -26,9 +23,10 @@ export async function getMyMembership(req, res, next) {
         const user = await User.findById(req.user?.id).select('membership');
         if (!user) return res.status(401).json({ message: 'User not found' });
 
-        const { tier, startDate } = user.membership;
+        const { startDate } = user.membership;
+        const renewalDate = getRenewalDate(user.membership);
         return res.status(200).json({
-            membership: { tier, startDate, renewalDate: getRenewalDate(user.membership) }
+            membership: { tier: activeTier(user.membership), startDate, renewalDate }
         });
     } catch (error) {
         next(error);
@@ -68,7 +66,7 @@ export async function subscribeToTier(req, res, next) {
 export async function cancelMembership(req, res, next) {
     try {
         const user = await User.findOneAndUpdate(
-            { _id: req.user?.id, 'membership.tier': { $in: PAID_TIERS } },
+            { _id: req.user?.id, 'membership.tier': { $exists: true, $nin: ['Basic', null] } },
             {
                 $set: {
                     'membership.tier': 'Basic',

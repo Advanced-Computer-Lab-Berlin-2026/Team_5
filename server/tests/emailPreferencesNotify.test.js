@@ -64,26 +64,27 @@ describe('notify email preferences (SCRUM-519)', () => {
         }
     });
 
-    it('skips email when community notices are off', async () => {
+    it.each([['community-notice', 'communityNotices'], ['promotion', 'promotions']])(
+        'skips %s email when %s are off', async (type, category) => {
         Notification.create.mockResolvedValue({
             ...saved,
-            type: 'community-notice',
+            type,
             username: 'yara',
             message: 'Hall closed Sunday'
         });
         User.findById.mockResolvedValue({
             profile: { email: 'yara@example.com' },
-            emailPreferences: { reservations: true, promotions: true, communityNotices: false }
+            emailPreferences: { reservations: true, promotions: true, communityNotices: true, [category]: false }
         });
 
         await notify('yara', {
-            type: 'community-notice',
+            type,
             message: 'Hall closed Sunday',
             subject: 'Community notice'
         });
 
         await vi.waitFor(() => expect(console.warn).toHaveBeenCalledWith(
-            expect.stringContaining('turned off communityNotices')
+            expect.stringContaining(`turned off ${category}`)
         ));
         expect(sendNotificationEmail).not.toHaveBeenCalled();
         expect(Notification.create).toHaveBeenCalled();

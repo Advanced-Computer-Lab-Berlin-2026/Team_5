@@ -30,6 +30,7 @@ export function reportDamage(id, { returnCondition, message }, files = []) {
 export const listIncomingReservations = () => request(BASE);
 
 // approved and in-progress bookings of this lender's items, soonest first. { reservations } with item (name, photos) and borrower
+export const listCompletedReservations = () => request(BASE, { query: { view: 'completed' } });
 export const listAcceptedReservations = () => request(BASE, { query: { view: 'accepted' } });
 
 // approving makes the booking "upcoming" (and blocks those dates); rejecting refunds the deposit to the borrower

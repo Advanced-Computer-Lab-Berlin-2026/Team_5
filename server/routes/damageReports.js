@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { disputeDamageCase, downloadDamageCasePdf } from '../controllers/damageReportController.js';
+import { disputeDamageCase, downloadDamageCasePdf, getDamageCaseForReservation } from '../controllers/damageReportController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { uploadItemPhotos, handleItemPhotoUploadErrors } from '../middleware/uploadItemPhotos.js';
 
 const router = Router();
+router.get('/reservation/:reservationId', requireAuth, getDamageCaseForReservation);
 
 // :id is the case number, the id of the lender's damage report (DMG-xxxxxxxx).
 // Who may use each route (the borrower; admins, borrower and lender) is checked in the controller.

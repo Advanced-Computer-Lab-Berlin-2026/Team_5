@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { cancelMembership, getMyMembership, listMembershipTiers, subscribeToTier } from '../api/membership.js';
-import { newIdempotencyKey } from '../api/checkout.js';
+import { getCardPaymentStatus, newIdempotencyKey } from '../api/checkout.js';
 import { getWalletBalance } from '../api/wallet.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
@@ -16,7 +16,7 @@ import styles from './MembershipPage.module.css';
 const OPEN_BOOKINGS = { Basic: 2, Plus: 3, Premium: 5 };
 const POLL_MS = 1500;
 const POLL_LIMIT = 40;
-const money = value => `${Number(Number(value).toFixed(2))} ₥`;
+const money = value => Number(Number(value).toFixed(2)) + ' ₥';
 
 // Members and lenders: the plans side by side as tilting cards. A paid plan is bought for a year from the wallet or by card,
 // and gives a discount on every deposit. Cancelling goes back to Basic straight away, with no refund.
@@ -53,19 +53,25 @@ export default function MembershipPage() {
             mine.reload();
             wallet.reload();
         } else if (result.clientSecret) {
-            setCard({ tier, clientSecret: result.clientSecret, amount: result.amount });
+            setCard({ tier, paymentId: result.paymentId, clientSecret: result.clientSecret, amount: result.amount });
         }
     }
 
     // Stripe accepted the card; the server switches the plan when Stripe tells it, so wait for the plan to change
     async function handleCardPaid() {
-        const { tier } = card;
+        const { tier, paymentId } = card;
         setCard(null);
         setWaiting(true);
         for (let attempt = 0; attempt < POLL_LIMIT; attempt += 1) {
             try {
+                const payment = await getCardPaymentStatus(paymentId);
+                if (['refunded', 'refund_pending', 'failed'].includes(payment.status)) {
+                    setWaiting(false);
+                    setNotice(payment.status === 'refunded' ? 'Your card was refunded.' : payment.status === 'refund_pending' ? 'Your card refund is pending.' : 'The card payment failed.');
+                    return;
+                }
                 const data = await getMyMembership();
-                if (data.membership?.tier === tier.tier) {
+                if (payment.status === 'completed' && data.membership?.tier === tier.tier) {
                     setWaiting(false);
                     setNotice(`You are on ${tier.tier} now, until ${formatDate(data.membership.renewalDate)}.`);
                     mine.reload();
@@ -75,7 +81,7 @@ export default function MembershipPage() {
             await new Promise(resolve => window.setTimeout(resolve, POLL_MS));
         }
         setWaiting(false);
-        setNotice('Your card payment went through. Your plan changes as soon as the payment is confirmed, which can take a minute.');
+        setNotice('Your card payment is still being confirmed. Check your membership again before retrying.');
     }
 
     async function handleCancel() {
@@ -105,8 +111,9 @@ export default function MembershipPage() {
                         <p className={styles.price}>{paid ? <>{money(tier.annual_fee)}<span> a year</span></> : 'Free'}</p>
                         <ul className={styles.perks}>
                             <li><strong>{tier.deposit_discount}%</strong> off every deposit</li>
-                            {OPEN_BOOKINGS[tier.tier] && <li>Up to <strong>{OPEN_BOOKINGS[tier.tier]}</strong> bookings open at once</li>}
-                            <li>{paid ? 'Renews after a year' : 'Always included'}</li>
+                            {(tier.maxConcurrentReservations ?? OPEN_BOOKINGS[tier.tier]) && <li>Up to <strong>{tier.maxConcurrentReservations ?? OPEN_BOOKINGS[tier.tier]}</strong> bookings open at once</li>}
+                            {tier.waitlistPriority && <li>Waitlist priority {tier.waitlistPriority}</li>}
+                            <li>{paid ? 'Expires after a year' : 'Always included'}</li>
                         </ul>
                         <div className={styles.actions}>
                             {paid && !isCurrent && <>

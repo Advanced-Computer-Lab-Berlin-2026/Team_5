@@ -69,7 +69,10 @@ export async function calculateCheckoutPricing(userId, checkoutItems, promoCode 
         });
     }
 
-    const totalCents = finalCents.reduce((sum, value) => sum + value, 0);
+    const depositCents = finalCents.reduce((sum, value) => sum + value, 0);
+    const deliveryCents = checkoutItems.reduce((sum, item) => sum + Math.round((item.delivery?.fee ?? 0) * 100), 0);
+    const totalCents = depositCents + deliveryCents;
+    if (!Number.isSafeInteger(totalCents)) throw new Error('Checkout total exceeds supported range.');
     const items = checkoutItems.map((item, index) => ({
         ...item,
         depositAmount: finalCents[index] / 100
@@ -78,7 +81,9 @@ export async function calculateCheckoutPricing(userId, checkoutItems, promoCode 
     return {
         items,
         originalTotal: originalTotalCents / 100,
-        totalDeposit: totalCents / 100,
+        totalDeposit: depositCents / 100,
+        deliveryFee: deliveryCents / 100,
+        total: totalCents / 100,
         totalCents,
         discountPercent,
         promoCode: validatedCode,

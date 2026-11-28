@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({ createCardPaymentIntent: vi.fn() }));
 vi.mock('../services/stripeCheckoutService.js', () => ({
   createCardPaymentIntent: mocks.createCardPaymentIntent,
 }));
-vi.mock('../middleware/auth.js', () => ({
+vi.mock('../middleware/auth.js', async importOriginal => ({
+    ...await importOriginal(),
   requireAuth: (req, res, next) => {
     if (req.get('X-Test-Auth') === 'missing') {
       return res.status(401).json({ message: 'Unauthorized' });

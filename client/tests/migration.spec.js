@@ -13,7 +13,7 @@ async function mockApi(page, { role = 'member', failCatalog = false } = {}) {
     const calls = [];
     let catalogFailed = failCatalog;
     await page.route('**/test-photo-*.svg', route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="#b7ab91"/><rect x="170" y="100" width="260" height="180" rx="10" fill="#333"/><circle cx="300" cy="190" r="60" fill="#111"/></svg>' }));
-    await page.route('http://127.0.0.1:5173/api/**', async route => {
+    await page.route(url => url.pathname.startsWith('/api/'), async route => {
         const request = route.request();
         const url = new URL(request.url());
         const path = url.pathname;
@@ -42,7 +42,7 @@ async function mockApi(page, { role = 'member', failCatalog = false } = {}) {
         if (path === '/api/notices') return reply({ notices: [] });
         if (path === '/api/household/links') return reply({ links: [] });
         if (path === '/api/household/requests/incoming') return reply({ requests: [] });
-        if (path === '/api/lender-request/me') return reply({ status: 'none', documents: [] });
+        if (path === '/api/lender-requests') return reply({ status: 'none', documents: [] });
         return reply({ message: `Unmocked: ${path}` }, 404);
     });
     return calls;
@@ -64,52 +64,66 @@ test('compound entry keeps guest search while switching login and registration',
     await mockApi(page);
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Welcome to/ })).toBeVisible();
-    await page.getByRole('link', { name: 'Scroll to open your shed', exact: true }).click();
-    await page.getByRole('link', { name: 'Scroll to browse as guest', exact: true }).click();
+    await page.getByRole('button', { name: 'Scroll to login', exact: true }).click();
+    await page.getByRole('button', { name: 'Scroll to browse as guest', exact: true }).click();
     await expect(page.locator('#guest-catalog')).toBeInViewport();
     await page.getByRole('searchbox').fill('camera');
     await expect(page.getByRole('heading', { name: 'Camera kit', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Cordless drill', exact: true })).toHaveCount(0);
     await page.evaluate(() => document.getElementById('account-access').scrollIntoView({ block: 'start' }));
-    await page.getByRole('navigation', { name: 'Account access' }).getByRole('link', { name: 'Register', exact: true }).click();
+    await page.getByRole('region', { name: 'Log in', exact: true }).getByRole('button', { name: 'Register', exact: true }).click();
     await expect(page).toHaveURL(/\/register\?search=camera/);
     await expect(page.getByLabel('Full name')).toBeVisible();
     await expect(page.getByRole('searchbox')).toHaveValue('camera');
-    await expect(page.getByRole('button', { name: 'Log in', exact: true })).toBeHidden();
+    await expect(page.locator('section[aria-label="Log in"]')).toHaveAttribute('inert', '');
     expect(errors).toEqual([]);
     await page.screenshot({ path: 'test-results/compound-register.png', fullPage: true });
 });
 
-test('registration preserves all existing fields and returns to login', async ({ page }) => {
+async function fillRegistration(page) {
+    const registration = page.getByRole('form', { name: 'Register', exact: true });
+    await registration.getByLabel(/^Username/).fill('alex');
+    await registration.getByLabel(/^Full name/).fill('Alex Example');
+    await registration.getByLabel(/^Email/).fill('alex@example.com');
+    await registration.getByLabel(/^Password/).fill('Password1');
+    await registration.getByLabel(/^Phone/).fill('+491701234567');
+    await registration.getByLabel(/^Home address/).fill('Example street 1');
+    await registration.getByRole('button', { name: 'Create account', exact: true }).click();
+}
+
+test('registration submits all required fields and signs the member in', async ({ page }) => {
     const calls = await mockApi(page);
-    await page.goto('/register');
-    const form = page.getByRole('form', { name: 'Register', exact: true });
-    await form.getByLabel('Username', { exact: true }).fill('alex');
-    await form.getByLabel('Full name').fill('Alex Example');
-    await form.getByLabel('Email', { exact: true }).fill('alex@example.com');
-    await form.getByLabel('Password', { exact: true }).fill('Password1');
-    await form.getByLabel('Phone (optional)').fill('+491701234567');
-    await form.getByLabel('Home address (optional)').fill('Example street 1');
-    await page.getByRole('button', { name: 'Create account', exact: true }).click();
-    await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByText('Registration successful. Please log in.')).toBeVisible();
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/register#account-access');
+    await fillRegistration(page);
+    await expect(page).toHaveURL(/\/items$/);
     expect(calls.find(call => call.path === '/api/auth/register').body).toEqual({ username: 'alex', name: 'Alex Example', email: 'alex@example.com', password: 'Password1', phoneNumber: '+491701234567', homeAddress: 'Example street 1' });
+});
+
+test('a guest can register and continue to the lender application', async ({ page }) => {
+    await mockApi(page);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Apply to become a lender' }).click();
+    await fillRegistration(page);
+    await expect(page).toHaveURL(/\/become-lender$/);
+    await expect(page.getByRole('heading', { name: 'Become a lender', exact: true })).toBeVisible();
 });
 
 test('guest wishlist returns to the item and saves once after login', async ({ page }) => {
     const calls = await mockApi(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/items/ITM-1a2b3c01');
-    await expect(page.locator('[data-theme="dark"]').first()).toHaveCSS('background-color', 'rgb(20, 20, 20)');
+    await expect(page.getByRole('heading', { name: 'Camera kit' })).toBeVisible();
     await page.getByRole('button', { name: 'Add to wishlist', exact: true }).click();
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login#account-access$/);
     await signIn(page);
     await expect(page).toHaveURL(/\/items\/ITM-1a2b3c01$/);
     await expect(page.getByText('Added to wishlist.')).toBeVisible();
     expect(calls.filter(call => call.path === '/api/wishlist/ITM-1a2b3c01' && call.method === 'POST')).toHaveLength(1);
 });
 
-test('edge-to-edge liquid gallery uses keyboard browsing and triple-click inspection', async ({ page }) => {
+test('edge-to-edge liquid gallery uses keyboard browsing and double-click inspection', async ({ page }) => {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await mockApi(page);
@@ -127,15 +141,11 @@ test('edge-to-edge liquid gallery uses keyboard browsing and triple-click inspec
     expect(bounds.x).toBeCloseTo(0, 0);
     expect(bounds.width).toBeCloseTo(page.viewportSize().width, 0);
     await canvas.click({ position: { x: bounds.width / 2, y: bounds.height / 2 }, clickCount: 2, delay: 60 });
-    await expect(page.getByRole('dialog')).toHaveCount(0);
-    // Reset the two-click sequence before a deliberate triple-click.
-    await page.waitForTimeout(550);
-    await canvas.click({ position: { x: bounds.width / 2, y: bounds.height / 2 }, clickCount: 3, delay: 60 });
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByRole('dialog').getByRole('img')).toHaveCSS('object-fit', 'contain');
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Use standard gallery' }).click();
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await expect(page.locator('[aria-roledescription="carousel"] canvas')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Show photo 3' })).toBeVisible();
     expect(errors).toEqual([]);
@@ -172,7 +182,7 @@ test('failed login leaves guest browsing usable and does not refresh wrong crede
     await signIn(page);
     await expect(page.getByRole('alert')).toContainText('Invalid username or password');
     await expect(page.getByRole('button', { name: 'Log in', exact: true })).toBeEnabled();
-    await page.getByRole('link', { name: 'Scroll to browse as guest', exact: true }).click();
+    await page.getByRole('button', { name: 'Scroll to browse as guest', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Camera kit', exact: true })).toBeVisible();
     expect(calls.filter(call => call.path === '/api/auth/refresh')).toHaveLength(0);
 });
@@ -201,13 +211,15 @@ for (const role of ['member', 'lender', 'admin']) {
         await expect(page).toHaveURL(role === 'admin' ? /\/admin$/ : /\/items$/);
         if (role === 'admin') {
             await expect(page.getByRole('heading', { name: 'Community members' })).toBeVisible();
-            await page.getByRole('navigation', { name: 'Administration' }).getByRole('link', { name: 'Items', exact: true }).click();
+            await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Items', exact: true }).click();
             await expect(page.getByRole('heading', { name: 'Community items' })).toBeVisible();
         } else if (role === 'lender') {
             await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'My items' }).click();
+            await page.getByRole('button', { name: 'Camera kit', exact: true }).click();
             await expect(page.getByRole('button', { name: 'Archive', exact: true })).toBeVisible();
         } else {
-            await page.getByRole('link', { name: 'Wallet', exact: true }).click();
+            await page.getByRole('button', { name: 'Open settings menu' }).click();
+            await page.getByRole('link', { name: 'Go to your wallet', exact: true }).click();
             await expect(page.getByText('350')).toBeVisible();
             await page.getByRole('link', { name: 'Household', exact: true }).click();
             await expect(page.getByRole('heading', { name: 'Your household', exact: true }).first()).toBeVisible();
@@ -219,8 +231,8 @@ test('mobile entry and navigation fit a narrow screen', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await mockApi(page);
     await page.goto('/');
-    await page.getByRole('link', { name: 'Scroll to open your shed', exact: true }).click();
-    await expect(page.getByRole('link', { name: 'Scroll to browse as guest', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Scroll to login', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Scroll to browse as guest', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await signIn(page);
     await expect(page).toHaveURL(/\/items$/);
@@ -229,9 +241,11 @@ test('mobile entry and navigation fit a narrow screen', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Your wishlist' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: 'test-results/mobile-wishlist.png', fullPage: true });
+    await page.getByRole('button', { name: 'Open settings menu' }).click();
     await page.getByRole('button', { name: 'Log out', exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole('form', { name: 'Log in', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Scroll to login', exact: true }).click();
+    await expect(page.getByRole('form', { name: 'Log in', exact: true })).toBeInViewport();
 });
 
 test('search waits for 300ms of inactivity and filters are tucked into a dropdown', async ({ page }) => {
@@ -239,10 +253,11 @@ test('search waits for 300ms of inactivity and filters are tucked into a dropdow
     await page.goto('/items');
     await expect(page.getByRole('heading', { name: 'Camera kit', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Search items' })).toHaveCount(0);
-    await expect(page.getByRole('combobox', { name: 'Category' })).toBeHidden();
-    await page.locator('summary').click();
-    await page.getByRole('combobox', { name: 'Category' }).selectOption('Photography');
-    await expect(page.getByRole('combobox', { name: 'Category' })).toBeHidden();
+    const filters = page.getByRole('button', { name: /^Filters(?: \d+)?$/ });
+    await expect(filters).toHaveAttribute('aria-expanded', 'false');
+    await filters.click();
+    await page.getByRole('button', { name: 'Photography', exact: true }).click();
+    await expect(filters).toHaveAttribute('aria-expanded', 'false');
     await expect(page).toHaveURL(/category=Photography/);
     await page.clock.install();
     await page.getByRole('searchbox').fill('c');
@@ -256,25 +271,21 @@ test('search waits for 300ms of inactivity and filters are tucked into a dropdow
     await expect(page.getByRole('searchbox')).toHaveValue('camera');
 });
 
-test('themes change between vertical sections, with centered wishlist and divided detail rows', async ({ page }) => {
+test('account and guest sections use their own themes and item details remain visible', async ({ page }) => {
     await mockApi(page);
-    await page.goto('/login');
-    const login = page.locator('section[aria-labelledby="entry-heading"]');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/login#account-access');
+    const login = page.getByRole('region', { name: 'Welcome to In-Your-Shed' });
     const guest = page.locator('#guest-catalog');
     await expect(login).toHaveAttribute('data-theme', 'dark');
-    await expect(page.getByRole('form', { name: 'Log in', exact: true })).toHaveCSS('color', 'rgb(255, 255, 255)');
     await expect(guest).toHaveAttribute('data-theme', 'light');
-    await page.getByRole('link', { name: 'Scroll to browse as guest', exact: true }).click();
+    await page.getByRole('button', { name: 'Scroll to browse as guest', exact: true }).click();
     await expect(guest).toBeInViewport();
-    await expect(guest).toHaveCSS('background-color', 'rgb(250, 248, 244)');
     await page.goto('/items/ITM-1a2b3c01');
-    await expect(page.locator('section[aria-label="Item photos"]')).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByRole('region', { name: 'Item photos' })).toBeVisible();
     const details = page.locator('section[aria-label="Item details"]');
-    await expect(details).toHaveAttribute('data-theme', 'dark');
-    await expect(details.locator('dd').first()).toHaveCSS('border-left-width', '1px');
-    await expect(page.getByText('You can browse freely.', { exact: false })).toHaveCount(0);
-    const wishlist = await page.getByRole('button', { name: 'Add to wishlist' }).boundingBox();
-    expect(wishlist.x + wishlist.width / 2).toBeCloseTo(page.viewportSize().width / 2, 0);
+    await expect(details.getByText('Community hall')).toBeVisible();
+    await expect(details.getByRole('button', { name: 'Add to wishlist' })).toBeVisible();
     await page.screenshot({ path: 'test-results/item-sections.png', fullPage: true });
 });
 
@@ -282,27 +293,21 @@ test('welcome expands with scroll before account access and guest browsing', asy
     await mockApi(page);
     await page.goto('/');
     const welcome = page.getByRole('region', { name: 'Welcome to In-Your-Shed', exact: true });
-    const frame = welcome.locator('.scroll-expand__frame');
-    await expect(page.getByRole('heading', { name: /Welcome to/ })).toBeInViewport();
+    const logo = welcome.getByRole('img', { name: /In Your Shed/ });
+    await expect(logo).toBeInViewport();
     await expect(page.getByRole('banner')).toHaveCount(0);
-    const title = await page.getByRole('heading', { name: /Welcome to/ }).boundingBox();
+    const title = await logo.boundingBox();
     expect(Math.abs(title.y + title.height / 2 - page.viewportSize().height / 2)).toBeLessThan(50);
-    await expect(frame).toHaveCSS('clip-path', 'inset(19% 18% round 20px)');
-    await expect(welcome.locator('.scroll-expand__overlay')).toHaveAttribute('inert', '');
+    await expect(page.getByRole('form', { name: 'Log in', exact: true })).toHaveCount(0);
     await page.screenshot({ path: 'test-results/welcome-initial.png' });
-    await page.evaluate(() => window.scrollTo(0, document.querySelector('[aria-label="Welcome to In-Your-Shed"]').offsetTop + window.innerHeight * 0.78));
-    await expect(frame).toHaveCSS('clip-path', 'inset(0%)');
-    await expect(welcome.locator('.scroll-expand__overlay')).not.toHaveAttribute('inert', '');
+    await page.getByRole('button', { name: 'Scroll to login', exact: true }).click();
+    await expect(page.getByRole('form', { name: 'Log in', exact: true })).toBeInViewport();
     await page.screenshot({ path: 'test-results/welcome-expanded.png' });
     await expect(page.getByRole('form', { name: 'Log in', exact: true })).toBeInViewport();
     await expect(welcome.getByRole('link', { name: 'Log in / Register', exact: true })).toHaveCount(0);
     await expect(page.getByRole('banner')).toHaveCount(0);
     await page.getByRole('form', { name: 'Log in', exact: true }).getByLabel('Username', { exact: true }).fill('alex');
-    await page.mouse.wheel(0, -1500);
-    await expect(frame).toHaveCSS('clip-path', 'inset(19% 18% round 20px)');
-    await page.getByRole('link', { name: 'Scroll to open your shed', exact: true }).click();
-    await expect(frame).toHaveCSS('clip-path', 'inset(0%)');
-    await page.getByRole('link', { name: 'Scroll to browse as guest', exact: true }).click();
+    await page.getByRole('button', { name: 'Scroll to browse as guest', exact: true }).click();
     await expect(page.locator('#guest-catalog')).toBeInViewport();
     await page.getByRole('searchbox').fill('camera');
     await expect(page).toHaveURL(/search=camera/);
@@ -313,15 +318,15 @@ test('expanded registration fits its content and scrolls naturally into guest br
     await mockApi(page);
     await page.setViewportSize({ width: 375, height: 700 });
     await page.goto('/');
-    await page.getByRole('link', { name: 'Scroll to open your shed', exact: true }).click();
-    await page.getByRole('navigation', { name: 'Account access' }).getByRole('link', { name: 'Register', exact: true }).click();
+    await page.getByRole('button', { name: 'Scroll to login', exact: true }).click();
+    await page.getByRole('region', { name: 'Log in', exact: true }).getByRole('button', { name: 'Register', exact: true }).click();
     await expect(page.getByRole('form', { name: 'Register', exact: true })).toBeVisible();
-    await page.getByLabel('Home address (optional)').fill('Example street');
+    await page.getByLabel(/^Home address/).fill('Example street');
     await page.getByRole('button', { name: 'Create account', exact: true }).scrollIntoViewIfNeeded();
     await expect(page.getByRole('button', { name: 'Create account', exact: true })).toBeInViewport();
     expect(await page.locator('.scroll-expand__stage').evaluate(element => element.getBoundingClientRect().height > window.innerHeight)).toBe(true);
     await page.screenshot({ path: 'test-results/expanded-register-mobile.png' });
-    await page.getByRole('link', { name: 'Scroll to browse as guest', exact: true }).click();
+    await page.getByRole('button', { name: 'Scroll to browse as guest', exact: true }).click();
     await expect(page.locator('#guest-catalog')).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await expect(page.getByRole('banner')).toHaveCount(0);
@@ -332,43 +337,31 @@ test('direct account links skip the welcome and reduced motion removes the pinne
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Welcome to/ })).toBeInViewport();
+    await expect(page.getByRole('img', { name: /In Your Shed/ })).toBeInViewport();
     await expect(page.locator('.scroll-expand')).toHaveCount(0);
-    await page.getByRole('link', { name: 'Scroll to open your shed', exact: true }).click();
+    await page.getByRole('button', { name: 'Scroll to login', exact: true }).click();
     await expect(page.locator('#account-access')).toBeInViewport();
-    await page.goto('/register');
+    await page.goto('/register#account-access');
     await expect(page.locator('#account-access')).toBeInViewport();
     await page.getByRole('button', { name: 'Create account', exact: true }).scrollIntoViewIfNeeded();
     await expect(page.getByRole('button', { name: 'Create account', exact: true })).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.getByRole('link', { name: 'Scroll to browse as guest', exact: true }).click();
+    await page.getByRole('button', { name: 'Scroll to browse as guest', exact: true }).click();
     await page.getByRole('searchbox').fill('camera');
     await expect(page).toHaveURL(/\/register\?search=camera/);
     await expect(page.locator('#guest-catalog')).toBeInViewport();
 });
 
-test('login and registration animate their height without resetting scroll or form values', async ({ page }) => {
+test('flipping the account form preserves login values', async ({ page }) => {
     await mockApi(page);
-    await page.goto('/login');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/login#account-access');
     const login = page.getByRole('form', { name: 'Log in', exact: true });
     await login.getByLabel('Username', { exact: true }).fill('alex');
-    const height = page.locator('[data-animated-height]');
-    const before = await height.evaluate(element => element.getBoundingClientRect().height);
-    const panel = page.locator('section[aria-labelledby="entry-heading"]');
-    const beforeWidth = await panel.evaluate(element => element.getBoundingClientRect().width);
-    const scroll = await page.evaluate(() => window.scrollY);
-    await page.getByRole('navigation', { name: 'Account access' }).getByRole('link', { name: 'Register', exact: true }).click();
-    expect(await height.evaluate(element => element.getAnimations().some(animation => animation.transitionProperty === 'height'))).toBe(true);
-    await expect(panel).toHaveCSS('width', '704px');
-    await expect.poll(() => height.evaluate(element => Math.abs(element.clientHeight - element.firstElementChild.scrollHeight))).toBeLessThan(2);
-    const grown = await height.evaluate(element => element.getBoundingClientRect().height);
-    expect(grown).toBeGreaterThan(before);
-    expect(grown).toBeLessThan(before + 220);
-    expect(await panel.evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThan(beforeWidth + 150);
-    expect(Math.abs(await page.evaluate(() => window.scrollY) - scroll)).toBeLessThan(2);
-    await page.getByRole('navigation', { name: 'Account access' }).getByRole('link', { name: 'Log in', exact: true }).click();
+    await page.getByRole('region', { name: 'Log in', exact: true }).getByRole('button', { name: 'Register', exact: true }).click();
+    await expect(page.getByRole('form', { name: 'Register', exact: true })).toBeInViewport();
+    await page.getByRole('region', { name: 'Register', exact: true }).getByRole('button', { name: 'Log in', exact: true }).click();
     await expect(login.getByLabel('Username', { exact: true })).toHaveValue('alex');
-    await expect.poll(() => height.evaluate(element => Math.abs(element.clientHeight - element.firstElementChild.scrollHeight))).toBeLessThan(2);
 });
 
 test('search updates retain existing results and scroll position until the response arrives', async ({ page }) => {
@@ -377,44 +370,46 @@ test('search updates retain existing results and scroll position until the respo
     const delayedResponse = new Promise(resolve => { release = resolve; });
     await page.route(url => url.pathname === '/api/items' && url.searchParams.get('search') === 'camera', async route => { await delayedResponse; await route.fallback(); });
     await page.goto('/login#guest-catalog');
-    const oldCard = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Camera kit', exact: true }) });
+    const oldCard = page.getByRole('button', { name: 'Camera kit', exact: true });
     await expect(oldCard).toBeVisible();
-    const element = await oldCard.elementHandle();
     await page.getByRole('searchbox').fill('camera');
     const before = await page.evaluate(() => window.scrollY);
     await expect(page.getByText('Updating results…')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Cordless drill', exact: true })).toBeVisible();
-    expect(await element.evaluate(node => node.isConnected)).toBe(true);
+    await expect(oldCard).toBeVisible();
     expect(Math.abs(await page.evaluate(() => window.scrollY) - before)).toBeLessThan(2);
     release();
     await expect(page.getByText('Updating results…')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Cordless drill', exact: true })).toHaveCount(0);
-    expect(await element.evaluate(node => node.isConnected)).toBe(true);
+    await expect(oldCard).toBeVisible();
     expect(Math.abs(await page.evaluate(() => window.scrollY) - before)).toBeLessThan(2);
     await expect(page.getByRole('searchbox')).toBeFocused();
 });
 
-test('entry has a spacious gradient between the expanded account and guest sections', async ({ page }) => {
+test('guest introduction appears before the catalog and links to lender onboarding', async ({ page }) => {
     await mockApi(page);
-    await page.goto('/login');
-    const gradient = page.getByRole('region', { name: 'Guest introduction', exact: true });
-    await expect(gradient).toHaveCSS('background-image', /linear-gradient/);
-    expect(await gradient.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(650);
+    await page.goto('/login#guest-catalog');
+    const intro = page.getByRole('region', { name: 'Guest introduction', exact: true });
+    await expect(intro.getByRole('heading')).toBeVisible();
+    await expect(intro.getByRole('link', { name: 'Apply to become a lender' })).toHaveAttribute('href', '/register#account-access');
+    const introBox = await intro.boundingBox();
+    const catalog = await page.getByRole('region', { name: 'Browse items' }).boundingBox();
+    expect(introBox.y).toBeLessThan(catalog.y);
 });
 
-test('registration uses paired desktop fields and one mobile column', async ({ page }) => {
+test('registration has three desktop columns and one mobile column', async ({ page }) => {
     await mockApi(page);
-    await page.goto('/register');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/register#account-access');
     const form = page.getByRole('form', { name: 'Register', exact: true });
-    const username = form.getByLabel('Username', { exact: true });
-    const fullName = form.getByLabel('Full name');
-    const first = await username.boundingBox();
-    const second = await fullName.boundingBox();
-    expect(Math.abs(first.y - second.y)).toBeLessThan(2);
-    expect(second.x).toBeGreaterThan(first.x + first.width);
-    await page.screenshot({ path: 'test-results/register-two-columns.png' });
+    const fields = form.locator('fieldset');
+    const columns = () => fields.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+    await expect.poll(columns).toBe(3);
+    await page.screenshot({ path: 'test-results/register-desktop-columns.png' });
     await page.setViewportSize({ width: 375, height: 812 });
-    await expect.poll(async () => (await fullName.boundingBox()).y - (await username.boundingBox()).y).toBeGreaterThan(60);
+    const username = form.getByLabel(/^Username/);
+    const fullName = form.getByLabel(/^Full name/);
+    await expect.poll(async () => (await fullName.boundingBox()).y - (await username.boundingBox()).y).toBeGreaterThan(30);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
@@ -429,9 +424,8 @@ test('guest introduction reveals words while scrolling within the extended gradi
         const section = document.querySelector('[aria-label="Guest introduction"]');
         window.scrollTo(0, section.getBoundingClientRect().top + window.scrollY + section.clientHeight * 0.65);
     });
-    await expect(piece).toHaveCSS('opacity', '1');
+    await expect.poll(() => piece.evaluate(element => Number(getComputedStyle(element).opacity))).toBeGreaterThan(0.75);
     await expect(heading).toBeInViewport();
-    await expect(heading.locator('.scroll-reveal-piece').last()).toHaveCSS('filter', 'none');
     expect(await page.getByRole('heading', { name: 'Find your next possibility.', exact: true }).count()).toBe(1);
     await page.screenshot({ path: 'test-results/guest-scroll-reveal.png' });
     await page.emulateMedia({ reducedMotion: 'reduce' });

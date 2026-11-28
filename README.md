@@ -38,6 +38,11 @@ Keep secrets in `.env` and out of Git. Update `.env.sample` with placeholders wh
 | `RENEWAL_REMINDER_CRON` | Optional cron expression for the membership renewal-reminder job (default `0 9 * * *`, 09:00 Europe/Berlin). |
 | `ENABLE_JOBS` | Optional; set to `false` to disable in-process cron jobs. Jobs never start when `NODE_ENV=test`. |
 
+The reservation expiry job runs every minute when jobs are enabled. It cancels requests still pending at their start time and returns any collected deposit in full to the borrower's wallet.
+Pending requests hold their dates until rejection, cancellation, or expiry. Failed notification emails are retried by a separate scheduled job.
+
+Membership tiers are records in `membershiptiers`. To add a tier, give it a unique name in both `_id` and `tier`, and set `annual_fee`, `deposit_discount`, `waitlistPriority`, and `maxConcurrentReservations`. Lower waitlist priority numbers are served first. Existing Basic, Plus, and Premium records can omit the last two fields to retain their default benefits.
+
 Required boot values must be nonempty. Configuration is captured at module load;
 restart the server after changing it.
 
@@ -372,6 +377,8 @@ Run these commands from `server`:
 | `npm run lint:fix` | Applies automatically fixable ESLint corrections. Review the resulting changes. |
 
 Write tests in `server/tests/` using names such as `app.test.js`. Coverage already runs the tests, so a separate test run is not needed when running coverage. Vitest exits with a failure when no test files are found.
+
+From `client`, run `npm test` for browser tests. Install the supported engines with `npx playwright install chromium firefox webkit` and set `PLAYWRIGHT_BROWSER` to choose an engine. Set `PLAYWRIGHT_MOBILE=1` to use a narrow viewport. Set `PLAYWRIGHT_AXE_PATH` to a local axe-core script to run the automated accessibility check.
 
 Coverage reports are generated in `server/coverage/`. Open `server/coverage/index.html` to inspect the HTML report locally. Generated reports and `node_modules/` are ignored by Git. No minimum coverage threshold is configured yet; coverage measures execution and does not guarantee that assertions verify the right behavior.
 

@@ -47,6 +47,7 @@ export default function App() {
                 <Route path="/register" element={<EntryPage />} />
                 {/* resetting a password happens on the login card now, so the old address opens it there */}
                 <Route path="/forgot-password" element={<Navigate to="/login" replace state={{ forgot: true }} />} />
+                <Route path="/categories/:categoryId" element={<CatalogPage />} />
                 <Route path="/items" element={<CatalogPage />} />
                 <Route path="/items/:id" element={<ItemDetailPage />} />
 
@@ -57,10 +58,10 @@ export default function App() {
                     <Route path="/notices" element={<NoticesPage />} />
                     <Route path="/change-password" element={<ChangePasswordPage />} />
                     <Route path="/notifications" element={<NotificationsPage />} />
-                    <Route path="/reservations/:id" element={<ReservationPage />} />
                 </Route>
 
                 <Route element={<ProtectedRoute roles={['member', 'lender']} />}>
+                    <Route path="/reservations/:id" element={<ReservationPage />} />
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/household" element={<HouseholdPage />} />
                     <Route path="/settings/email" element={<EmailSettingsPage />} />

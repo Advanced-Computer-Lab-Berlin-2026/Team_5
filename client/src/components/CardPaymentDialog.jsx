@@ -7,7 +7,7 @@ import styles from './ReserveDialog.module.css';
 
 // The amber card where the card number is typed. Stripe draws the card field itself (so the number never touches our code);
 // pressing Pay confirms the payment with Stripe, then onPaid() lets the page wait for the server to make the bookings.
-export function CardPaymentDialog({ open, clientSecret, amountLabel, onPaid, onClose }) {
+export function CardPaymentDialog({ open, clientSecret, amountLabel, onConfirming, onPaid, onClose }) {
     const dialog = useRef(null);
     const mountRef = useRef(null);
     const stripeRef = useRef(null);
@@ -52,13 +52,20 @@ export function CardPaymentDialog({ open, clientSecret, amountLabel, onPaid, onC
 
     async function handlePay(event) {
         event.preventDefault();
-        if (!stripeRef.current || !cardRef.current) return;
+        if (paying || !stripeRef.current || !cardRef.current) return;
         setPaying(true);
         setError('');
-        const result = await stripeRef.current.confirmCardPayment(clientSecret, { payment_method: { card: cardRef.current } });
-        setPaying(false);
-        if (result.error) setError(result.error.message ?? 'The card was not accepted.');
-        else onPaid();
+        try {
+            onConfirming?.();
+            const result = await stripeRef.current.confirmCardPayment(clientSecret, { payment_method: { card: cardRef.current } });
+            if (result.error) setError(result.error.message ?? 'The card was not accepted.');
+            else if (['succeeded', 'processing'].includes(result.paymentIntent?.status)) onPaid();
+            else setError('The card payment has not been confirmed.');
+        } catch (failure) {
+            setError(failure.message);
+        } finally {
+            setPaying(false);
+        }
     }
 
     return <dialog ref={dialog} className={styles.dialog} aria-label="Pay by card"

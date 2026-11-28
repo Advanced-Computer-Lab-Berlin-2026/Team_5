@@ -9,7 +9,7 @@ import { Button, FormField, Icon, Message, PageHeader, Spinner } from '../compon
 import TiltedCard from '../components/TiltedCard.jsx';
 import styles from './HouseholdPage.module.css';
 
-const RELATIONS = ['spouse', 'parent', 'child', 'siblings'].map((value) => ({ value, label: value }));
+const RELATIONS = ['spouse', 'parent', 'child'].map((value) => ({ value, label: value }));
 
 // Card surface colors (muted).
 const TONES = { blue: '#4a6aa5', amber: '#d4a665', red: '#a35a5a' };

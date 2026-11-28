@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { register } from '../../api/auth.js';
+import { applyReferralCode } from '../../api/referrals.js';
 import { useAction } from '../../hooks/useAction.js';
 import { Button } from '../Button.jsx';
 import { FormField } from '../FormField.jsx';
@@ -30,7 +31,12 @@ export function RegisterForm() {
         try {
             const user = await login(form.username, form.password);
             setForm(EMPTY_FORM);
-            const destination = getLoginDestination(location.state?.from, user.role);
+            const referral = new URLSearchParams(location.search).get('ref');
+        let destination = getLoginDestination(location.state?.from, user.role);
+        if (referral && ['member', 'lender'].includes(user.role)) {
+            try { await applyReferralCode(referral); }
+            catch { destination = '/profile?ref=' + encodeURIComponent(referral); }
+        }
             await playExplosion({ dark: isDarkPage(user.role, destination) });
                 holdRedirect(false);
                 navigate(destination, { replace: true });
@@ -48,8 +54,8 @@ export function RegisterForm() {
             <FormField label="Full name *" autoComplete="name" minLength={2} maxLength={20} required {...bind('name')} />
             <FormField label="Email *" type="email" autoComplete="email" required {...bind('email')} />
             <FormField label="Password *" type="password" placeholder="6 to 40 chars, Aa1" autoComplete="new-password" minLength={6} maxLength={40} required {...bind('password')} />
-            <FormField label="Phone" type="tel" placeholder="+491701234567" autoComplete="tel" {...bind('phoneNumber')} />
-            <FormField label="Home address" autoComplete="street-address" {...bind('homeAddress')} />
+            <FormField label="Phone *" type="tel" placeholder="+491701234567" autoComplete="tel" required {...bind('phoneNumber')} />
+            <FormField label="Home address *" autoComplete="street-address" required maxLength={500} {...bind('homeAddress')} />
         </fieldset>
         <Message type="error">{action.error}</Message>
         <Button type="submit" pending={action.pending} fullWidth>{action.pending ? 'Creating account…' : 'Create account'}</Button>

@@ -38,3 +38,10 @@
 .empty {
     color: var(--color-text-muted);
 }
+/* a row's details open underneath it: the chosen row gets an amber edge and the panel slides down */
+.openRow td { background: color-mix(in srgb, var(--color-amber) 12%, var(--color-surface)); }
+.openRow td:first-child { box-shadow: inset 4px 0 0 var(--color-amber); }
+.expandedRow td { padding: 0; background: var(--color-surface); white-space: normal; }
+.expanded { padding: var(--space-4); border-left: 4px solid var(--color-amber); animation: unfold 260ms cubic-bezier(0.23, 1, 0.32, 1); transform-origin: top; }
+@keyframes unfold { from { opacity: 0; transform: translateY(-8px) scaleY(0.96); } }
+@media (prefers-reduced-motion: reduce) { .expanded { animation: none; } }

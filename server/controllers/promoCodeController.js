@@ -5,6 +5,7 @@ import { PromoCodeUsage } from '../models/PromoCodeUsage.js';
 import { User } from '../models/User.js';
 import { getDepositDiscountPercent } from '../services/membershipService.js';
 import { getReservationDeposit } from '../services/reservationDeposit.js';
+import { notifyCommunity } from '../services/notificationService.js';
 
 const validatePromoCodeSchema = joi.object({
     code: joi.string().trim().uppercase().required(),
@@ -76,6 +77,8 @@ export async function createPromoCode(req, res, next) {
         if (error) return res.status(400).json({ message: error.message });
 
         const promoCode = await PromoCode.create({ ...value, active: true });
+        notifyCommunity({ type: 'promotion', subject: 'New deposit promo code', message: `Use ${value.code} for ${value.discountPercent}% off an eligible deposit.` })
+            .catch(error => console.error('Promo code notifications failed', error));
         return res.status(201).json({ promoCode });
     } catch (error) {
         if (error.code === 11000) return res.status(409).json({ message: 'Promo code already exists' });

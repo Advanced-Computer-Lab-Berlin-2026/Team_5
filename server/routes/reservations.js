@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
     getMyReservations,
+    getReservation,
     cancelReservation,
     createReservation,
     getDeliveryStatus,
@@ -13,6 +14,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 const router = Router();
 
 router.get('/', requireAuth, requireRole('member', 'lender'), getMyReservations);
+router.get('/:reservationId', requireAuth, requireRole('member', 'lender'), getReservation);
 router.post('/', requireAuth, requireRole('member', 'lender', 'admin'), createReservation);
 router.patch('/:reservationId/cancel', requireAuth, requireRole('member', 'lender'), cancelReservation);
 router.post('/:reservationId/cancel', requireAuth, requireRole('member', 'lender'), cancelReservation);
@@ -24,5 +26,5 @@ router.post('/:reservationId/delivery', requireAuth, requireRole('lender', 'admi
 // borrower or lender of an upcoming/active reservation only — outsiders get the same 404 as a missing id
 router.get('/:reservationId/messages', requireAuth, listReservationMessages);
 router.post('/:reservationId/messages', requireAuth, sendReservationMessage);
-router.post('/:reservationId/extensions', requireAuth, requireRole('member'), requestReservationExtension);
+router.post('/:reservationId/extensions', requireAuth, requireRole('member', 'lender'), requestReservationExtension);
 export default router;

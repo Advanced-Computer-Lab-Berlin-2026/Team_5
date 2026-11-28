@@ -1,5 +1,4 @@
 import { User } from '../models/User.js';
-import { PAID_TIERS } from '../services/membershipService.js';
 import { notifyMembershipRenewal } from '../services/notificationService.js';
 import { berlinYmd } from './returnReminderJob.js';
 
@@ -20,7 +19,7 @@ export async function runRenewalReminderJob(now = new Date()) {
 
     const users = await User.find(
         {
-            'membership.tier': { $in: PAID_TIERS },
+            'membership.tier': { $exists: true, $nin: ['Basic', null] },
             $expr: {
                 $eq: [
                     { $dateToString: { format: '%Y-%m-%d', date: '$membership.renewalDate', timezone: BERLIN } },

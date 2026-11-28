@@ -38,7 +38,7 @@ export default function AdminDamageCasePage() {
     const { data, error, loading, reload } = useAsync(() => getDamageCase(id), [id]);
     if (loading && !data) return <Spinner />;
     const reservation = data?.reservation;
-    const deposit = reservation?.payment?.depositAmount ?? 0;
+    const deposit = data?.collectedDeposit ?? reservation?.payment?.depositAmount ?? 0;
     const decision = data?.steps.find(step => step.type === 'decision');
     return <>
         <PageHeader title={`Damage case ${id}`} backTo="/admin/reports" backLabel="Back to reports"

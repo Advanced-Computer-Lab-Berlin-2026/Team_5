@@ -33,7 +33,8 @@
 @media (prefers-reduced-motion: reduce) { .row { animation: none; } }
 .compose { display: flex; gap: var(--space-2); }
 .compose input { flex: 1; min-width: 0; min-height: var(--control-height); padding: var(--space-2) var(--space-4); border: var(--border); border-radius: 999px; background: var(--color-surface); color: var(--color-text); font: inherit; }
-.actionsGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--space-4); }
+.actionsGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+@media (max-width: 700px) { .actionsGrid { grid-template-columns: minmax(0, 1fr); } }
 .damage { grid-column: 1 / -1; }
 /* the lender's delivery steps are real buttons under the bar: the current one is solid amber, the ones already passed are outlined
    in amber, and the ones still to come are plain outlined buttons */
@@ -45,3 +46,7 @@
 .editable .step { padding-top: calc(var(--dot) + var(--space-2)); }
 /* asking for more days: a smaller calendar */
 .smallCalendar { max-width: 22rem; }
+.caseSteps { display: grid; gap: var(--space-2); margin: var(--space-2) 0; padding-left: var(--space-4); }
+/* the cards in a row are the same height, with their buttons on the same line at the bottom */
+.actionsGrid { align-items: stretch; }
+.actionsGrid > section > div:last-child > button { min-height: 2.75rem; }

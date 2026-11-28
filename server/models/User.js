@@ -12,6 +12,7 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["member", "lender", "admin"], default: "member" },
     trustScore: { type: Number, default: 50, min: 0, max: 100 },
     wallet: { type: Number, default: 0 }, // in Martinies ₥ :p  can be negative: money still owed after a damage case
+    reservationCheckoutVersion: { type: Number, default: 0 },
     suspended: { type: Boolean, default: false },
 
     // ---- group: profile ----
@@ -68,6 +69,7 @@ const userSchema = new mongoose.Schema(
         item: { type: String, ref: "Item", required: true },
         startDate: { type: Date, required: true },
         endDate: { type: Date, required: true },
+        deliveryAddress: { type: String, trim: true },
         _id: false,
       },
     ],

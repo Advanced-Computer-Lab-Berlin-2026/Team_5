@@ -9,7 +9,7 @@ const paymentSchema = new mongoose.Schema(
     reservation: { type: String, ref: "Reservation" },
     type: {
       type: String,
-      enum: ["deposit-pending","deposit-paid", "deposit-refund", "deposit-forfeit", "late-fee", "membership-fee", "referral-credit"],
+      enum: ["deposit-pending","deposit-paid", "deposit-refund", "deposit-forfeit", "late-fee", "membership-fee", "referral-credit", "delivery-fee"],
       required: true,
     },
     amount: { type: Number, required: true, min: 0 },
@@ -31,6 +31,10 @@ const paymentSchema = new mongoose.Schema(
         startDate: { type: Date, required: true },
         endDate: { type: Date, required: true },
         depositAmount: { type: Number, required: true, min: 0 },
+        delivery: {
+            address: String,
+            fee: { type: Number, min: 0 }
+        },
         discountPercent: { type: Number, min: 0, max: 100 },
         cancellationPolicy: {
             freeDays: { type: Number, min: 0 },
@@ -54,6 +58,7 @@ const paymentSchema = new mongoose.Schema(
 
 paymentSchema.index({ user: 1, date: -1 });
 paymentSchema.index({ reservation: 1 });
+paymentSchema.index({ reservations: 1 });
 paymentSchema.index({ user: 1, checkoutKey: 1 }, {unique: true, partialFilterExpression: {checkoutKey: { $type: 'string' }}});
 paymentSchema.index({ stripePaymentIntentId: 1 }, {unique: true, partialFilterExpression: {stripePaymentIntentId: { $type: 'string' }}});
 paymentSchema.index({ refundKey: 1 }, {unique: true, partialFilterExpression: {refundKey: { $type: 'string' }}});

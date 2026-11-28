@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { DateRangeField } from '../components/DateRangeField.jsx';
 import { listCategories } from '../api/categories.js';
 import { listItems } from '../api/items.js';
 import { useAsync } from '../hooks/useAsync.js';
@@ -10,11 +11,14 @@ import styles from './CatalogPage.module.css';
 const PAGE_SIZE = 12;
 
 export default function CatalogPage({ embedded = false, showIntroduction = true }) {
+    const { categoryId } = useParams();
     const [params, setParams] = useSearchParams();
     const rawPage = Number(params.get('page'));
     const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
     const search = params.get('search') ?? '';
-    const category = params.get('category') ?? '';
+    const startDate = params.get('startDate') ?? '';
+    const endDate = params.get('endDate') ?? '';
+    const category = categoryId ?? params.get('category') ?? '';
     const [searchText, setSearchText] = useState(search);
     const [composing, setComposing] = useState(false);
     const [filtersOpen, setFiltersOpen] = useState(Boolean(category));
@@ -54,7 +58,7 @@ export default function CatalogPage({ embedded = false, showIntroduction = true 
     const [shown, setShown] = useState(null);
     const [leaving, setLeaving] = useState(false);
     const leaveStart = useRef(0);
-    const items = useAsync(() => listItems({ page, limit: PAGE_SIZE, search, category }), [page, search, category]);
+    const items = useAsync(() => listItems({ page, limit: PAGE_SIZE, search, category, ...(startDate && endDate ? { startDate, endDate } : {}) }), [page, search, category, startDate, endDate]);
 
     useEffect(() => {
         if (items.loading && shown && !leaving) {
@@ -80,16 +84,19 @@ export default function CatalogPage({ embedded = false, showIntroduction = true 
         }
         setParams(next, { preventScrollReset: true });
     }
-    const reset = () => { setSearchText(''); update({ search: '', category: '', page: '' }); };
+    const reset = () => { setSearchText(''); update({ search: '', category: '', startDate: '', endDate: '', page: '' }); };
 
     return <>
         {(!embedded || showIntroduction) && <header className={styles.heading}><h2>Find your next possibility.</h2></header>}
         <form className={styles.search} aria-label="Search catalog" onSubmit={event => { event.preventDefault(); update({ search: searchText.trim(), page: '' }); }}>
             <div className={styles.searchField}><Icon name="search" /><Input type="search" name="search" aria-label="Search items by name" placeholder="What are you looking for?" maxLength={100} value={searchText} onCompositionStart={() => setComposing(true)} onCompositionEnd={() => setComposing(false)} onChange={event => setSearchText(event.target.value)} /></div>
-            <FilterToggle open={filtersOpen} activeCount={category ? 1 : 0} controls="catalog-categories" onToggle={toggleFilters} />
-            <Button variant="ghost" className={!search && !category ? styles.hiddenClear : ''} disabled={!search && !category} onClick={reset}>Clear filters</Button>
+            {/* when you need it: a small calendar button on the same line as the search and the filters */}
+            <DateRangeField compact label="Available dates" value={{ start: startDate, end: endDate }}
+                onChange={({ start, end }) => update({ startDate: start, endDate: end, page: '' })} />
+            <FilterToggle open={filtersOpen} activeCount={Number(Boolean(category)) + Number(Boolean(startDate && endDate))} controls="catalog-categories" onToggle={toggleFilters} />
+            <Button variant="ghost" className={!search && !category && !startDate && !endDate ? styles.hiddenClear : ''} disabled={!search && (!category || Boolean(categoryId)) && !startDate && !endDate} onClick={reset}>Clear filters</Button>
         </form>
-        <CategoryRow id="catalog-categories" open={filtersOpen} value={category} loading={categories.loading} options={[{ value: '', label: 'All items' }, ...(categories.data?.categories ?? []).map(entry => ({ value: entry._id, label: entry.name }))]} onChange={value => { update({ category: value, page: '' }); topBefore.current = resultsRef.current?.getBoundingClientRect().top ?? null; setFiltersOpen(false); }} />
+        {!categoryId && <CategoryRow id="catalog-categories" open={filtersOpen} value={category} loading={categories.loading} options={[{ value: '', label: 'All items' }, ...(categories.data?.categories ?? []).map(entry => ({ value: entry._id, label: entry.name }))]} onChange={value => { update({ category: value, page: '' }); topBefore.current = resultsRef.current?.getBoundingClientRect().top ?? null; setFiltersOpen(false); }} />}
         {categories.error && <Message>Categories could not be loaded. You can still search all items.</Message>}
         {items.loading && !items.data && <Spinner label="Finding possibilities…" />}
         <Message type="error">{items.error}</Message>

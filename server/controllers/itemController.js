@@ -3,6 +3,7 @@ import { Item } from '../models/index.js';
 import { Reservation, BLOCKING_STATUSES } from '../models/index.js'
 import { getSignedManualUrl } from '../services/itemManualStorage.js';
 import { availabilityDates, findBookedItemIds, getPublicItemFilter } from '../services/catalogAvailability.js';
+import { getWaitlistHolds } from '../services/waitlistAvailability.js';
 
 // only the fields the list card needs, I keep the full details for the item page
 const LIST_FIELDS = { name: 1, category: 1, photos: 1, depositAmount: 1 };
@@ -53,7 +54,7 @@ export async function listItems(req, res, next) {
         }
         // Same overlap rule as Reservation.findOverlap, so an item shown as available can really be reserved
         if (value.startDate) {
-            const bookedItems = await findBookedItemIds(value.startDate, value.endDate);
+            const bookedItems = await findBookedItemIds(value.startDate, value.endDate, req.catalogViewerId);
             if (bookedItems.length) filter._id = { $nin: bookedItems };
         }
 
@@ -127,7 +128,10 @@ export async function getItemCalendar(req, res, next) {
             { sort: { startDate: 1 } }
         ).lean();
 
-        res.status(200).json({ reservations });
+        const holds = await getWaitlistHolds(item._id, { reservations, owner: item.owner?._id });
+        const waitlistHolds = holds.filter(hold => hold.username !== req.user.id)
+            .map(({ startDate, endDate }) => ({ startDate, endDate }));
+        res.status(200).json({ reservations, waitlistHolds });
     } catch (error) {
         next(error);
     }

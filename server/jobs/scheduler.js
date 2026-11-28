@@ -2,9 +2,12 @@ import cron from 'node-cron';
 import { env } from '../config/env.js';
 import { runReturnReminderJob } from './returnReminderJob.js';
 import { runRenewalReminderJob } from './renewalReminderJob.js';
+import { runReservationExpiryJob } from './reservationExpiryJob.js';
+import { retryNotificationEmails } from '../services/notificationService.js';
 
 export const DEFAULT_RETURN_REMINDER_CRON = '0 9 * * *';
 export const DEFAULT_RENEWAL_REMINDER_CRON = '0 9 * * *';
+export const RESERVATION_EXPIRY_CRON = '* * * * *';
 const BERLIN = 'Europe/Berlin';
 
 // SCRUM-469: in-process runner; vitest sets NODE_ENV=test so we never leave a live timer hanging
@@ -18,7 +21,8 @@ export function startScheduler({
     expression = process.env.RETURN_REMINDER_CRON || DEFAULT_RETURN_REMINDER_CRON,
     runJob = runReturnReminderJob,
     renewalExpression = process.env.RENEWAL_REMINDER_CRON || DEFAULT_RENEWAL_REMINDER_CRON,
-    runRenewalJob = runRenewalReminderJob
+    runRenewalJob = runRenewalReminderJob,
+    runExpiryJob = runReservationExpiryJob
 } = {}) {
     if (!shouldStartJobs()) return null;
 
@@ -39,6 +43,12 @@ export function startScheduler({
             },
             { timezone: BERLIN }
         );
+        schedule(RESERVATION_EXPIRY_CRON, () =>
+            runExpiryJob().catch(error => console.error('reservation expiry job failed', error)),
+        { noOverlap: true });
+        schedule('*/15 * * * * *', () =>
+            retryNotificationEmails().catch(error => console.error('Notification email retry job failed', error)),
+        { noOverlap: true });
         return returnTask;
     } catch (error) {
         console.error('return reminder scheduler failed to start', error);

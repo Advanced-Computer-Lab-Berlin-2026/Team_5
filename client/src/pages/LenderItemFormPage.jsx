@@ -32,8 +32,8 @@ export default function LenderItemFormPage() {
             }
             return;
         }
-        const ok = await save.run(() => updateItem(id, body), 'Item saved.');
-        if (ok) mine.reload();
+        const ok = await save.run(() => updateItem(id, body));
+        if (ok) navigate(`/items/${encodeURIComponent(id)}`);
     }
 
     const header = <PageHeader title={id ? `Edit ${item.name}` : 'Add an item'} backTo="/lender/items" backLabel="Back to my items" />;

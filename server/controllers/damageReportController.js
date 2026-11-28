@@ -1,5 +1,6 @@
 import joi from 'joi';
 import { DamageReport } from '../models/DamageReport.js';
+import { Reservation } from '../models/Reservation.js';
 import { sendPdf } from '../services/reportExport.js';
 import { DAMAGE_REPORT_ID_PATTERN, loadCase, isDuplicateStep } from '../services/damageCase.js';
 import { uploadPhotos, deletePhotos } from '../services/photoUpload.js';
@@ -7,6 +8,29 @@ import { uploadPhotos, deletePhotos } from '../services/photoUpload.js';
 const disputeSchema = joi.object({ message: joi.string().trim().required() });
 const INVALID_ID = { message: 'Invalid damage report id' };
 const NOT_FOUND = { message: 'Damage case not found' };
+
+export async function getDamageCaseForReservation(req, res, next) {
+    try {
+        const { reservationId } = req.params;
+        const reservation = await Reservation.exists({
+            _id: reservationId, $or: [{ borrower: req.user.id }, { lender: req.user.id }]
+        });
+        if (!reservation) return res.status(404).json(NOT_FOUND);
+        const report = await DamageReport.findOne({ reservation: reservationId, type: 'report' });
+        const damageCase = report && await loadCase(report._id);
+        if (!damageCase) return res.status(404).json(NOT_FOUND);
+        return res.json({
+            id: report._id,
+            status: damageCase.status,
+            canDispute: !checkCanDispute(damageCase, req.user.id),
+            steps: damageCase.steps.map(step => ({
+                type: step.type, message: step.report.message, depositForfeit: step.depositForfeit
+            }))
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
 const toDate = (value) => new Date(value).toLocaleDateString('en-GB');
 

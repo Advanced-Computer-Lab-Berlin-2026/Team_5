@@ -7,5 +7,6 @@ const router = Router();
 
 router.post('/payment-intent', requireAuth, requireRole('member', 'lender'), createPaymentIntent);
 router.get('/payments/:paymentId/status', requireAuth, requireRole('member', 'lender'), getCardPaymentStatus);
+router.post('/payments/:paymentId/reconcile', requireAuth, requireRole('member', 'lender'), getCardPaymentStatus);
 
 export default router;

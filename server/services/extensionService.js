@@ -5,6 +5,7 @@ import { ExtensionRequest } from '../models/ExtensionRequest.js';
 import { acquireCheckoutLock } from './checkoutService.js';
 import { formatNotificationDate, notifyInApp } from './notificationService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
+import { checkWaitlistAvailability } from './waitlistAvailability.js';
 
 const RESERVATION_ID_PATTERN = /^RES-[0-9a-f]{8}$/;
 
@@ -113,6 +114,8 @@ export async function requestExtension(
             'The item is already reserved during the requested extension.'
         );
     }
+    await checkWaitlistAvailability({ _id: reservation.item, owner: reservation.lender },
+        reservation.borrower, reservation.endDate, newEndDate);
 
     const session = await mongoose.startSession();
 
@@ -274,7 +277,7 @@ export async function decideExtension(
             }
 
             // Lock the same Item used by checkout transactions.
-            await acquireCheckoutLock(reservation.item, session);
+            const item = await acquireCheckoutLock(reservation.item, session);
 
             // Recheck availability when approving.
             const overlap = await Reservation.findOverlap(
@@ -292,6 +295,7 @@ export async function decideExtension(
                     'Another reservation conflicts with the extension.'
                 );
             }
+            await checkWaitlistAvailability(item, reservation.borrower, reservation.endDate, request.requestedEndDate, session);
 
             // Change the return date only if still active and unchanged.
             const updatedReservation = await Reservation.findOneAndUpdate(

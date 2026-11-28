@@ -84,7 +84,8 @@ async function updateCategoryDepositMultiplier(req, res) {
 
 async function listUsers(req, res) {
     try {
-        const users = await User.find({ role: { $in: ['member', 'lender'] } }).select('username role profile.name profile.email profile.phone verification.status suspended')
+        const role = req.query?.role === 'admin' ? 'admin' : { $in: ['member', 'lender'] };
+        const users = await User.find({ role }).select('username role profile.name profile.email profile.phone verification.status suspended')
         .sort({ createdAt: -1 });
         res.status(200).json({ users });
     } catch (error) {

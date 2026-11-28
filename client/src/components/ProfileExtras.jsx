@@ -10,24 +10,25 @@ import { FormField } from './FormField.jsx';
 import { Message } from './Message.jsx';
 import { StarRating } from './StarRating.jsx';
 import styles from './ProfileExtras.module.css';
+import cardStyles from './Card.module.css';
 
 // Your code to invite friends, who you invited, and (once) the code of whoever invited you.
 export function ReferralCard() {
     const { data, error, reload } = useAsync(getMyReferrals);
     const apply = useAction();
-    const [code, setCode] = useState('');
+    const [code, setCode] = useState(() => new URLSearchParams(window.location.search).get('ref') ?? '');
     const [copied, setCopied] = useState(false);
     const referrals = data?.referrals ?? [];
 
     async function copy() {
-        try { await navigator.clipboard.writeText(data.referralCode); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { /* the code is on screen to copy by hand */ }
+        try { await navigator.clipboard.writeText(new URL('/register?ref=' + encodeURIComponent(data.referralCode), window.location.origin).href); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { /* the code is on screen to copy by hand */ }
     }
 
     return <Card title="Invite friends" className={styles.card}>
         <Message type="error">{error}</Message>
         {data && <>
             <p className={styles.muted}>Give a friend your code. When they finish their first borrow, you get 50 ₥ in your wallet.</p>
-            <div className={styles.code}><span>{data.referralCode}</span><Button variant="secondary" size="small" onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button></div>
+            <div className={styles.code}><span>{data.referralCode}</span><Button variant="secondary" size="small" onClick={copy}>{copied ? 'Copied' : 'Copy invite link'}</Button></div>
             {referrals.length > 0 && <ul className={styles.list}>
                 {referrals.map(referral => <li key={referral._id}>
                     <span>{referral.referred}</span>
@@ -52,22 +53,25 @@ export function MyReviewsCard() {
     const [tab, setTab] = useState('received');
     const list = data?.[tab] ?? [];
     const average = data?.received?.length ? data.received.reduce((sum, review) => sum + review.rating, 0) / data.received.length : 0;
-    return <Card title="Reviews" className={styles.card}>
-        <Message type="error">{error}</Message>
-        {data && <>
-            {data.received.length > 0 && <div className={styles.average}><StarRating readOnly value={Math.round(average)} label="Your average" /><span>{average.toFixed(1)} from {data.received.length}</span></div>}
-            <div className={styles.tabs} role="tablist">
+    // the card is exactly as tall as the invite card beside it; the reviews scroll inside it, and the two tabs sit top right
+    return <section className={`${cardStyles.card} ${styles.reviewsCard}`} aria-label="Reviews">
+        <div className={styles.reviewsHead}>
+            <h2 className={cardStyles.title}>Reviews</h2>
+            {data && <div className={styles.tabs} role="tablist">
                 {[['received', `About you (${data.received.length})`], ['given', `By you (${data.given.length})`]].map(([value, label]) =>
                     <button key={value} type="button" role="tab" aria-selected={tab === value} className={`${styles.tab} ${tab === value ? styles.tabOn : ''}`} onClick={() => setTab(value)}>{label}</button>)}
-            </div>
-            {list.length === 0 ? <p className={styles.muted}>{tab === 'received' ? 'Nobody has reviewed you yet. Reviews come in after a finished borrow.' : 'You have not written a review yet. You can after a finished borrow.'}</p>
-                : <ul className={styles.reviews}>
-                    {list.map(review => <li key={`${review.reservationId}-${tab}`}>
-                        <div className={styles.head}><StarRating readOnly value={review.rating} label="Rating" />
-                            <span>{tab === 'received' ? `${review.reviewer}, about you as ${review.role}` : `For ${review.targetUser} (${review.targetRole})`} · {formatDate(review.date)}</span></div>
-                        <p>{review.review}</p>
-                    </li>)}
-                </ul>}
-        </>}
-    </Card>;
+            </div>}
+        </div>
+        <Message type="error">{error}</Message>
+        {data && tab === 'received' && data.received.length > 0 && <div className={styles.average}><StarRating readOnly value={Math.round(average)} label="Your average" /><span>{average.toFixed(1)} from {data.received.length}</span></div>}
+        {data && (list.length === 0
+            ? <p className={styles.muted}>{tab === 'received' ? 'Nobody has reviewed you yet. Reviews come in after a finished borrow.' : 'You have not written a review yet. You can after a finished borrow.'}</p>
+            : <ul className={styles.reviews}>
+                {list.map(review => <li key={`${review.reservationId}-${tab}`}>
+                    <div className={styles.head}><StarRating readOnly value={review.rating} label="Rating" />
+                        <span>{tab === 'received' ? `${review.reviewer}, about you as ${review.role}` : `For ${review.targetUser} (${review.targetRole})`} · {formatDate(review.date)}</span></div>
+                    <p>{review.review}</p>
+                </li>)}
+            </ul>)}
+    </section>;
 }

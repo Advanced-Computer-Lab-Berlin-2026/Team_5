@@ -10,6 +10,7 @@ import { lockAndCheckAvailability, removeConflictingBorrowListEntries} from './c
 import { calculateCheckoutPricing, normalizePromoCode } from './checkoutPricingService.js';
 import { redeemCheckoutPromo } from './checkoutPromoRedemption.js';
 import { validateBorrowingRules } from './reservationRules.js';
+import { requireReservationCapacity } from './membershipService.js';
 
 export async function createCardPaymentIntent(userId, idempotencyKey, promoCode = null) {
 
@@ -60,7 +61,7 @@ export async function createCardPaymentIntent(userId, idempotencyKey, promoCode 
             payment = await Payment.create({
                 user: userId,
                 type: 'deposit-pending',
-                amount: pricing.totalDeposit,
+                amount: pricing.total,
                 direction: 'deduct',
                 method: 'card',
                 status: 'awaiting_payment',
@@ -224,6 +225,8 @@ const UNAVAILABLE_CODES = new Set([
     'RESERVATION_START_IN_PAST',
     'ITEM_UNAVAILABLE',
     'ITEM_ALREADY_RESERVED',
+    'WAITLIST_PRIORITY',
+    'MEMBERSHIP_RESERVATION_LIMIT',
     'MEMBER_UNAVAILABLE',
     'PROMO_EXPIRED',
     'PROMO_USAGE_LIMIT_REACHED',
@@ -242,6 +245,7 @@ function readCheckoutItems(payment) {
         startDate: new Date(entry.startDate),
         endDate: new Date(entry.endDate),
         depositAmount: entry.depositAmount,
+        ...(entry.delivery?.address && { delivery: { address: entry.delivery.address, fee: entry.delivery.fee } }),
         ...(entry.discountPercent !== undefined && { discountPercent: entry.discountPercent }),
         cancellationPolicy: entry.cancellationPolicy
     }));
@@ -268,7 +272,9 @@ function readCheckoutItems(payment) {
         }
 
         seenItems.add(entry.itemId);
-        centsTotal += cents;
+        const fee = entry.delivery?.fee ?? 0;
+        if (!Number.isFinite(fee) || fee < 0) throw new Error('Corrupted checkout delivery fee.');
+        centsTotal += cents + Math.round(fee * 100);
     }
 
     if (
@@ -498,7 +504,10 @@ export async function finalizeCardPayment(paymentIntent) {
             }
 
             // Lock items and prevent overlapping reservations.
-            await lockAndCheckAvailability(items, session);
+            await lockAndCheckAvailability(items, session, current.user);
+            // Stripe can finalize two carts for the same borrower even when neither cart entry remains.
+            await User.updateOne({ _id: current.user }, { $inc: { reservationCheckoutVersion: 1 } }, { session });
+            await requireReservationCapacity(borrower, items.length, session);
 
             // Check whether the item or lender changed since
             // the PaymentIntent was created.
@@ -531,6 +540,9 @@ export async function finalizeCardPayment(paymentIntent) {
                     );
                 }
                 validateBorrowingRules(item, borrower, entry.startDate, entry.endDate);
+                if (entry.delivery && !item.delivery?.offered) {
+                    throw new CheckoutError(409, 'ITEM_UNAVAILABLE', 'Item no longer offers delivery.');
+                }
             }
 
             const reservations = [];
@@ -551,6 +563,7 @@ export async function finalizeCardPayment(paymentIntent) {
                             stripePaymentIntentId: paymentIntent.id
                         },
                         cancellationPolicy: entry.cancellationPolicy,
+                        ...(entry.delivery && { delivery: { ...entry.delivery, status: 'preparing', feeCollected: entry.delivery.fee > 0 } })
                     }],
                     { session }
                 );
@@ -566,7 +579,8 @@ export async function finalizeCardPayment(paymentIntent) {
                             borrow_list: {
                                 item: entry.itemId,
                                 startDate: entry.startDate,
-                                endDate: entry.endDate
+                                endDate: entry.endDate,
+                                ...(entry.delivery && { deliveryAddress: entry.delivery.address })
                             }
                         }
                     },
@@ -612,7 +626,7 @@ export async function finalizeCardPayment(paymentIntent) {
                 reservationIds: reservations,
                 pricing: {
                     originalTotal: current.originalTotal,
-                    totalDeposit: current.amount,
+                    totalDeposit: items.reduce((sum, entry) => sum + Math.round(entry.depositAmount * 100), 0) / 100,
                     discountPercent: current.promoDiscountPercent,
                     lowestItemDeposit: current.promoLowestItemDeposit
                 },

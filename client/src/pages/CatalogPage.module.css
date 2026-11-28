@@ -17,3 +17,7 @@
 .stage { transition: opacity 0.25s ease, transform 0.25s ease; }
 .leaving { opacity: 0; transform: translateY(-14px); pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .stage { transition: none; } }
+/* the date filter sits under the search box with the same width rules, before the category chips */
+.dates { display: flex; max-width: 28rem; animation: datesIn 200ms ease-out; }
+@keyframes datesIn { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .dates { animation: none; } }

@@ -21,3 +21,4 @@
     padding-top: var(--space-2);
     border-top: var(--border-muted);
 }
+.head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }

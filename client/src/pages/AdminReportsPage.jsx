@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { exportDamageReport, exportUsageReport, getDamageReport, getReferralReport, getTierDistribution, getUsageReport } from '../api/reports.js';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
-import { Button, Card, Message, PageHeader, Row, Select, Spinner, Table } from '../components';
+import { Button, Card, DateRangeField, Message, PageHeader, Row, SearchField, Select, Spinner, Table } from '../components';
+import { listCategories } from '../api/categories.js';
 import { formatDate } from '../utils/format.js';
 import styles from './AdminReportsPage.module.css';
 
@@ -32,9 +33,15 @@ function ExportButtons({ onExport, pending }) {
 export default function AdminReportsPage() {
     const [month, setMonth] = useState(thisMonth());
     const [status, setStatus] = useState('');
+    const [item, setItem] = useState('');
+    const [category, setCategory] = useState('');
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
+    const usageFilters = { ...(from && to ? { from, to } : { month }), item, category };
     const tiers = useAsync(getTierDistribution);
+    const categoryList = useAsync(listCategories);
     const referrals = useAsync(getReferralReport);
-    const usage = useAsync(() => getUsageReport({ month }), [month]);
+    const usage = useAsync(() => getUsageReport(usageFilters), [month, from, to, item, category]);
     const damage = useAsync(() => getDamageReport(status), [status]);
     const exporting = useAction();
 
@@ -57,12 +64,29 @@ export default function AdminReportsPage() {
             </div>}
         </Card>
 
-        <Card title="Item usage" footer={<ExportButtons pending={exporting.pending} onExport={format => exporting.run(() => exportUsageReport(format, { month }))} />}>
-            <div className={styles.filter}><Select name="month" aria-label="Month" value={month} options={MONTHS} onChange={event => setMonth(event.target.value)} /></div>
+        <Card title="Item usage" footer={<ExportButtons pending={exporting.pending} onExport={format => exporting.run(() => exportUsageReport(format, usageFilters))} />}>
+            {/* one tidy row of filters: a month (or a date range, which takes over), an item and a category */}
+            <div className={styles.usageFilters}>
+                <Select name="month" aria-label="Month" value={month} options={MONTHS} disabled={Boolean(from && to)} onChange={event => setMonth(event.target.value)} />
+                <DateRangeField label="Usage dates" placeholder="Or pick dates" minDate="" value={{ start: from, end: to }}
+                    onChange={({ start, end }) => { setFrom(start); setTo(end); }} />
+                <Select name="usageCategory" aria-label="Category" value={category} options={[{ value: '', label: 'All categories' }, ...(categoryList.data?.categories ?? []).map(entry => ({ value: entry._id, label: entry.name }))]} onChange={event => setCategory(event.target.value)} />
+                <SearchField label="Item ID" placeholder="Item ID, e.g. ITM-1a2b3c04" onSearch={setItem} />
+            </div>
             {usage.loading && !usage.data && <Spinner />}
             <Message type="error">{usage.error}</Message>
             {usage.data && <>
                 <p className={styles.muted}>{usage.data.report.totals.reservations} reservations across {usage.data.report.totals.items} items in {usage.data.report.period.label}</p>
+                <h3>By category</h3>
+                <Table rows={usage.data.report.categories} getRowKey={row => row.category} empty="No category usage in this period."
+                    columns={[
+                        { key: 'category', header: 'Category' },
+                        { key: 'items', header: 'Items' },
+                        { key: 'reservations', header: 'Reservations' },
+                        { key: 'daysReserved', header: 'Days reserved' },
+                        { key: 'deposits', header: 'Deposits', render: row => `${row.deposits} ₥` }
+                    ]} />
+                <h3>By item</h3>
                 <Table rows={usage.data.report.items} getRowKey={row => row.itemId} empty="No reservations in this period."
                     columns={[
                         { key: 'name', header: 'Item' },

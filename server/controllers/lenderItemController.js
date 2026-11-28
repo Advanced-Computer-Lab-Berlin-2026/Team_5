@@ -4,13 +4,18 @@ import { Item } from '../models/Item.js'
 import { uploadItemPhoto, deleteItemPhoto } from '../services/itemPhotoStorage.js'
 import { MAX_PHOTOS } from '../middleware/uploadItemPhotos.js'
 import { uploadItemManual, deleteItemManual } from '../services/itemManualStorage.js'
-import { notifyWishlistItemAvailable, notifyWaitlistItemAvailable } from '../services/notificationService.js'
+import { notifyWishlistItemAvailable } from '../services/notificationService.js'
+import { notifyAvailableWaitlistHolders } from '../services/waitlistPromotion.js'
 
 const deliveryFields = {
     offered: joi.boolean(),
     fee: joi.number().min(0),
     details: joi.string().trim().allow('')
 }
+const attributes = joi.array().items(joi.object({
+    key: joi.string().trim().required(),
+    value: joi.string().trim().required()
+}))
 
 const itemSchema = joi.object(
     {
@@ -19,6 +24,7 @@ const itemSchema = joi.object(
         category: joi.string().trim().required(),
         depositAmount: joi.number().min(0).required(),
         conditionNotes: joi.array().items(joi.string().trim().min(1)),
+        attributes,
         pickupLocation: joi.string().trim().required(),
         pickupInstructions: joi.string().trim().allow(''),
         delivery: joi.object({
@@ -45,6 +51,7 @@ const updateSchema = joi.object(
         category: joi.string().trim(),
         depositAmount: joi.number().min(0),
         conditionNotes: joi.array().items(joi.string().trim().min(1)),
+        attributes,
         pickupLocation: joi.string().trim(),
         pickupInstructions: joi.string().trim().allow(''),
         delivery: joi.object(deliveryFields).min(1),
@@ -77,6 +84,7 @@ export async function createItem(req, res, next){
                 category: value.category, 
                 depositAmount: value.depositAmount, 
                 conditionNotes: value.conditionNotes, 
+                ...(value.attributes && { attributes: value.attributes }),
                 pickup: { location: value.pickupLocation, instructions: value.pickupInstructions },
                 ...(value.delivery && { delivery: value.delivery }),
                 borrowingRules: value.borrowingRules,
@@ -128,7 +136,7 @@ export async function toggleArchiveItem(req, res, next){
                 console.error(`failed to send wishlist alerts after unarchive for ${updated._id}`, error)
             }
             try {
-                await notifyWaitlistItemAvailable(updated._id)
+                await notifyAvailableWaitlistHolders(updated._id)
             } catch (error) {
                 console.error(`failed to send waitlist alerts after unarchive for ${updated._id}`, error)
             }

@@ -7,9 +7,10 @@ import mongoose from 'mongoose';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { calculateCheckoutPricing, normalizePromoCode } from './checkoutPricingService.js';
 import { getReservationDeposit } from './reservationDeposit.js';
-import { getDepositDiscountPercent } from './membershipService.js';
+import { getDepositDiscountPercent, requireReservationCapacity } from './membershipService.js';
 import { validateBorrowingRules } from './reservationRules.js';
 import { redeemCheckoutPromo } from './checkoutPromoRedemption.js';
+import { checkWaitlistAvailability } from './waitlistAvailability.js';
 export function validateBorrowList(borrowList) {
     if (!Array.isArray(borrowList) || borrowList.length === 0) {
         throw new CheckoutError(
@@ -90,7 +91,7 @@ export async function acquireCheckoutLock(itemId, session) {
     return item;
 }
 
-export async function lockAndCheckAvailability(checkoutItems, session) {
+export async function lockAndCheckAvailability(checkoutItems, session, userId) {
     if (!session || !session.inTransaction()) {
         throw new Error('An active transaction is required.');
     }
@@ -102,7 +103,7 @@ export async function lockAndCheckAvailability(checkoutItems, session) {
 
     for (const entry of items) {
         // Acquire the checkout lock for this item
-        await acquireCheckoutLock(entry.itemId, session);
+        const item = await acquireCheckoutLock(entry.itemId, session);
 
         // Check for existing reservations with overlapping dates
         const overlappingReservation = await Reservation.findOverlap(
@@ -119,6 +120,7 @@ export async function lockAndCheckAvailability(checkoutItems, session) {
                 `Item with ID ${entry.itemId} is unavailable for the selected dates.`
             );
         }
+        await checkWaitlistAvailability(item, userId, entry.startDate, entry.endDate, session);
     }
 
     return items;
@@ -136,6 +138,7 @@ export async function prepareCheckout(userId, session = null) {
 
     const borrowList = user.borrow_list;
     validateBorrowList(borrowList);
+    await requireReservationCapacity(user, borrowList.length, session);
 
     const checkoutItems = [];
     const membershipDiscount = await getDepositDiscountPercent(user, new Date(), session);
@@ -199,12 +202,19 @@ export async function prepareCheckout(userId, session = null) {
         const startDate = new Date(entry.startDate);
         const endDate = new Date(entry.endDate);
         validateBorrowingRules(item, user, startDate, endDate);
+        await checkWaitlistAvailability(item, userId, startDate, endDate, session);
+        if (entry.deliveryAddress && !item.delivery?.offered) {
+            throw new CheckoutError(409, 'DELIVERY_UNAVAILABLE', 'This item no longer offers delivery. Remove it and add it again for pickup.');
+        }
         checkoutItems.push({
             itemId: item._id,
             lenderId: item.owner,
             startDate,
             endDate,
             depositAmount: await getReservationDeposit(item, membershipDiscount, session),
+            ...(entry.deliveryAddress && {
+                delivery: { address: entry.deliveryAddress, fee: Math.round((item.delivery.fee ?? 0) * 100) / 100 }
+            }),
             ...(membershipDiscount > 0 && { discountPercent: membershipDiscount }),
             cancellationPolicy: {
                 freeDays: item.cancellation?.freeDays ?? 0,
@@ -258,6 +268,10 @@ function formatCheckoutResult(checkout, replayed = false) {
         reservations: checkout.reservations,
         payments: checkout.payments,
         totalDeposit: checkout.totalDeposit,
+        ...(checkout.deliveryFee > 0 && {
+            deliveryFee: checkout.deliveryFee,
+            total: Math.round((checkout.totalDeposit + checkout.deliveryFee) * 100) / 100
+        }),
         originalTotal: checkout.originalTotal ?? checkout.totalDeposit,
         promoCode: checkout.promoCode ?? null,
         promoDiscountPercent: checkout.promoDiscountPercent ?? 0,
@@ -327,7 +341,8 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
             // 5. Acquire locks and verify availability
             const availableItems = await lockAndCheckAvailability(
                 checkoutItems,
-                session
+                session,
+                userId
             );
 
             
@@ -335,6 +350,7 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
             // 6. Calculate total deposit
             const pricing = await calculateCheckoutPricing(userId, availableItems, requestedPromo, session);
             const totalDeposit = pricing.totalDeposit;
+            const total = pricing.total;
             const pricedItems = pricing.items;
 
             if (!Number.isFinite(totalDeposit)) {
@@ -347,10 +363,10 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
                     _id: userId,
                     role: { $in: ['member', 'lender'] },
                     suspended: { $ne: true },
-                    wallet: { $gte: totalDeposit }
+                    wallet: { $gte: total }
                 },
                 {
-                    $inc: { wallet: -totalDeposit }
+                    $inc: { wallet: -total }
                 },
                 {
                     new: true,
@@ -386,6 +402,7 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
                             method: 'wallet'
                         },
                         cancellationPolicy: entry.cancellationPolicy,
+                        ...(entry.delivery && { delivery: { ...entry.delivery, status: 'preparing', feeCollected: entry.delivery.fee > 0 } })
                     }],
                     { session }
                 );
@@ -405,6 +422,13 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
                 );
 
                 payments.push(payment);
+                if (entry.delivery?.fee > 0) {
+                    const [deliveryPayment] = await Payment.create([{
+                        user: userId, reservation: reservation._id, type: 'delivery-fee',
+                        amount: entry.delivery.fee, direction: 'deduct', method: 'wallet'
+                    }], { session });
+                    payments.push(deliveryPayment);
+                }
             }
 
             // 9. Clear the buyer's borrow list
@@ -430,6 +454,7 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
                     reservations: reservations.map(r => r._id),
                     payments: payments.map(p => p._id),
                     totalDeposit,
+                    ...(pricing.deliveryFee > 0 && { deliveryFee: pricing.deliveryFee }),
                     originalTotal: pricing.originalTotal,
                     promoCode: pricing.promoCode,
                     promoDiscountPercent: pricing.discountPercent,

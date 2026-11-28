@@ -1,4 +1,5 @@
 import { Notice } from '../models/Notice.js';
+import { notifyCommunity } from '../services/notificationService.js';
 
 export async function createNotice(req, res, next) {
     try {
@@ -20,6 +21,8 @@ export async function createNotice(req, res, next) {
             postedBy: req.user.id
         });
 
+        notifyCommunity({ type: 'community-notice', subject: notice.title, message: notice.body })
+            .catch(error => console.error('Community notice notifications failed', error));
         return res.status(201).json({ notice });
     } catch (error) {
         return next(error);

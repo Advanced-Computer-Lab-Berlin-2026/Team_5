@@ -1,7 +1,7 @@
 import { User } from '../models/User.js';
 import { FriendLink } from '../models/FriendLink.js';
 
-const RELATIONS = ['spouse', 'parent', 'child', 'siblings'];
+const RELATIONS = ['spouse', 'parent', 'child'];
 
 // Returns the trimmed text, or null if it is not a non-empty string
 function cleanText(value) {

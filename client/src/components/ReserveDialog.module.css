@@ -24,3 +24,20 @@
 .textButton:hover, .textButton:focus-visible { color: var(--color-text); }
 /* Stripe's card field, drawn inside a cream box like the other inputs */
 .cardField { padding: var(--space-3); border: 1px solid #6b4a1c; border-radius: var(--radius-control); background: #fffaf1; min-height: 1.25rem; }
+/* the delivery option: a full-width on/off button the height of the other controls, dark when it is on */
+.deliveryBox { display: grid; gap: var(--space-2); }
+.deliveryBox > * { margin: 0 !important; }
+.dialog form > .deliveryBox .deliveryToggle { background: #fffaf1; border-color: rgb(20 20 20 / 35%); color: #141414; }
+.deliveryToggle { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 3.25rem; padding: var(--space-2) var(--space-3); border: 1px solid rgb(20 20 20 / 35%); border-radius: var(--radius-control); background: #fffaf1; color: #141414; font: inherit; text-align: left; cursor: pointer; transition: background 150ms ease, border-color 150ms ease; }
+.deliveryToggle:hover { border-color: #141414; }
+.dialog form > .deliveryBox .deliveryOn, .deliveryOn { background: #141414; border-color: #141414; color: #fff; }
+.check { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 1.4rem; height: 1.4rem; border: 2px solid currentColor; font-size: 0.9rem; font-weight: var(--font-weight-bold); }
+.deliveryText { display: grid; gap: 1px; }
+.deliveryText small { opacity: 0.75; font-size: 0.78rem; }
+.deliveryText small { color: inherit !important; }
+/* the footer holds the waitlist switch on the left and Cancel on the right */
+.footerRow { justify-content: space-between; align-items: center; margin-top: calc(var(--space-2) * -1); }
+/* a tighter card: less space between rows and a less tall heading, so even with delivery and its address it fits on screen */
+.dialog { padding: var(--space-4) var(--space-5); }
+.dialog form { gap: var(--space-2); }
+.dialog h2 { margin-bottom: var(--space-1); }

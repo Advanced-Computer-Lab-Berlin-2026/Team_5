@@ -128,3 +128,5 @@ describe('GET /api/items with a date range', () => {
         expect(response.body).toEqual({ message: 'Server Error' });
     });
 });
+
+vi.mock('../models/Waitlist.js', () => ({ Waitlist: { distinct: vi.fn(async () => []) } }));

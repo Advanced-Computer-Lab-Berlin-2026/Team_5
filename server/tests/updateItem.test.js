@@ -18,6 +18,29 @@ beforeEach(() => {
 });
 
 describe('PATCH /api/lender/items/:id', () => {
+    it('saves late fees, cancellation settings and attributes on an owned item', async () => {
+        User.findById.mockResolvedValue({ id: 'lender1', role: 'lender' });
+        const token = jwt.sign({ id: 'lender1' }, env.jwtSecret);
+        const item = { owner: 'lender1', borrowingRules: {}, cancellation: {}, save: vi.fn() };
+        vi.spyOn(Item, 'findById').mockResolvedValue(item);
+
+        const response = await request(app).patch('/api/lender/items/itemId')
+            .set('Origin', 'http://localhost:3000')
+            .set('Cookie', 'accessToken=' + token)
+            .send({
+                borrowingRules: { lateFeePerDay: 2.5 },
+                cancellation: { freeDays: 2, forfeitPercent: 25 },
+                attributes: [{ key: ' Brand ', value: ' Acme ' }]
+            });
+
+        expect(response.status).toBe(200);
+        expect(item).toMatchObject({
+            borrowingRules: { lateFeePerDay: 2.5 },
+            cancellation: { freeDays: 2, forfeitPercent: 25 },
+            attributes: [{ key: 'Brand', value: 'Acme' }]
+        });
+        expect(item.save).toHaveBeenCalledOnce();
+    });
     it.each([
         [{ fee: 0 }, { offered: true, fee: 0, details: 'Doorstep' }],
         [{ offered: false, details: '' }, { offered: false, fee: 20, details: '' }]

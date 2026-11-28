@@ -4,6 +4,7 @@ import { CheckoutError } from '../utils/CheckoutError.js';
 import { Category } from '../models/Category.js';
 import { FriendLink } from '../models/FriendLink.js';
 import { MembershipTier } from '../models/MembershipTier.js';
+import { Reservation } from '../models/Reservation.js';
 
 // These are unit-test doubles. No MongoDB connection is required.
 const db = vi.hoisted(() => ({
@@ -28,7 +29,7 @@ vi.mock('mongoose', () => ({
 }));
 vi.mock('../models/Category.js', () => ({ Category: { findById: vi.fn() } }));
 vi.mock('../models/FriendLink.js', () => ({ FriendLink: { find: vi.fn() } }));
-vi.mock('../models/MembershipTier.js', () => ({ MembershipTier: { find: vi.fn() } }));
+vi.mock('../models/MembershipTier.js', () => ({ MembershipTier: { find: vi.fn(), findById: vi.fn() } }));
 vi.mock('../services/promoCodeService.js', () => ({
   validatePromoCode: db.validatePromoCode,
   recordPromoRedemption: db.recordPromoRedemption,
@@ -51,6 +52,7 @@ vi.mock('../models/Item.js', () => ({
 vi.mock('../models/Reservation.js', () => ({
   Reservation: {
     findOverlap: db.reservationFindOverlap,
+    countDocuments: vi.fn(() => 0),
     create: db.reservationCreate,
   },
 }));
@@ -294,6 +296,14 @@ describe('prepareCheckout — SCRUM-424', () => {
 });
 
 describe('checkoutWithWallet — SCRUM-424 / SCRUM-428', () => {
+  it('declines a checkout that exceeds the configured limit before debiting', async () => {
+    MembershipTier.findById.mockResolvedValueOnce({ maxConcurrentReservations: 2 });
+    Reservation.countDocuments.mockResolvedValueOnce(2);
+
+    await expect(checkoutWithWallet('member1', 'over-limit')).rejects.toMatchObject({ code: 'MEMBERSHIP_RESERVATION_LIMIT' });
+    expect(db.userFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(db.paymentCreate).not.toHaveBeenCalled();
+  });
   it('debits once, creates a pending reservation and payment, and saves checkout', async () => {
     const result = await checkoutWithWallet('member1', 'key-1');
 
@@ -357,6 +367,28 @@ describe('checkoutWithWallet — SCRUM-424 / SCRUM-428', () => {
     expect(db.userFindOneAndUpdate).toHaveBeenCalledTimes(1);
     expect(db.reservationCreate).toHaveBeenCalledTimes(2);
     expect(db.paymentCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('charges pickup and delivery items together while keeping fees separate from deposits', async () => {
+    borrowList.push({ item: 'ITM-2', ...dates, deliveryAddress: '10 Main Street' });
+    items['ITM-2'] = {
+      _id: 'ITM-2', owner: 'lender1', depositAmount: 50,
+      delivery: { offered: true, fee: 12.5 },
+    };
+
+    const result = await checkoutWithWallet('member1', 'mixed-delivery');
+
+    expect(result).toMatchObject({ totalDeposit: 150, deliveryFee: 12.5, total: 162.5 });
+    expect(db.userFindOneAndUpdate).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ wallet: { $gte: 162.5 } }), { $inc: { wallet: -162.5 } }, expect.anything()
+    );
+    expect(db.reservationCreate).toHaveBeenLastCalledWith([expect.objectContaining({
+      delivery: { address: '10 Main Street', fee: 12.5, status: 'preparing', feeCollected: true },
+      payment: { depositAmount: 50, method: 'wallet' }
+    })], { session });
+    expect(db.paymentCreate).toHaveBeenLastCalledWith([expect.objectContaining({
+      type: 'delivery-fee', reservation: 'RES-2', amount: 12.5
+    })], { session });
   });
 
   it('debits the rounded promo total and records one redemption across a wallet retry', async () => {
@@ -516,3 +548,7 @@ describe('checkoutWithWallet — SCRUM-424 / SCRUM-428', () => {
     // This exercises only error handling; the DB unique-index test proves enforcement.
   });
 });
+vi.mock('../services/waitlistAvailability.js', () => ({
+    checkWaitlistAvailability: vi.fn(),
+    releaseWaitlistEntry: vi.fn()
+}));
