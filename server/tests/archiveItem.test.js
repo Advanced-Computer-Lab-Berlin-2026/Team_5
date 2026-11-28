@@ -4,7 +4,11 @@ import app from '../app.js';
 import { Item, User } from '../models/index.js';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
-import { notifyWishlistItemAvailable, notifyWaitlistItemAvailable } from '../services/notificationService.js';
+import { notifyWishlistItemAvailable } from '../services/notificationService.js';
+
+import { notifyAvailableWaitlistHolders as notifyWaitlistItemAvailable } from '../services/waitlistPromotion.js';
+
+vi.mock('../services/waitlistPromotion.js', () => ({ notifyAvailableWaitlistHolders: vi.fn() }));
 
 vi.mock('../models/User.js', () => ({
     User: { findById: vi.fn() }
@@ -12,7 +16,7 @@ vi.mock('../models/User.js', () => ({
 
 vi.mock('../services/notificationService.js', () => ({
     notifyWishlistItemAvailable: vi.fn(),
-    notifyWaitlistItemAvailable: vi.fn(),
+
 }));
 
 beforeEach(() => {

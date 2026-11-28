@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getLoginDestination } from '../theme/routes.js';
-import { Icon, PageSection, Spinner } from '../components';
+import { Button, Icon, PageSection, Spinner } from '../components';
 import TiltedCard from '../components/TiltedCard.jsx';
 import { LoginForm } from '../components/auth/LoginForm.jsx';
 import { ForgotPasswordForm } from '../components/auth/ForgotPasswordForm.jsx';
@@ -62,6 +62,7 @@ export default function EntryPage() {
         <section className={styles.themeBridge} aria-label="Guest introduction">
             <StickerSpacer />
             <GuestIntroduction />
+            <Button variant="secondary" to="/register#account-access" state={{ from: '/become-lender' }}>Apply to become a lender</Button>
         </section>
         <PageSection theme="light" contentClassName={styles.catalog} aria-label="Browse items">
             <CatalogPage embedded showIntroduction={false} />

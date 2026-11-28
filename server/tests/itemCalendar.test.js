@@ -4,6 +4,8 @@ import app from "../app.js";
 import {  Item } from "../models/Item.js";
 import { requireAuth } from "../middleware/auth.js";
 import { Reservation } from "../models/Reservation.js";
+import { Waitlist } from '../models/Waitlist.js';
+import { User } from '../models/User.js';
 
 
 vi.mock('../models/Item.js', () => ({
@@ -46,13 +48,31 @@ function mockQuery(result) {
 const validItemId = 'ITM-1a2b3c4d';
 
 beforeEach(() => {
+    vi.restoreAllMocks();
     vi.resetAllMocks();
     authenticateAs();
     Item.findOne.mockResolvedValue({ _id: validItemId, owner: { profile: { name: 'Alice' }, trustScore: 80 } });
     mockQuery([]);
+    vi.spyOn(Waitlist, 'find').mockResolvedValue([]);
 });
 
 describe('GET /api/items/:id/calendar', () => {
+    it('shows the held range to lower priority viewers and hides it from the winner', async () => {
+        const startDate = new Date('2090-04-01');
+        const endDate = new Date('2090-04-03');
+        Waitlist.find.mockResolvedValue([
+            { username: 'member123', startDate, endDate },
+            { username: 'premium', startDate, endDate }
+        ]);
+        vi.spyOn(User, 'find').mockResolvedValue([{ _id: 'member123' }, { _id: 'premium', membership: { tier: 'Premium' } }]);
+        const url = `/api/items/${validItemId}/calendar`;
+        const lowerPriority = await request(app).get(url);
+        expect(lowerPriority.body.waitlistHolds).toEqual([{ startDate: startDate.toISOString(), endDate: endDate.toISOString() }]);
+        authenticateAs('premium');
+        const winner = await request(app).get(url);
+        expect(winner.body.waitlistHolds).toEqual([]);
+    });
+
     it('should return 400 for invalid item id', async () => {
         const response = await request(app).get('/api/items/invalid-id/calendar');
         expect(response.status).toBe(400);
@@ -116,3 +136,7 @@ describe('GET /api/items/:id/calendar', () => {
     });
 
 });
+
+vi.mock('../models/FriendLink.js', () => ({ FriendLink: { find: vi.fn(async () => []) } }));
+
+vi.mock('../models/MembershipTier.js', () => ({ MembershipTier: { find: vi.fn(async () => []) } }));

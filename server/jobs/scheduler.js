@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { runReturnReminderJob } from './returnReminderJob.js';
 import { runRenewalReminderJob } from './renewalReminderJob.js';
 import { runReservationExpiryJob } from './reservationExpiryJob.js';
+import { retryNotificationEmails } from '../services/notificationService.js';
 
 export const DEFAULT_RETURN_REMINDER_CRON = '0 9 * * *';
 export const DEFAULT_RENEWAL_REMINDER_CRON = '0 9 * * *';
@@ -44,6 +45,9 @@ export function startScheduler({
         );
         schedule(RESERVATION_EXPIRY_CRON, () =>
             runExpiryJob().catch(error => console.error('reservation expiry job failed', error)),
+        { noOverlap: true });
+        schedule('*/15 * * * * *', () =>
+            retryNotificationEmails().catch(error => console.error('Notification email retry job failed', error)),
         { noOverlap: true });
         return returnTask;
     } catch (error) {

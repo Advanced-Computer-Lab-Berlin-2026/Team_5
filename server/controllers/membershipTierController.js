@@ -8,12 +8,12 @@ export async function listMembershipTiers(req, res, next) {
         const tiers = await MembershipTier.find().sort({ annual_fee: 1 }).lean();
 
         return res.status(200).json({
-            tiers: tiers.map(({ tier, annual_fee, deposit_discount }) => ({
+            tiers: tiers.map(({ tier, annual_fee, deposit_discount, waitlistPriority, maxConcurrentReservations }) => ({
                 tier,
                 annual_fee,
                 deposit_discount,
-                waitlistPriority: WAITLIST_PRIORITY[tier],
-                maxConcurrentReservations: MAX_CONCURRENT_RESERVATIONS[tier]
+                waitlistPriority: waitlistPriority ?? WAITLIST_PRIORITY[tier] ?? WAITLIST_PRIORITY.Basic,
+                maxConcurrentReservations: maxConcurrentReservations ?? MAX_CONCURRENT_RESERVATIONS[tier] ?? MAX_CONCURRENT_RESERVATIONS.Basic
             }))
         });
     } catch (error) {

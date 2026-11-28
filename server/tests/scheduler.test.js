@@ -107,7 +107,7 @@ describe('startScheduler', () => {
 
         startScheduler({ schedule });
 
-        expect(schedule).toHaveBeenCalledTimes(3);
+        expect(schedule).toHaveBeenCalledTimes(4);
         expect(schedule).toHaveBeenNthCalledWith(2, DEFAULT_RENEWAL_REMINDER_CRON, expect.any(Function), { timezone: 'Europe/Berlin' });
         expect(DEFAULT_RENEWAL_REMINDER_CRON).toBe('0 9 * * *');
     });
@@ -149,7 +149,7 @@ describe('startScheduler', () => {
 
         startScheduler({ schedule, runExpiryJob });
 
-        expect(schedule).toHaveBeenLastCalledWith(RESERVATION_EXPIRY_CRON, expect.any(Function), { noOverlap: true });
+        expect(schedule).toHaveBeenCalledWith(RESERVATION_EXPIRY_CRON, expect.any(Function), { noOverlap: true });
         await schedule.mock.calls[2][1]();
         expect(runExpiryJob).toHaveBeenCalledOnce();
     });

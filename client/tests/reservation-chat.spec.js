@@ -4,7 +4,7 @@ test('admin login from a reservation link lands on the admin page', async ({ pag
     const reservationPath = '/reservations/RES-1234abcd';
     const reservationRequests = [];
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.route('**/api/**', route => {
+    await page.route(url => url.pathname.startsWith('/api/'), route => {
         const path = new URL(route.request().url()).pathname;
         if (path === '/api/auth/login') return route.fulfill({ json: { user: { username: 'admin1' } } });
         if (path === '/api/lender/items') return route.fulfill({ status: 403, json: {} });
@@ -36,7 +36,7 @@ test('reporting damage closes chat and shows the saved report', async ({ page })
     await page.addInitScript(() => {
         localStorage.setItem('acl.user', JSON.stringify({ username: 'lender1', role: 'lender' }));
     });
-    await page.route('**/api/**', async route => {
+    await page.route(url => url.pathname.startsWith('/api/'), async route => {
         const path = new URL(route.request().url()).pathname;
         if (path === '/api/wallet') return route.fulfill({ json: { balance: 100 } });
         if (path === '/api/lender/items') return route.fulfill({ json: { items: [] } });

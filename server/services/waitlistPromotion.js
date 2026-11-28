@@ -1,44 +1,30 @@
 import { Item } from '../models/Item.js';
-import { Reservation } from '../models/Reservation.js';
 import { User } from '../models/User.js';
 import { Waitlist } from '../models/Waitlist.js';
-import { activeTier, WAITLIST_PRIORITY } from './membershipService.js';
+import { datesOverlap, getWaitlistHolds } from './waitlistAvailability.js';
 import { formatNotificationDate, notify } from './notificationService.js';
 
 export async function promoteWaitlistAfterCancellation(reservation) {
+    return notifyAvailableWaitlistHolders(reservation.item, reservation);
+}
+
+export async function notifyAvailableWaitlistHolders(itemId, releasedRange) {
     const now = new Date();
-    const item = await Item.findById(reservation.item, { name: 1, owner: 1, flagged: 1, archived: 1 }, { lean: true });
+    const item = await Item.findById(itemId, { name: 1, owner: 1, flagged: 1, archived: 1 }, { lean: true });
     if (!item || item.archived || item.flagged) return;
 
-    const candidates = await Waitlist.find({
-        item: item._id,
-        username: { $nin: [item.owner, reservation.borrower] },
-        promotedAt: null,
-        startDate: { $gte: now, $lt: reservation.endDate },
-        endDate: { $gt: reservation.startDate }
-    }, null, { lean: true, sort: { createdAt: 1, _id: 1 } });
-    if (candidates.length === 0) return;
+    const holds = await getWaitlistHolds(item._id, { owner: item.owner });
+    const available = holds.filter(entry => !entry.promotedAt && (!releasedRange || datesOverlap(entry, releasedRange)));
+    if (!available.length || !await User.exists({ _id: item.owner, suspended: { $ne: true } })) return;
 
-    const users = await User.find(
-        { _id: { $in: [item.owner, ...candidates.map(entry => entry.username)] }, suspended: { $ne: true } },
-        { membership: 1 },
-        { lean: true }
-    );
-    const priority = new Map(users.map(user => [user._id, WAITLIST_PRIORITY[activeTier(user.membership, now)]]));
-    if (!priority.has(item.owner)) return;
-
-    const eligible = candidates.filter(entry => priority.has(entry.username));
-    eligible.sort((a, b) => priority.get(a.username) - priority.get(b.username));
-
-    for (const entry of eligible) {
-        if (await Reservation.findOverlap(item._id, entry.startDate, entry.endDate)) continue;
+    for (const entry of available) {
         const claimed = await Waitlist.findOneAndUpdate(
             { _id: entry._id, promotedAt: null },
             { $set: { promotedAt: now } },
             { returnDocument: 'after' }
         );
         // Another cancellation may already have promoted this entry.
-        if (!claimed) return;
+        if (!claimed) continue;
 
         try {
             await notify(entry.username, {
@@ -50,6 +36,5 @@ export async function promoteWaitlistAfterCancellation(reservation) {
             await Waitlist.updateOne({ _id: entry._id, promotedAt: now }, { $set: { promotedAt: null } });
             throw error;
         }
-        return;
     }
 }

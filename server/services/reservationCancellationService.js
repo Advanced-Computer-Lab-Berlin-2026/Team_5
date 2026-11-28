@@ -2,10 +2,12 @@
 import mongoose from 'mongoose';
 import { Reservation } from '../models/Reservation.js';
 import { Payment } from '../models/Payment.js';
+import { Checkout } from '../models/Checkout.js';
 import { Item } from '../models/Item.js';
 import { User } from '../models/User.js';
 import { notifyReservationCancelled, notifyWishlistItemAvailable } from './notificationService.js';
 import { promoteWaitlistAfterCancellation } from './waitlistPromotion.js';
+import { releaseWaitlistEntry } from './waitlistAvailability.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { calculateCancellationRefund } from './cancellationPolicy.js';
 
@@ -50,7 +52,7 @@ function asCents(value) {
     return cents;
 }
 
-async function findOriginalPayment(reservation, session) {
+async function findOriginalPayment(reservation, session, allowLegacyUnpaid) {
     const common = {
         user: reservation.borrower,
         type: 'deposit-paid',
@@ -92,6 +94,19 @@ async function findOriginalPayment(reservation, session) {
         );
     }
 
+    // Some legacy direct bookings recorded only the quoted deposit. During
+    // automatic expiry, treat them as unpaid only if no charge evidence exists.
+    if (allowLegacyUnpaid && payments.length === 0 && reservation.payment.method === 'wallet' &&
+        (reservation.payment.depositCollected ?? null) === null && !reservation.payment.stripePaymentIntentId &&
+        !reservation.delivery?.feeCollected) {
+        const linkedPayment = await Payment.exists({
+            type: { $in: ['deposit-paid', 'deposit-pending', 'delivery-fee', 'deposit-refund', 'deposit-forfeit'] },
+            $or: [{ reservation: reservation._id }, { reservations: reservation._id }]
+        }).session(session);
+        const checkout = linkedPayment ? null : await Checkout.exists({ reservations: reservation._id }).session(session);
+        if (!linkedPayment && !checkout) return null;
+    }
+
     if (payments.length !== 1) {
         throw new CheckoutError(
             409,
@@ -122,12 +137,11 @@ async function findOriginalPayment(reservation, session) {
 
     } else {
         const matches = payment.checkoutItems.filter(entry =>
-            entry.itemId === reservation.item &&
+            entry.itemId === (reservation.item?._id ?? reservation.item) &&
             entry.lenderId === reservation.lender &&
             new Date(entry.startDate).getTime() ===
                 new Date(reservation.startDate).getTime() &&
-            new Date(entry.endDate).getTime() ===
-                new Date(reservation.endDate).getTime()
+            new Date(entry.endDate).getTime() <= new Date(reservation.endDate).getTime()
         );
 
         if (
@@ -145,6 +159,12 @@ async function findOriginalPayment(reservation, session) {
     }
 
     return payment;
+}
+
+export async function getCollectedReservationDeposit(reservation, session) {
+    if (reservation.payment?.depositCollected === false) return 0;
+    const payment = await findOriginalPayment(reservation, session, true);
+    return payment ? reservation.payment.depositAmount : 0;
 }
 
 async function getPolicy(reservation, session) {
@@ -291,7 +311,7 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
             // A direct reservation can be cancelled without refunding its quoted deposit.
             const originalPayment = reservation.payment?.depositCollected === false
                 ? null
-                : await findOriginalPayment(reservation, session);
+                : await findOriginalPayment(reservation, session, automaticExpiry);
 
             const depositRefund = originalPayment
                 ? (expiredRequest ? reservation.payment.depositAmount : await getRefundAmount(reservation, cancelledBy, cancelledAt, session))
@@ -312,6 +332,9 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
                         status: 'cancelled',
                         cancelledAt,
                         ...(!automaticExpiry && { cancelledBy, cancelledByUser: userId }),
+                        ...(!originalPayment && reservation.payment?.depositCollected !== false && {
+                            'payment.depositCollected': false
+                        }),
                         cancellationRefundAmount: refundAmount
                     }
                 },
@@ -325,6 +348,8 @@ export async function cancelReservationWithRefund(reservationId, userId, { borro
                     'Reservation changed during cancellation; retry.'
                 );
             }
+
+            await releaseWaitlistEntry(reservation, session);
 
             if (!originalPayment) {
                 return cancellationResult(updated, { refundAmount, replayed: false }, true);

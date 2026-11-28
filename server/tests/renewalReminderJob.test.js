@@ -49,7 +49,7 @@ describe('runRenewalReminderJob', () => {
         expect(result).toEqual({ renewalYmd: '2026-12-03', count: 2 });
         expect(User.find).toHaveBeenCalledWith(
             {
-                'membership.tier': { $in: ['Plus', 'Premium'] },
+                'membership.tier': { $exists: true, $nin: ['Basic', null] },
                 $expr: {
                     $eq: [
                         { $dateToString: { format: '%Y-%m-%d', date: '$membership.renewalDate', timezone: 'Europe/Berlin' } },

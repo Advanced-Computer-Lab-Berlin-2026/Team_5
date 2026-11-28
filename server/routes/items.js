@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { listItems, getItem, getItemCalendar, getItemManual } from '../controllers/itemController.js';
-import { requireAuth } from '../middleware/auth.js'
+import { catalogViewer, requireAuth } from '../middleware/auth.js'
 
 
 const router = Router();
 
 // public on purpose (SCRUM-242 / 243). a guest can list, open items, and view manuals with no cookie.
-router.get('/', listItems);
+router.get('/', catalogViewer, listItems);
 router.get('/:id/manual', getItemManual);
 router.get('/:id', getItem);
 

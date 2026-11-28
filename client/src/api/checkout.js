@@ -17,6 +17,7 @@ export const startCardPayment = (key, promoCode) =>
 
 // { paymentId, status: 'awaiting_payment' | 'completed' | 'refund_pending' | 'refunded', amount, reservations }
 export const getCardPaymentStatus = (paymentId) => request(`/api/stripe/payments/${encodeURIComponent(paymentId)}/status`);
+export const reconcileCardPayment = (paymentId) => request(`/api/stripe/payments/${encodeURIComponent(paymentId)}/reconcile`, { method: 'POST' });
 
 // Checks a promo code against one item. { code, discountPercent, discountAmount, discountedDeposit, ... }
 export const validatePromoCode = (code, itemId) => request('/api/promo-codes/validate', { method: 'POST', body: { code, itemId } });

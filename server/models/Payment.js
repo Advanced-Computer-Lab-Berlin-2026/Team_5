@@ -58,6 +58,7 @@ const paymentSchema = new mongoose.Schema(
 
 paymentSchema.index({ user: 1, date: -1 });
 paymentSchema.index({ reservation: 1 });
+paymentSchema.index({ reservations: 1 });
 paymentSchema.index({ user: 1, checkoutKey: 1 }, {unique: true, partialFilterExpression: {checkoutKey: { $type: 'string' }}});
 paymentSchema.index({ stripePaymentIntentId: 1 }, {unique: true, partialFilterExpression: {stripePaymentIntentId: { $type: 'string' }}});
 paymentSchema.index({ refundKey: 1 }, {unique: true, partialFilterExpression: {refundKey: { $type: 'string' }}});

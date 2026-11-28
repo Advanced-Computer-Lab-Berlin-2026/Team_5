@@ -6,9 +6,12 @@ import { env } from "../config/env.js";
 import { User } from "../models/User.js";
 import { Item } from "../models/Item.js";
 import { Reservation } from "../models/Reservation.js";
+import { Waitlist } from '../models/Waitlist.js';
+
+vi.mock('../models/Waitlist.js', () => ({ Waitlist: { find: vi.fn() } }));
 
 vi.mock('../models/User.js', () => ({
-    User: { findById: vi.fn(), updateOne: vi.fn(), exists: vi.fn() }
+    User: { findById: vi.fn(), updateOne: vi.fn(), exists: vi.fn(), find: vi.fn() }
 }));
 
 vi.mock('../models/Item.js', () => ({
@@ -16,7 +19,7 @@ vi.mock('../models/Item.js', () => ({
 }));
 
 vi.mock('../models/Reservation.js', () => ({
-    Reservation: { findOverlap: vi.fn() },
+    Reservation: { findOverlap: vi.fn(), find: vi.fn() },
     BLOCKING_STATUSES: []
 }));
 
@@ -80,6 +83,8 @@ beforeEach(() => {
     User.updateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     Item.findOne.mockResolvedValue(fakeItem());
     Reservation.findOverlap.mockResolvedValue(null);
+    Reservation.find.mockResolvedValue([]);
+    Waitlist.find.mockResolvedValue([]);
 });
 
 describe('Borrower access', () => {
@@ -107,6 +112,20 @@ describe('Borrower access', () => {
 });
 
 describe('POST /api/borrow-list/:itemId', () => {
+    it('rejects both add and date changes through a higher-priority hold', async () => {
+        Waitlist.find.mockResolvedValue([
+            { username: USER_ID, startDate: new Date(START), endDate: new Date(END) },
+            { username: 'premium', startDate: new Date(START), endDate: new Date(END) }
+        ]);
+        User.find.mockResolvedValue([{ _id: USER_ID }, { _id: 'premium', membership: { tier: 'Premium' } }]);
+        const responses = await Promise.all([addItem(), updateDates({ startDate: START, endDate: END })]);
+        for (const response of responses) {
+            expect(response.status).toBe(409);
+            expect(response.body.error).toBe('WAITLIST_PRIORITY');
+        }
+        expect(User.updateOne).not.toHaveBeenCalled();
+    });
+
     it('returns 201 and adds the item with its dates to the borrow list', async () => {
         const response = await addItem();
 
@@ -367,3 +386,7 @@ describe('GET /api/borrow-list', () => {
         expect(response.body).toEqual({ message: 'Server Error' });
     });
 });
+
+vi.mock('../models/FriendLink.js', () => ({ FriendLink: { find: vi.fn(async () => []) } }));
+
+vi.mock('../models/MembershipTier.js', () => ({ MembershipTier: { find: vi.fn(async () => []) } }));

@@ -15,5 +15,6 @@ const waitlistSchema = new mongoose.Schema(
 
 waitlistSchema.index({ item: 1, startDate: 1, endDate: 1, username: 1 }, { unique: true });
 waitlistSchema.index({ item: 1, promotedAt: 1, startDate: 1 });
+waitlistSchema.index({ startDate: 1, endDate: 1, item: 1 });
 
 export const Waitlist = mongoose.model("Waitlist", waitlistSchema);

@@ -66,6 +66,7 @@ import {
   finalizeCardPayment,
 } from '../services/stripeCheckoutService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
+import { getCardPaymentStatus } from '../controllers/stripeController.js';
 
 const USER = 'member1';
 const KEY = 'checkout-key-123';
@@ -355,6 +356,23 @@ describe('createCardPaymentIntent — SCRUM-431', () => {
 });
 
 describe('finalizeCardPayment — SCRUM-431', () => {
+  it.each(['succeeded', 'processing'])('reconciles an existing %s Stripe intent without creating another', async (status) => {
+    mocks.paymentFindOne.mockReturnValue({ select: () => ({ lean: async () => currentPayment }) });
+    mocks.intentRetrieve.mockResolvedValue(stripeIntent({ status }));
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+
+    await getCardPaymentStatus({ method: 'POST', user: { id: USER }, params: { paymentId: 'PAY-1' } }, res, next);
+
+    expect(mocks.paymentFindOne).toHaveBeenCalledWith({ _id: 'PAY-1', user: USER, method: 'card' });
+    expect(mocks.intentRetrieve).toHaveBeenCalledWith(currentPayment.stripePaymentIntentId);
+    expect(mocks.intentCreate).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining(status === 'succeeded'
+      ? { status: 'completed', reservations: ['RES-1', 'RES-2'] }
+      : { status: 'awaiting_payment', reservations: [] }));
+  });
+
   it('creates a delivery reservation from the paid card snapshot', async () => {
     const delivery = { address: '10 Main Street', fee: 12.5 };
     currentPayment = {
@@ -386,7 +404,7 @@ describe('finalizeCardPayment — SCRUM-431', () => {
         expect.objectContaining({ itemId: 'ITM-1', depositAmount: 100 }),
         expect.objectContaining({ itemId: 'ITM-2', depositAmount: 50 }),
       ]),
-      session,
+      session, USER,
     );
     expect(mocks.reservationCreate).toHaveBeenCalledTimes(2);
     expect(mocks.reservationCreate).toHaveBeenNthCalledWith(1,
@@ -416,7 +434,8 @@ describe('finalizeCardPayment — SCRUM-431', () => {
       { $set: { type: 'deposit-paid', status: 'completed', reservations: ['RES-1', 'RES-2'] } },
       { session },
     );
-    expect(mocks.userUpdateOne).toHaveBeenCalledTimes(2);
+    expect(mocks.userUpdateOne).toHaveBeenCalledTimes(3);
+    expect(mocks.userUpdateOne).toHaveBeenCalledWith({ _id: USER }, { $inc: { reservationCheckoutVersion: 1 } }, { session });
     expect(mocks.removeConflictingBorrowListEntries).toHaveBeenCalledWith(
       expect.any(Array), USER, session,
     );
@@ -516,9 +535,9 @@ describe('finalizeCardPayment — SCRUM-431', () => {
     expect(mocks.refundCreate).not.toHaveBeenCalled();
   });
 
-  it('refunds an unavailable reservation rather than keeping the card payment', async () => {
+  it.each(['ITEM_ALREADY_RESERVED', 'WAITLIST_PRIORITY'])('refunds the card charge when checkout is blocked by %s', async (code) => {
     mocks.lockAndCheckAvailability.mockRejectedValue(new CheckoutError(
-      409, 'ITEM_ALREADY_RESERVED', 'Dates are unavailable',
+      409, code, 'Dates are unavailable',
     ));
     mocks.paymentFindOneAndUpdate.mockResolvedValue({ ...pendingPayment(), status: 'refund_pending' });
 
@@ -596,3 +615,5 @@ describe('finalizeCardPayment — SCRUM-431', () => {
     expect(mocks.refundCreate).not.toHaveBeenCalled();
   });
 });
+
+vi.mock('../services/membershipService.js', () => ({ requireReservationCapacity: vi.fn() }));

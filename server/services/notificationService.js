@@ -1,10 +1,9 @@
-import { Item, Notification, User, Waitlist } from '../models/index.js';
+import { Item, Notification, User } from '../models/index.js';
 import { sendNotificationEmail } from './emailService.js';
 import { env } from '../config/env.js';
 import { normalizeEmailPreferences } from '../utils/emailPreferences.js';
 
 // SCRUM-519: which preference switch gates which Notification.type
-// promotions has no notification types yet — wire them here when they land
 const EMAIL_CATEGORY_BY_TYPE = {
     delivery: 'reservations',
     accepted: 'reservations',
@@ -15,7 +14,8 @@ const EMAIL_CATEGORY_BY_TYPE = {
     // wishlist mail uses the reservations switch on purpose (same bucket in settings UI)
     'favourite-available': 'reservations',
     other: 'reservations',
-    'community-notice': 'communityNotices'
+    'community-notice': 'communityNotices',
+    promotion: 'promotions'
 };
 
 // helpers below call this after commit (not inside withTransaction — retries would double-email).
@@ -24,11 +24,33 @@ export async function notify(username, { type, message, subject, reservation }) 
     // model defaults type to "other" when callers skip it — emailUser uses whatever got saved
     const notification = await Notification.create({ username, type, message, reservation });
 
-    // fire-and-forget so a slow gmail never slows the request; no retry/queue on purpose
-    emailUser(notification, subject).catch((error) =>
-        console.error(`failed to send email for ${notification._id} to ${username}, the in-app one is saved`, error)
-    );
+    emailUser(notification, subject).catch(async error => {
+        console.error(`failed to send email for ${notification._id}`, error);
+        await Notification.updateOne({ _id: notification._id }, { $set: {
+            emailSubject: subject, emailRetryAt: new Date(Date.now() + 15_000)
+        } });
+    }).catch(error => console.error('Failed to schedule notification email retry', error));
     return notification;
+}
+
+export async function notifyCommunity(details) {
+    const recipients = User.find({ role: { $in: ['member', 'lender'] }, suspended: { $ne: true } }, { _id: 1 }).lean().cursor();
+    for await (const { _id } of recipients) await notifyOrLog(_id, details.type, details);
+}
+
+export async function retryNotificationEmails(now = new Date()) {
+    const due = Notification.find({ emailRetryAt: { $lte: now } }).lean().cursor();
+    for await (const notification of due) {
+        const claim = await Notification.updateOne({ _id: notification._id, emailRetryAt: notification.emailRetryAt },
+            { $set: { emailRetryAt: new Date(Date.now() + 60_000) } });
+        if (!claim.modifiedCount) continue;
+        try {
+            await emailUser(notification, notification.emailSubject);
+            await Notification.updateOne({ _id: notification._id }, { $unset: { emailRetryAt: '', emailSubject: '' } });
+        } catch (error) {
+            console.error(`Notification email retry failed for ${notification._id}`, error);
+        }
+    }
 }
 
 export async function notifyInApp(username, { message, reservation }, session) {
@@ -297,35 +319,6 @@ export async function notifyWishlistItemAvailable(itemRef) {
     }
 }
 
-export async function notifyWaitlistItemAvailable(itemRef) {
-    const itemId = asItemId(itemRef);
-    try {
-        if (!itemId) return;
-        const item = await Item.findById(itemId, { name: 1, owner: 1, archived: 1, flagged: 1 }, { lean: true });
-        if (!item || item.archived || item.flagged) return;
-
-        const now = new Date();
-        const waitlists = await Waitlist.find(
-            { item: item._id, startDate: { $lt: now }, endDate: { $gt: now } },
-            { username: 1 },
-            { lean: true }
-        );
-        const usernames = new Set(
-            waitlists.map(({ username }) => username).filter((username) => username !== item.owner)
-        );
-        const details = {
-            type: 'waitlist-available',
-            subject: 'An item on your waitlist is available',
-            message: `"${item.name}" on your waitlist is available to reserve now`
-        };
-        await Promise.all([...usernames].map((username) =>
-            notifyOrLog(username, 'waitlist alert', details, itemId)
-        ));
-    } catch (error) {
-        console.error(`failed to send the waitlist alerts for ${itemId}`, error);
-    }
-}
-
 // SCRUM-387: daily job calls this for each paid member whose renewal date is 7 berlin days away
 // the message names the renewal date, so findOne on it stops a second run on the same day from sending it twice
 export async function notifyMembershipRenewal(user) {
@@ -339,7 +332,7 @@ export async function notifyMembershipRenewal(user) {
         const details = {
             type: 'renewal-reminder',
             subject: 'Your membership is about to expire',
-            message: `Your ${membership.tier} membership ends on ${renews}. Renew it before then to keep your benefits`
+            message: `Your ${membership.tier} membership ends on ${renews}. You can renew it from Membership after it expires.`
         };
         const already = await Notification.findOne(
             { username: _id, type: details.type, message: details.message },

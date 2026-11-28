@@ -1,22 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-    notify, notifyWishlistItemAvailable, notifyWaitlistItemAvailable, notifyReservationCancelled, notifyReservationConfirmed, notifyReservationRejected,
-    notifyUpcomingReturn, notifyDeliveryStatus, notifyInApp, notifyMembershipRenewal
+    notify, notifyWishlistItemAvailable, notifyReservationCancelled, notifyReservationConfirmed, notifyReservationRejected,
+    notifyUpcomingReturn, notifyDeliveryStatus, notifyInApp, notifyMembershipRenewal, retryNotificationEmails
 } from '../services/notificationService.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { env } from '../config/env.js';
 import { Notification } from '../models/Notification.js';
 import { User } from '../models/User.js';
 import { Item } from '../models/Item.js';
-import { Waitlist } from '../models/Waitlist.js';
 
 // env is the mock's own object, so each test can switch the gmail on and off
 vi.mock('../config/env.js', () => ({ env: {} }));
 vi.mock('../services/emailService.js', () => ({ sendNotificationEmail: vi.fn() }));
-vi.mock('../models/Notification.js', () => ({ Notification: { create: vi.fn(), findOne: vi.fn() } }));
+vi.mock('../models/Notification.js', () => ({ Notification: { create: vi.fn(), find: vi.fn(), findOne: vi.fn(), updateOne: vi.fn() } }));
 vi.mock('../models/User.js', () => ({ User: { findById: vi.fn(), find: vi.fn() } }));
 vi.mock('../models/Item.js', () => ({ Item: { findById: vi.fn() } }));
-vi.mock('../models/Waitlist.js', () => ({ Waitlist: { find: vi.fn() } }));
 
 const saved = { _id: 'NOT-1a2b3c4d', username: 'yara', type: 'accepted', message: 'Your reservation for "Drill" & case is confirmed' };
 
@@ -64,8 +62,26 @@ describe('notify', () => {
 
         await expect(notify('yara', { message: saved.message })).resolves.toBe(saved);
         await vi.waitFor(() => expect(console.error).toHaveBeenCalledWith(
-            expect.stringContaining('failed to send email for NOT-1a2b3c4d to yara'), expect.any(Error)
+            expect.stringContaining('failed to send email for NOT-1a2b3c4d'), expect.any(Error)
         ));
+        expect(Notification.updateOne).toHaveBeenCalledWith({ _id: saved._id },
+            { $set: expect.objectContaining({ emailRetryAt: expect.any(Date) }) });
+    });
+
+    it('claims and retries a failed email, then clears its retry schedule', async () => {
+        const emailRetryAt = new Date();
+        const notification = { ...saved, emailRetryAt, emailSubject: 'Confirmation' };
+        Notification.find.mockReturnValue({
+            lean: () => ({ cursor: async function* () { yield notification; } })
+        });
+        Notification.updateOne.mockResolvedValue({ modifiedCount: 1 });
+        await retryNotificationEmails(emailRetryAt);
+
+        expect(Notification.updateOne).toHaveBeenNthCalledWith(1, { _id: saved._id, emailRetryAt },
+            { $set: { emailRetryAt: expect.any(Date) } });
+        expect(sendNotificationEmail).toHaveBeenCalledExactlyOnceWith('yara@example.com', 'Confirmation', saved.message);
+        expect(Notification.updateOne).toHaveBeenNthCalledWith(2, { _id: saved._id },
+            { $unset: { emailRetryAt: '', emailSubject: '' } });
     });
 
     it('skips the email and logs it when the user has no email on file', async () => {
@@ -447,73 +463,6 @@ describe('notifyWishlistItemAvailable', () => {
     });
 });
 
-describe('notifyWaitlistItemAvailable', () => {
-    const drill = { _id: 'ITM-1a2b3c4d', name: 'Drill', owner: 'martin', archived: false, flagged: false };
-    const message = '"Drill" on your waitlist is available to reserve now';
-    const alert = (username) => ({ username, type: 'waitlist-available', message, reservation: undefined });
-
-    beforeEach(() => {
-        Item.findById.mockResolvedValue(drill);
-        Waitlist.find.mockResolvedValue([{ username: 'yara' }, { username: 'daniel' }]);
-        Notification.create.mockImplementation(async (doc) => ({ _id: 'NOT-1a2b3c4d', ...doc }));
-        User.findById.mockImplementation(async (username) => ({ profile: { email: `${username}@example.com` } }));
-    });
-
-    it('notifies distinct waitlisted members whose requested window contains now', async () => {
-        Waitlist.find.mockResolvedValue([
-            { username: 'yara' },
-            { username: 'daniel' },
-            { username: 'yara' },
-            { username: 'martin' }
-        ]);
-
-        await notifyWaitlistItemAvailable('ITM-1a2b3c4d');
-
-        const query = Waitlist.find.mock.calls[0][0];
-        expect(query.item).toBe('ITM-1a2b3c4d');
-        expect(query.startDate.$lt).toBeInstanceOf(Date);
-        expect(query.endDate.$gt).toEqual(query.startDate.$lt);
-        expect(Waitlist.find).toHaveBeenCalledWith(query, { username: 1 }, { lean: true });
-        expect(Notification.create).toHaveBeenCalledTimes(2);
-        expect(Notification.create).toHaveBeenCalledWith(alert('yara'));
-        expect(Notification.create).toHaveBeenCalledWith(alert('daniel'));
-        await vi.waitFor(() => expect(sendNotificationEmail).toHaveBeenCalledTimes(2));
-        expect(sendNotificationEmail).toHaveBeenCalledWith(
-            'yara@example.com',
-            'An item on your waitlist is available',
-            message
-        );
-    });
-
-    it('does not notify anyone when no waitlist entries match', async () => {
-        Waitlist.find.mockResolvedValue([]);
-
-        await notifyWaitlistItemAvailable('ITM-1a2b3c4d');
-
-        expect(Notification.create).not.toHaveBeenCalled();
-    });
-
-    it('skips missing or unavailable items', async () => {
-        Item.findById.mockResolvedValue({ ...drill, archived: true });
-
-        await notifyWaitlistItemAvailable('ITM-1a2b3c4d');
-
-        expect(Waitlist.find).not.toHaveBeenCalled();
-        expect(Notification.create).not.toHaveBeenCalled();
-    });
-
-    it('logs lookup failures without throwing', async () => {
-        Waitlist.find.mockRejectedValue(new Error('db down'));
-
-        await expect(notifyWaitlistItemAvailable('ITM-1a2b3c4d')).resolves.toBeUndefined();
-
-        expect(console.error).toHaveBeenCalledWith(
-            'failed to send the waitlist alerts for ITM-1a2b3c4d',
-            expect.any(Error)
-        );
-    });
-});
-
 describe('notifyDeliveryStatus', () => {
     const reservation = {
         _id: 'RES-1a2b3c4d',
@@ -728,7 +677,7 @@ describe('notifyUpcomingReturn', () => {
 
 describe('notifyMembershipRenewal', () => {
     const user = { _id: 'tata', membership: { tier: 'Plus', renewalDate: new Date('2026-12-03T10:00:00Z') } };
-    const message = 'Your Plus membership ends on 3 Dec 2026. Renew it before then to keep your benefits';
+    const message = 'Your Plus membership ends on 3 Dec 2026. You can renew it from Membership after it expires.';
 
     it('saves a renewal-reminder notification that names the tier and the berlin date', async () => {
         await notifyMembershipRenewal(user);

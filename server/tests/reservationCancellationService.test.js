@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
     reservationFindOneAndUpdate: vi.fn(),
     reservationUpdateOne: vi.fn(),
     paymentFind: vi.fn(),
+    paymentExists: vi.fn(),
+    checkoutExists: vi.fn(),
     paymentFindOne: vi.fn(),
     paymentCreate: vi.fn(),
     itemFindById: vi.fn(),
@@ -30,10 +32,13 @@ vi.mock('../models/Reservation.js', () => ({
 vi.mock('../models/Payment.js', () => ({
     Payment: {
         find: mocks.paymentFind,
+        exists: mocks.paymentExists,
         findOne: mocks.paymentFindOne,
         create: mocks.paymentCreate
     }
 }));
+
+vi.mock('../models/Checkout.js', () => ({ Checkout: { exists: mocks.checkoutExists } }));
 
 vi.mock('../models/Item.js', () => ({
     Item: {
@@ -352,6 +357,34 @@ describe('cancelReservationWithRefund', () => {
         expect(update).not.toHaveProperty('cancelledByUser');
     });
 
+    it('expires a legacy unpaid wallet request without creating a refund', async () => {
+        const reservation = makeReservation({ status: 'pending', startDate: new Date('2026-11-16T12:00:00.000Z') });
+        mocks.reservationFindById.mockReturnValue(query(reservation));
+        mocks.paymentFind.mockReturnValue(query([]));
+        mocks.paymentExists.mockReturnValue(query(null));
+        mocks.checkoutExists.mockReturnValue(query(null));
+
+        await expect(expireUnansweredReservation(reservation._id)).resolves.toMatchObject({ refundAmount: 0 });
+        expect(mocks.reservationFindOneAndUpdate.mock.calls[0][1].$set).toMatchObject({
+            status: 'cancelled', 'payment.depositCollected': false, cancellationRefundAmount: 0
+        });
+        expect(mocks.userFindOneAndUpdate).not.toHaveBeenCalled();
+        expect(mocks.paymentCreate).not.toHaveBeenCalled();
+    });
+
+    it.each(['checkout', 'ledger', 'collected marker'])('requires payment verification when the %s shows evidence of a charge', async evidence => {
+        const reservation = makeReservation({ status: 'pending', startDate: new Date('2026-11-16T12:00:00.000Z') });
+        if (evidence === 'collected marker') reservation.payment.depositCollected = true;
+        mocks.reservationFindById.mockReturnValue(query(reservation));
+        mocks.paymentFind.mockReturnValue(query([]));
+        mocks.paymentExists.mockReturnValue(query(evidence === 'ledger' ? { _id: 'PAY-123' } : null));
+        mocks.checkoutExists.mockReturnValue(query(evidence === 'checkout' ? { _id: 'checkout-1' } : null));
+
+        await expect(expireUnansweredReservation(reservation._id)).rejects.toMatchObject({ code: 'PAYMENT_NOT_VERIFIED' });
+        expect(mocks.reservationFindOneAndUpdate).not.toHaveBeenCalled();
+        expect(mocks.paymentCreate).not.toHaveBeenCalled();
+    });
+
     it('skips approved requests and pending requests that have not reached their start date', async () => {
         for (const status of ['upcoming', 'pending']) {
             mocks.reservationFindById.mockReturnValue(query(makeReservation({ status })));
@@ -533,3 +566,7 @@ describe('cancelReservationWithRefund', () => {
         expect(dbSession.endSession).toHaveBeenCalledOnce();
     });
 });
+vi.mock('../services/waitlistAvailability.js', () => ({
+    checkWaitlistAvailability: vi.fn(),
+    releaseWaitlistEntry: vi.fn()
+}));

@@ -401,3 +401,5 @@ describe('GET /api/items/:id', () => {
         expect(Item.findOne).not.toHaveBeenCalled();
     });
 });
+
+vi.mock('../models/Waitlist.js', () => ({ Waitlist: { distinct: vi.fn(async () => []) } }));

@@ -69,6 +69,8 @@ const validMember = {
     username: 'martin123',
     name: 'Martin',
     email: 'martin@example.com',
+    phoneNumber: '+491701234567',
+    homeAddress: '1 Test Street',
     password: 'secret123'
 };
 

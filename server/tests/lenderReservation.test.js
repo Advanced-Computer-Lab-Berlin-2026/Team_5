@@ -331,7 +331,9 @@ describe('PATCH /api/lender/reservations/:id/return', () => {
         const cookie = asLender();
         setupSession();
         vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({ status: 'active' }));
-        vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue({ _id: 'RES-1', status: 'completed', handover: { returnedAt: new Date(), returnCondition: 'good' } });
+        vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue(mockReservation({
+            status: 'completed', handover: { returnedAt: new Date(), returnCondition: 'good' }
+        }));
         User.updateOne.mockResolvedValue({});
         const pay = vi.spyOn(Payment, 'create').mockResolvedValue([{}]);
 
@@ -359,7 +361,7 @@ describe('PATCH /api/lender/reservations/:id/return', () => {
         vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({
             status: 'active', payment: { depositAmount: 100, method: 'wallet', depositCollected: false }
         }));
-        const returned = { _id: 'RES-1', status: 'completed' };
+        const returned = mockReservation({ status: 'completed', payment: { depositAmount: 100, method: 'wallet', depositCollected: false } });
         vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue(returned);
         const pay = vi.spyOn(Payment, 'create');
 
@@ -394,7 +396,7 @@ describe('PATCH /api/lender/reservations/:id/return', () => {
         vi.spyOn(Reservation, 'findById').mockResolvedValue(mockReservation({
             status: 'active', payment: { depositAmount: 0, method: 'wallet' }
         }));
-        const returned = mockReservation({ status: 'completed' });
+        const returned = mockReservation({ status: 'completed', payment: { depositAmount: 0, method: 'wallet' } });
         vi.spyOn(Reservation, 'findOneAndUpdate').mockResolvedValue(returned);
         const res = await request(app).patch(url).set('Origin', ORIGIN).set('Cookie', cookie);
         expect(res.status).toBe(500);
@@ -681,3 +683,12 @@ describe('POST /api/lender/reservations/:id/damage', () => {
         expect(session.endSession).toHaveBeenCalled();
     });
 });
+vi.mock('../services/waitlistAvailability.js', () => ({
+    checkWaitlistAvailability: vi.fn(),
+    releaseWaitlistEntry: vi.fn()
+}));
+vi.mock('../services/waitlistPromotion.js', () => ({ promoteWaitlistAfterCancellation: vi.fn() }));
+
+vi.mock('../services/reservationCancellationService.js', async importOriginal => ({
+    ...await importOriginal(), getCollectedReservationDeposit: vi.fn(async reservation => reservation.payment.depositCollected === false ? 0 : reservation.payment.depositAmount)
+}));

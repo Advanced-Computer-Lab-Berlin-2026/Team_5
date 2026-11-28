@@ -5,6 +5,7 @@ import { Payment } from '../models/Payment.js';
 import { User } from '../models/User.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { refundUnavailablePayment } from './stripeCheckoutService.js';
+import { activeTier } from './membershipService.js';
 
 const PAYMENT_TYPE = 'membership-fee';
 const PAYMENT_INTENT_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
@@ -73,14 +74,17 @@ async function payWithWallet(userId, tier, paymentDetails, findPayment) {
 
             const startDate = new Date();
             const user = await User.findOneAndUpdate(
-                { _id: userId, 'membership.tier': { $ne: tier.tier }, wallet: { $gte: tier.annual_fee } },
+                { _id: userId, wallet: { $gte: tier.annual_fee }, $or: [
+                    { 'membership.tier': { $ne: tier.tier } },
+                    { 'membership.renewalDate': { $type: 'date', $lte: startDate } }
+                ] },
                 { $inc: { wallet: -tier.annual_fee }, $set: membershipUpdate(tier.tier, startDate) },
                 { session }
             ).select('_id');
             if (!user) {
-                const current = await User.findById(userId).select('membership.tier').session(session);
+                const current = await User.findById(userId).select('membership').session(session);
                 if (!current) throw new CheckoutError(404, 'USER_NOT_FOUND', 'User not found.');
-                if (current.membership?.tier === tier.tier) throw alreadySubscribed(tier.tier);
+                if (activeTier(current.membership, startDate) === tier.tier) throw alreadySubscribed(tier.tier);
                 throw new CheckoutError(409, 'INSUFFICIENT_WALLET_BALANCE', 'Insufficient wallet balance for this membership.');
             }
 
@@ -98,7 +102,7 @@ async function payWithWallet(userId, tier, paymentDetails, findPayment) {
 async function createMembershipCardPayment(userId, tier, paymentDetails, findPayment) {
     const user = await User.findById(userId).select('membership').lean();
     if (!user) throw new CheckoutError(404, 'USER_NOT_FOUND', 'User not found.');
-    if (user.membership?.tier === tier.tier) throw alreadySubscribed(tier.tier);
+    if (activeTier(user.membership) === tier.tier) throw alreadySubscribed(tier.tier);
 
     const stripeAmountCents = Math.round(tier.annual_fee * 100);
     if (!Number.isSafeInteger(stripeAmountCents) || stripeAmountCents < 50 || stripeAmountCents > 99999999) {

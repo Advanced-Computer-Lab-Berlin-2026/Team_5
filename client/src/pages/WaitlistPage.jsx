@@ -21,8 +21,8 @@ export default function WaitlistPage() {
 
     async function reserve(entry) {
         const ok = await act.run(() => addToBorrowList(entry.item._id, { startDate: dayOf(entry.startDate), endDate: dayOf(entry.endDate) }),
-            `${entry.item.name} is in your basket. Pay for it there before someone else books it.`);
-        if (ok) { announceBorrowListChange(); await leaveWaitlist(entry._id).catch(() => {}); reload(); }
+            `${entry.item.name} is in your basket. Go to checkout to finish your reservation.`);
+        if (ok) { announceBorrowListChange(); reload(); }
     }
 
     return <>
@@ -36,7 +36,7 @@ export default function WaitlistPage() {
             action={<Button to="/items">Start discovering <Icon name="arrow" size={16} /></Button>} />}
         <Grid>
             {entries.map((entry, index) => {
-                const free = Boolean(entry.promotedAt);
+                const free = entry.canReserve;
                 const over = dayOf(entry.startDate) < today;
                 const dates = `${formatDate(entry.startDate)} to ${formatDate(entry.endDate)}`;
                 return <ItemCard key={entry._id} item={entry.item} introDelay={index * 60} plainBack

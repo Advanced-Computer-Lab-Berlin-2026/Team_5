@@ -113,7 +113,7 @@ export default function MembershipPage() {
                             <li><strong>{tier.deposit_discount}%</strong> off every deposit</li>
                             {(tier.maxConcurrentReservations ?? OPEN_BOOKINGS[tier.tier]) && <li>Up to <strong>{tier.maxConcurrentReservations ?? OPEN_BOOKINGS[tier.tier]}</strong> bookings open at once</li>}
                             {tier.waitlistPriority && <li>Waitlist priority {tier.waitlistPriority}</li>}
-                            <li>{paid ? 'Renews after a year' : 'Always included'}</li>
+                            <li>{paid ? 'Expires after a year' : 'Always included'}</li>
                         </ul>
                         <div className={styles.actions}>
                             {paid && !isCurrent && <>

@@ -7,9 +7,10 @@ import mongoose from 'mongoose';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { calculateCheckoutPricing, normalizePromoCode } from './checkoutPricingService.js';
 import { getReservationDeposit } from './reservationDeposit.js';
-import { getDepositDiscountPercent } from './membershipService.js';
+import { getDepositDiscountPercent, requireReservationCapacity } from './membershipService.js';
 import { validateBorrowingRules } from './reservationRules.js';
 import { redeemCheckoutPromo } from './checkoutPromoRedemption.js';
+import { checkWaitlistAvailability } from './waitlistAvailability.js';
 export function validateBorrowList(borrowList) {
     if (!Array.isArray(borrowList) || borrowList.length === 0) {
         throw new CheckoutError(
@@ -90,7 +91,7 @@ export async function acquireCheckoutLock(itemId, session) {
     return item;
 }
 
-export async function lockAndCheckAvailability(checkoutItems, session) {
+export async function lockAndCheckAvailability(checkoutItems, session, userId) {
     if (!session || !session.inTransaction()) {
         throw new Error('An active transaction is required.');
     }
@@ -102,7 +103,7 @@ export async function lockAndCheckAvailability(checkoutItems, session) {
 
     for (const entry of items) {
         // Acquire the checkout lock for this item
-        await acquireCheckoutLock(entry.itemId, session);
+        const item = await acquireCheckoutLock(entry.itemId, session);
 
         // Check for existing reservations with overlapping dates
         const overlappingReservation = await Reservation.findOverlap(
@@ -119,6 +120,7 @@ export async function lockAndCheckAvailability(checkoutItems, session) {
                 `Item with ID ${entry.itemId} is unavailable for the selected dates.`
             );
         }
+        await checkWaitlistAvailability(item, userId, entry.startDate, entry.endDate, session);
     }
 
     return items;
@@ -136,6 +138,7 @@ export async function prepareCheckout(userId, session = null) {
 
     const borrowList = user.borrow_list;
     validateBorrowList(borrowList);
+    await requireReservationCapacity(user, borrowList.length, session);
 
     const checkoutItems = [];
     const membershipDiscount = await getDepositDiscountPercent(user, new Date(), session);
@@ -199,6 +202,7 @@ export async function prepareCheckout(userId, session = null) {
         const startDate = new Date(entry.startDate);
         const endDate = new Date(entry.endDate);
         validateBorrowingRules(item, user, startDate, endDate);
+        await checkWaitlistAvailability(item, userId, startDate, endDate, session);
         if (entry.deliveryAddress && !item.delivery?.offered) {
             throw new CheckoutError(409, 'DELIVERY_UNAVAILABLE', 'This item no longer offers delivery. Remove it and add it again for pickup.');
         }
@@ -337,7 +341,8 @@ export async function checkoutWithWallet(userId, idempotencyKey, promoCode = nul
             // 5. Acquire locks and verify availability
             const availableItems = await lockAndCheckAvailability(
                 checkoutItems,
-                session
+                session,
+                userId
             );
 
             

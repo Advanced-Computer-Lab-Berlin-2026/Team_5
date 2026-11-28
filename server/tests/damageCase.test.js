@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../services/reservationCancellationService.js', async importOriginal => ({
+    ...await importOriginal(),
+    getCollectedReservationDeposit: vi.fn(async reservation =>
+        reservation.payment.depositCollected === false ? 0 : reservation.payment.depositAmount)
+}));
 import request from 'supertest';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';

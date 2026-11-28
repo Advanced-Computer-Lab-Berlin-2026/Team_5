@@ -6,6 +6,7 @@ export function getHomeForRole(role) {
 // pressed something that needs an account there (Add to wishlist, Reserve): then you go back to that item to finish it.
 // Other pages you happened to have open before (the browser's last page, or a page that asked you to log in) are not reopened.
 export function getLoginDestination(from, role) {
+    if (from === '/become-lender' && role === 'member') return from;
     const backToItem = typeof from === 'string' && /^\/items\/[^/?#]+(\?[^#]*)?$/.test(from);
     return backToItem && role !== 'admin' ? from : getHomeForRole(role);
 }

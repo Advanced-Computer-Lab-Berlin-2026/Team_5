@@ -10,6 +10,7 @@ import { lockAndCheckAvailability, removeConflictingBorrowListEntries} from './c
 import { calculateCheckoutPricing, normalizePromoCode } from './checkoutPricingService.js';
 import { redeemCheckoutPromo } from './checkoutPromoRedemption.js';
 import { validateBorrowingRules } from './reservationRules.js';
+import { requireReservationCapacity } from './membershipService.js';
 
 export async function createCardPaymentIntent(userId, idempotencyKey, promoCode = null) {
 
@@ -224,6 +225,8 @@ const UNAVAILABLE_CODES = new Set([
     'RESERVATION_START_IN_PAST',
     'ITEM_UNAVAILABLE',
     'ITEM_ALREADY_RESERVED',
+    'WAITLIST_PRIORITY',
+    'MEMBERSHIP_RESERVATION_LIMIT',
     'MEMBER_UNAVAILABLE',
     'PROMO_EXPIRED',
     'PROMO_USAGE_LIMIT_REACHED',
@@ -501,7 +504,10 @@ export async function finalizeCardPayment(paymentIntent) {
             }
 
             // Lock items and prevent overlapping reservations.
-            await lockAndCheckAvailability(items, session);
+            await lockAndCheckAvailability(items, session, current.user);
+            // Stripe can finalize two carts for the same borrower even when neither cart entry remains.
+            await User.updateOne({ _id: current.user }, { $inc: { reservationCheckoutVersion: 1 } }, { session });
+            await requireReservationCapacity(borrower, items.length, session);
 
             // Check whether the item or lender changed since
             // the PaymentIntent was created.

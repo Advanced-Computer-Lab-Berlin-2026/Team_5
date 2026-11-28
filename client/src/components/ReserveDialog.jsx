@@ -25,6 +25,7 @@ export function ReserveDialog({ item, open, onClose, onDatesChange }) {
     const reserve = useAction();
     const waitlist = useAction();
     const [booked, setBooked] = useState([]);
+    const [held, setHeld] = useState([]);
     const [calendarError, setCalendarError] = useState('');
     const [range, setRange] = useState({ start: '', end: '' });
     const [delivery, setDelivery] = useState(false);
@@ -56,8 +57,23 @@ export function ReserveDialog({ item, open, onClose, onDatesChange }) {
         setWaitMode(false);
         waitlist.reset();
         setRange({ start: '', end: '' });
-        getItemCalendar(item._id).then(data => { setBooked(data.reservations ?? []); setCalendarError(''); }).catch(error => setCalendarError(error.message));
     }, [open, item._id]);
+
+    useEffect(() => {
+        if (!open) return undefined;
+        let current = true;
+        getItemCalendar(item._id).then(data => {
+            if (!current) return;
+            setBooked(data.reservations ?? []);
+            setHeld(data.waitlistHolds ?? []);
+            setCalendarError('');
+        }).catch(error => { if (current) setCalendarError(error.message); });
+        return () => { current = false; };
+    }, [open, item._id, reserve.errorCode]);
+
+    useEffect(() => {
+        if (reserve.errorCode === 'WAITLIST_PRIORITY') setRange({ start: '', end: '' });
+    }, [reserve.errorCode]);
 
     const complete = range.start && range.end;
     const offersDelivery = item.delivery?.offered && !waitMode;
@@ -83,8 +99,8 @@ export function ReserveDialog({ item, open, onClose, onDatesChange }) {
             onCancel={event => { event.preventDefault(); onClose(); }} onClose={onClose}>
             <form onSubmit={handleReserve}>
                 <h2>Reserve {item.name}</h2>
-                <Calendar compact booked={booked} value={range} onChange={next => { setRange(next); if (next.start && next.end) onDatesChange?.({ startDate: next.start, endDate: next.end }); }} allowBooked={waitMode} />
-                {waitMode && <p>Pick the days you want, including red ones. You will hear if they free up.</p>}
+                <Calendar compact booked={booked} held={held} value={range} onChange={next => { setRange(next); if (next.start && next.end) onDatesChange?.({ startDate: next.start, endDate: next.end }); }} allowBooked={waitMode} />
+                {waitMode && <p>Pick the booked dates you want. You’ll be notified when it’s your turn.</p>}
                 <Message type="error">{calendarError}</Message>
                 {offersDelivery && <div className={styles.deliveryBox}>
                     {/* a clear on/off button instead of a small checkbox; the address field opens under it when it is on */}

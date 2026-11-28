@@ -5,6 +5,7 @@ import { User } from '../models/User.js';
 import { Waitlist } from '../models/Waitlist.js';
 import { notify } from '../services/notificationService.js';
 import { promoteWaitlistAfterCancellation } from '../services/waitlistPromotion.js';
+import { checkWaitlistAvailability } from '../services/waitlistAvailability.js';
 
 vi.mock('../services/notificationService.js', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -29,7 +30,8 @@ beforeEach(() => {
         { _id: 'premium-first', membership: { tier: 'Premium' } },
         { _id: 'premium-second', membership: { tier: 'Premium' } }
     ]);
-    vi.spyOn(Reservation, 'findOverlap').mockResolvedValue(null);
+    vi.spyOn(User, 'exists').mockResolvedValue({ _id: 'lender' });
+    vi.spyOn(Reservation, 'find').mockResolvedValue([]);
 });
 
 describe('waitlist promotion after cancellation', () => {
@@ -37,9 +39,8 @@ describe('waitlist promotion after cancellation', () => {
         await promoteWaitlistAfterCancellation(reservation);
 
         expect(Waitlist.find).toHaveBeenCalledWith(expect.objectContaining({
-            item: 'ITM-1', promotedAt: null, startDate: { $gte: expect.any(Date), $lt: endDate },
-            endDate: { $gt: startDate }
-        }), null, { lean: true, sort: { createdAt: 1, _id: 1 } });
+            item: 'ITM-1', startDate: { $gte: expect.any(Date) }
+        }), null, { lean: true, sort: { createdAt: 1, _id: 1 }, session: null });
         expect(Waitlist.findOneAndUpdate).toHaveBeenCalledExactlyOnceWith(
             { _id: 'premium-first', promotedAt: null },
             { $set: { promotedAt: expect.any(Date) } },
@@ -51,7 +52,10 @@ describe('waitlist promotion after cancellation', () => {
     });
 
     it('skips a candidate whose full requested dates are still booked', async () => {
-        Reservation.findOverlap.mockResolvedValueOnce({ _id: 'RES-2' });
+        Waitlist.find.mockResolvedValue(entries.map(entry => entry.username === 'premium-first'
+            ? { ...entry, startDate: new Date('2035-06-28') }
+            : entry));
+        Reservation.find.mockResolvedValue([{ startDate: new Date('2035-06-29'), endDate: startDate }]);
 
         await promoteWaitlistAfterCancellation(reservation);
 
@@ -66,4 +70,23 @@ describe('waitlist promotion after cancellation', () => {
         expect(notify).not.toHaveBeenCalled();
         expect(Waitlist.findOneAndUpdate).toHaveBeenCalledOnce();
     });
+
+    it('holds dates before notification and passes them to the next equal-tier member when the winner leaves', async () => {
+        const item = { _id: reservation.item, owner: 'lender' };
+        for (const username of ['basic', 'premium-second', 'new-borrower']) {
+            await expect(checkWaitlistAvailability(item, username, startDate, endDate))
+                .rejects.toMatchObject({ code: 'WAITLIST_PRIORITY' });
+        }
+        await expect(checkWaitlistAvailability(item, 'premium-first', startDate, endDate)).resolves.toBeUndefined();
+        await expect(checkWaitlistAvailability(item, 'basic', new Date('2035-06-30'), startDate)).resolves.toBeUndefined();
+
+        Waitlist.find.mockResolvedValue(entries.filter(entry => entry.username !== 'premium-first'));
+        await expect(checkWaitlistAvailability(item, 'premium-second', startDate, endDate)).resolves.toBeUndefined();
+        await promoteWaitlistAfterCancellation(reservation);
+        expect(notify).toHaveBeenCalledExactlyOnceWith('premium-second', expect.anything());
+    });
 });
+
+vi.mock('../models/FriendLink.js', () => ({ FriendLink: { find: vi.fn(async () => []) } }));
+
+vi.mock('../models/MembershipTier.js', () => ({ MembershipTier: { find: vi.fn(async () => []) } }));

@@ -7,6 +7,7 @@ import { User } from '../models/User.js';
 import { notifyDeliveryStatus } from '../services/notificationService.js';
 import { cancelReservationWithRefund } from '../services/reservationCancellationService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
+import { checkWaitlistAvailability } from '../services/waitlistAvailability.js';
 import { requestExtension } from '../services/extensionService.js';
 import { getDepositDiscountPercent, hasReachedReservationLimit } from '../services/membershipService.js';
 import { getReservationDeposit } from '../services/reservationDeposit.js';
@@ -299,6 +300,7 @@ export async function createReservation(req, res, next) {
                     conflict = true;
                     return;
                 }
+                await checkWaitlistAvailability(item, req.user.id, start, end, session);
 
                 const debit = await User.updateOne(
                     { _id: borrower._id, suspended: { $ne: true }, wallet: { $gte: depositAmount } },

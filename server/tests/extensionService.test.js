@@ -481,3 +481,7 @@ describe('Pending extension requests', () => {
         });
     });
 });
+vi.mock('../services/waitlistAvailability.js', () => ({
+    checkWaitlistAvailability: vi.fn(),
+    releaseWaitlistEntry: vi.fn()
+}));

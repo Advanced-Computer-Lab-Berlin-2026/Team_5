@@ -15,6 +15,7 @@ vi.mock('../services/notificationService.js', async (importOriginal) => ({
     notifyWishlistItemAvailable: vi.fn()
 }));
 vi.mock('../services/waitlistPromotion.js', () => ({ promoteWaitlistAfterCancellation: vi.fn() }));
+vi.mock('../services/waitlistAvailability.js', () => ({ releaseWaitlistEntry: vi.fn() }));
 import { requireAuth } from '../middleware/auth.js';
 
 vi.mock('../middleware/auth.js', async (importOriginal) => ({

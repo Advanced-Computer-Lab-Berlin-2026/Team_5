@@ -13,6 +13,9 @@ import { notify, notifyReservationConfirmed, notifyReservationRejected, notifyWi
 import { decideExtension, getPendingExtensions } from '../services/extensionService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { chargeLateFeeForReturn } from '../services/lateFeeService.js';
+import { checkWaitlistAvailability, releaseWaitlistEntry } from '../services/waitlistAvailability.js';
+import { promoteWaitlistAfterCancellation } from '../services/waitlistPromotion.js';
+import { getCollectedReservationDeposit } from '../services/reservationCancellationService.js';
 
 // Finds the reservation and checks that it belongs to this lender and has one of the allowed statuses.
 // Returns { reservation } or { status, message } for the error response.
@@ -64,8 +67,7 @@ async function decideIncomingReservation(req, res, next, decision) {
         }
         const nextStatus = approved ? 'upcoming' : 'rejected';
         const fee = reservation.delivery?.feeCollected ? reservation.delivery.fee : 0;
-        const refund = reservation.payment.depositCollected === false ? 0
-            : Math.round((reservation.payment.depositAmount + fee) * 100) / 100;
+        let refund = 0;
         let updated = null;
 
         session = await mongoose.startSession();
@@ -73,10 +75,12 @@ async function decideIncomingReservation(req, res, next, decision) {
             if (approved) {
                 const locked = await Item.updateOne({ _id: reservation.item }, { $inc: { checkoutVersion: 1 } }, { session });
                 if (!locked.matchedCount || await Reservation.findOverlap(
-                    reservation.item, reservation.startDate, reservation.endDate, session, reservation._id
+                    reservation.item, reservation.startDate, reservation.endDate, session, reservation._id, false
                 )) {
                     throw new CheckoutError(409, 'ITEM_ALREADY_RESERVED', 'The item is unavailable for these dates.');
                 }
+                await checkWaitlistAvailability({ _id: reservation.item, owner: req.user.id },
+                    reservation.borrower, reservation.startDate, reservation.endDate, session);
             }
             updated = await Reservation.findOneAndUpdate(
                 { _id: reservation._id, lender: req.user.id, status: 'pending' },
@@ -84,7 +88,12 @@ async function decideIncomingReservation(req, res, next, decision) {
                 { new: true, session }
             );
             if (!updated) return;
+            await releaseWaitlistEntry(reservation, session);
 
+            if (!approved) {
+                const deposit = await getCollectedReservationDeposit(reservation, session);
+                refund = Math.round((deposit + fee) * 100) / 100;
+            }
             if (!approved && refund > 0) {
                 await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
                 await Payment.create([{
@@ -103,6 +112,7 @@ async function decideIncomingReservation(req, res, next, decision) {
         await notifyAfterCommit(`notify reservation ${decision}`, updated._id, () =>
             approved ? notifyReservationConfirmed(updated) : notifyReservationRejected(updated, refund)
         );
+        if (!approved) await notifyAfterCommit('notify next waitlist member', updated._id, () => promoteWaitlistAfterCancellation(updated));
         res.status(200).json(approved ? { reservation: updated } : { reservation: updated, refunded: refund });
     } catch (error) {
         if (error instanceof CheckoutError) return res.status(error.statusCode).json({ error: error.code, message: error.message });
@@ -163,7 +173,7 @@ export async function markReturnedGood(req, res, next) {
         const { reservation, status, message } = await findLenderReservation(req.params.id, req.user.id, ['active'], 'be marked as returned');
         if (!reservation) return res.status(status).json({ message });
 
-        const refund = reservation.payment.depositCollected === false ? 0 : reservation.payment.depositAmount;
+        let refund = 0;
         let updated = null;
 
         session = await mongoose.startSession();
@@ -175,6 +185,7 @@ export async function markReturnedGood(req, res, next) {
                 { new: true, session }
             );
             if (!updated) return;
+            refund = await getCollectedReservationDeposit(updated, session);
 
             if (refund > 0) {
                 await User.updateOne({ _id: reservation.borrower }, { $inc: { wallet: refund } }, { session });
@@ -210,6 +221,7 @@ export async function markReturnedGood(req, res, next) {
             // item is available again for wishlisters (358)
             await notifyWishlistItemAvailable(reservation.item);
         });
+        await notifyAfterCommit('notify next waitlist member', updated._id, () => promoteWaitlistAfterCancellation(updated));
 
         res.status(200).json({ reservation: updated, refunded: refund });
     } catch (error) {
@@ -328,6 +340,7 @@ export async function reportDamage(req, res, next) {
             // item is available again for wishlisters (358)
             await notifyWishlistItemAvailable(reservation.item);
         });
+        await notifyAfterCommit('notify next waitlist member', reservation._id, () => promoteWaitlistAfterCancellation(reservation));
 
         res.status(201).json({ report });
     } catch (error) {

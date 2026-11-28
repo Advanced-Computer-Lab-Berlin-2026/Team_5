@@ -1,5 +1,6 @@
 
-import { createCardPaymentIntent } from '../services/stripeCheckoutService.js';
+import stripe from '../config/stripe.js';
+import { createCardPaymentIntent, finalizeCardPayment } from '../services/stripeCheckoutService.js';
 import { CheckoutError } from '../utils/CheckoutError.js';
 import { Payment } from '../models/Payment.js';
 export async function createPaymentIntent(req, res, next) {
@@ -54,7 +55,7 @@ export async function getCardPaymentStatus(req, res, next) {
             user: req.user.id,
             method: 'card'
         })
-        .select('_id status stripeAmountCents reservations updatedAt')
+        .select('_id type status stripePaymentIntentId stripeAmountCents reservations updatedAt')
         .lean();
 
         if (!payment) {
@@ -64,12 +65,26 @@ export async function getCardPaymentStatus(req, res, next) {
             });
         }
 
+        let status = payment.status;
+        let reservations = payment.reservations || [];
+        if (req.method === 'POST' && payment.type === 'deposit-pending' &&
+            status === 'awaiting_payment' && payment.stripePaymentIntentId) {
+            const intent = await stripe.paymentIntents.retrieve(payment.stripePaymentIntentId);
+            if (intent.status === 'succeeded') {
+                const result = await finalizeCardPayment(intent);
+                status = result.status;
+                reservations = result.reservations ?? reservations;
+            } else if (intent.status === 'canceled') {
+                status = 'failed';
+            }
+        }
+
         return res.status(200).json({
             paymentId: payment._id,
-            status: payment.status,
+            status,
             amount: payment.stripeAmountCents,
             currency: 'eur',
-            reservations: payment.reservations || [],
+            reservations,
             updatedAt: payment.updatedAt
         });
 

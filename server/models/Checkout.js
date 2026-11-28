@@ -54,5 +54,6 @@ checkoutSchema.index(
     { user: 1, idempotencyKey: 1 },
     { unique: true }
 );
+checkoutSchema.index({ reservations: 1 });
 
 export const Checkout = mongoose.model('Checkout', checkoutSchema);

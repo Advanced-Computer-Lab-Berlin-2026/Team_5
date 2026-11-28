@@ -17,6 +17,12 @@ function readToken(token) {
     }
 }
 
+export function catalogViewer(req, res, next) {
+    const token = getAccessToken(req);
+    if (token) req.catalogViewerId = readToken(token).payload?.id;
+    next();
+}
+
 // Only lets logged-in users through and stores them on req.user as { id, username }
 export async function requireAuth(req, res, next) {
     const token = getAccessToken(req);

@@ -56,9 +56,9 @@ beforeEach(() => {
     Waitlist.create.mockResolvedValue({ _id: 'WTL-12345678' });
     Waitlist.deleteOne.mockResolvedValue({ deletedCount: 1 });
     Waitlist.deleteMany.mockResolvedValue({ deletedCount: 2 });
-    Waitlist.find.mockReturnValue({
-        populate: vi.fn().mockResolvedValue([])
-    });
+    Waitlist.find.mockImplementation((filter, projection, options) => options?.lean
+        ? Promise.resolve([])
+        : { populate: vi.fn(() => ({ lean: vi.fn().mockResolvedValue([]) })) });
 });
 
 describe('POST /api/waitlist/:itemId', () => {
@@ -264,14 +264,14 @@ describe('GET /api/waitlist', () => {
     it.each(['member', 'admin', 'lender'])('returns the %s user’s waitlist entries', async (role) => {
         authenticateAs('user123', role);
         const waitlists = [{ _id: 'WTL-12345678', item: { _id: itemId, name: 'Drill' } }];
-        const populate = vi.fn().mockResolvedValue(waitlists);
-        Waitlist.find.mockReturnValue({ populate });
+        const populate = vi.fn(() => ({ lean: vi.fn().mockResolvedValue(waitlists) }));
+        Waitlist.find.mockImplementation((filter, projection, options) => options?.lean ? Promise.resolve([]) : { populate });
 
         const response = await listWaitlist();
 
         expect(response.status).toBe(200);
-        expect(response.body).toEqual({ waitlists });
-        expect(Waitlist.find).toHaveBeenCalledExactlyOnceWith({ username: 'user123' });
+        expect(response.body).toEqual({ waitlists: [{ ...waitlists[0], canReserve: false }] });
+        expect(Waitlist.find).toHaveBeenCalledWith({ username: 'user123' });
         expect(populate).toHaveBeenCalledExactlyOnceWith('item');
     });
 
@@ -302,7 +302,7 @@ describe('GET /api/waitlist', () => {
 
     it('forwards waitlist lookup errors to the error handler', async () => {
         Waitlist.find.mockReturnValue({
-            populate: vi.fn().mockRejectedValue(new Error('Database unavailable'))
+            populate: vi.fn(() => ({ lean: vi.fn().mockRejectedValue(new Error('Database unavailable')) }))
         });
 
         const response = await listWaitlist();

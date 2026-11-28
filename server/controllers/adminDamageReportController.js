@@ -3,6 +3,8 @@ import joi from 'joi';
 import { DamageReport } from '../models/DamageReport.js';
 import { DAMAGE_REPORT_ID_PATTERN, loadCase, addMoney, takeMoney, isDuplicateStep, disputeDeadline } from '../services/damageCase.js';
 import { notify } from '../services/notificationService.js';
+import { getCollectedReservationDeposit } from '../services/reservationCancellationService.js';
+import { CheckoutError } from '../utils/CheckoutError.js';
 
 const rulingSchema = joi.object({
     // at most 2 decimals: 33.3333 is refused (joi's own .precision(2) would silently round it instead)
@@ -57,8 +59,12 @@ export async function getDamageCase(req, res, next) {
             afterPhotos: damageCase.reservation.handover?.returnPhotos ?? [],
             steps: damageCase.steps,
             reservation: damageCase.reservation,
+            collectedDeposit: ['report', 'dispute'].includes(damageCase.status)
+                ? await getCollectedReservationDeposit(damageCase.reservation)
+                : undefined,
         });
     } catch (error) {
+        if (error instanceof CheckoutError) return res.status(error.statusCode).json({ error: error.code, message: error.message });
         next(error);
     }
 }
@@ -73,17 +79,18 @@ export async function decideDamageCase(req, res, next) {
         if (damageCase.status !== 'report') return res.status(409).json({ message: 'This case already has a decision' });
 
         const { reservation } = damageCase;
-        const deposit = reservation.payment.depositAmount;
-        const ruling = checkRuling(req.body, deposit);
-        if (!ruling.value) return res.status(400).json({ message: ruling.message });
-
-        const toLender = ruling.value.depositForfeit;
-        const toBorrower = Math.round((deposit - toLender) * 100) / 100; // cents, no float noise
+        let toLender;
+        let toBorrower;
         let decision;
 
         // the step and the money are saved together, or nothing
         session = await mongoose.startSession();
         await session.withTransaction(async () => {
+            const deposit = await getCollectedReservationDeposit(reservation, session);
+            const ruling = checkRuling(req.body, deposit);
+            if (!ruling.value) throw new CheckoutError(400, 'INVALID_DAMAGE_RULING', ruling.message);
+            toLender = ruling.value.depositForfeit;
+            toBorrower = Math.round((deposit - toLender) * 100) / 100;
             [decision] = await DamageReport.create([{
                 reservation: reservation._id,
                 type: 'decision',
@@ -105,6 +112,7 @@ export async function decideDamageCase(req, res, next) {
         res.status(201).json({ decision, toLender, toBorrower });
     } catch (error) {
         if (isDuplicateStep(error)) return res.status(409).json({ message: 'This case already has a decision' });
+        if (error instanceof CheckoutError) return res.status(error.statusCode).json({ error: error.code, message: error.message });
         next(error);
     } finally {
         await session?.endSession();
@@ -122,7 +130,7 @@ export async function resolveDamageCase(req, res, next) {
         if (damageCase.status !== 'dispute') return res.status(409).json({ message: 'Only a disputed case can be resolved' });
 
         const { reservation, decision } = damageCase;
-        const ruling = checkRuling(req.body, reservation.payment.depositAmount);
+        const ruling = checkRuling(req.body, await getCollectedReservationDeposit(reservation));
         if (!ruling.value) return res.status(400).json({ message: ruling.message });
 
         const finalForfeit = ruling.value.depositForfeit;
@@ -165,6 +173,7 @@ export async function resolveDamageCase(req, res, next) {
         res.status(201).json({ resolution, difference });
     } catch (error) {
         if (isDuplicateStep(error)) return res.status(409).json({ message: 'This case was already resolved' });
+        if (error instanceof CheckoutError) return res.status(error.statusCode).json({ error: error.code, message: error.message });
         next(error); // a deleted borrower/lender account arrives here with status 404
     } finally {
         await session?.endSession();

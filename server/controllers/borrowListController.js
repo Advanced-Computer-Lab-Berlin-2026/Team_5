@@ -1,5 +1,7 @@
 import joi from 'joi';
 import { User, Item, Reservation } from '../models/index.js';
+import { checkWaitlistAvailability } from '../services/waitlistAvailability.js';
+import { CheckoutError } from '../utils/CheckoutError.js';
 
 const ITEM_ID_PATTERN = /^ITM-[0-9a-f]{8}$/;
 
@@ -86,6 +88,7 @@ export async function addToBorrowList(req, res, next) {
 
         const overlap = await Reservation.findOverlap(itemId, value.startDate, value.endDate);
         if (overlap) return res.status(409).json({ message: 'Item is not available for these dates' });
+        await checkWaitlistAvailability({ _id: itemId, owner: item.owner._id }, userId, value.startDate, value.endDate);
 
         const entry = { item: itemId, ...value };
         // The filter and the push run as one update, so the same item can never be added twice
@@ -97,6 +100,7 @@ export async function addToBorrowList(req, res, next) {
 
         return res.status(201).json({ message: 'Item added to borrow list', entry });
     } catch (error) {
+        if (error instanceof CheckoutError) return res.status(error.statusCode).json({ error: error.code, message: error.message });
         next(error);
     }
 }
@@ -116,8 +120,12 @@ export async function updateBorrowListDates(req, res, next) {
         const inList = await User.exists({ _id: userId, 'borrow_list.item': itemId });
         if (!inList) return res.status(404).json({ message: 'Item not in borrow list' });
 
+        const item = await findBorrowableItem(itemId);
+        if (!item) return res.status(404).json({ message: 'Item not found' });
+
         const overlap = await Reservation.findOverlap(itemId, value.startDate, value.endDate);
         if (overlap) return res.status(409).json({ message: 'Item is not available for these dates' });
+        await checkWaitlistAvailability({ _id: itemId, owner: item.owner._id }, userId, value.startDate, value.endDate);
 
         // The positional $ operator only touches the entry the filter matched
         const result = await User.updateOne(
@@ -129,6 +137,7 @@ export async function updateBorrowListDates(req, res, next) {
         const entry = { item: itemId, startDate: value.startDate, endDate: value.endDate };
         return res.status(200).json({ message: 'Borrow list dates updated', entry });
     } catch (error) {
+        if (error instanceof CheckoutError) return res.status(error.statusCode).json({ error: error.code, message: error.message });
         next(error);
     }
 }

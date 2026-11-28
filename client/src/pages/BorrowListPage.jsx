@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getBorrowList, removeFromBorrowList, updateBorrowListDates } from '../api/borrowList.js';
-import { getCardPaymentStatus, newIdempotencyKey, payWithWallet, startCardPayment, quoteCheckout } from '../api/checkout.js';
+import { getCardPaymentStatus, newIdempotencyKey, payWithWallet, reconcileCardPayment, startCardPayment, quoteCheckout } from '../api/checkout.js';
 import { getWalletBalance } from '../api/wallet.js';
+import { useAuth } from '../auth/AuthContext.jsx';
 import { useAction } from '../hooks/useAction.js';
 import { useAsync } from '../hooks/useAsync.js';
 import { Button, Card, EmptyState, FormField, Icon, ItemCard, Message, PageHeader, Spinner } from '../components';
@@ -21,9 +22,19 @@ const RETRY_CODES = ['CHECKOUT_RETRY', 'CHECKOUT_CONFLICT'];
 const POLL_MS = 1500;
 const POLL_LIMIT = 40;
 
+function readCardAttempt(storageKey) {
+    try {
+        return JSON.parse(sessionStorage.getItem(storageKey));
+    } catch {
+        return null;
+    }
+}
+
 // Members: everything they want to borrow, with its dates, paid for in one go from the wallet or by card.
 // Paying makes one booking request per item; each owner then approves or declines theirs (a declined one is refunded).
 export default function BorrowListPage() {
+    const { user } = useAuth();
+    const storageKey = `acl.card-checkout.${user?.id ?? user?.username}`;
     const list = useAsync(getBorrowList);
     // keep the basket in the header in step with this page
     useEffect(() => { if (list.data) announceBorrowListChange(); }, [list.data]);
@@ -39,7 +50,11 @@ export default function BorrowListPage() {
     const [applied, setApplied] = useState(null); // { code, percent }
     const [attemptKey, setAttemptKey] = useState(null);
     const [card, setCard] = useState(null); // { paymentId, clientSecret, amount }
-    const [waiting, setWaiting] = useState(false);
+    const [pendingCard, setPendingCard] = useState(() => {
+        const attempt = readCardAttempt(storageKey);
+        return attempt?.confirming ? attempt : null;
+    });
+    const [pollTimedOut, setPollTimedOut] = useState(false);
     const [done, setDone] = useState(null); // { count, total, method }
     const [refunded, setRefunded] = useState(false);
 
@@ -57,10 +72,13 @@ export default function BorrowListPage() {
     const subtotal = entries.reduce((sum, entry) => sum + priceOf(entry), 0);
     const quote = useAsync(() => entries.length ? quoteCheckout(applied?.code) : Promise.resolve(null), [entries, applied?.code]);
     const total = quote.data?.total;
+    const paymentDisabled = Boolean(pendingCard) || list.loading || quote.loading || Boolean(quote.error) || typeof total !== 'number';
     const balance = wallet.data?.balance;
     const enoughInWallet = typeof balance === 'number' && balance >= total;
     // a different list or promo is a different payment, so it gets a new key
-    const signature = entries.map(entry => `${entry.item._id}:${entry.startDate}:${entry.endDate}`).join('|') + (applied?.code ?? '');
+    const signature = JSON.stringify([applied?.code, entries.map(entry => [
+        entry.item._id, entry.startDate, entry.endDate, entry.deliveryAddress
+    ])]);
     useEffect(() => { setAttemptKey(null); }, [signature]);
     const keyFor = () => { const key = attemptKey ?? newIdempotencyKey(); setAttemptKey(key); return key; };
 
@@ -81,6 +99,7 @@ export default function BorrowListPage() {
     }
 
     async function handleWallet() {
+        if (readCardAttempt(storageKey)?.confirming) return;
         setRefunded(false);
         const key = keyFor();
         const result = await pay.run(() => payWithWallet(key, applied?.code));
@@ -89,53 +108,85 @@ export default function BorrowListPage() {
 
     async function handleCard() {
         setRefunded(false);
-        const key = keyFor();
-        const result = await pay.run(() => startCardPayment(key, applied?.code));
-        if (result) setCard(result);
+        const saved = readCardAttempt(storageKey);
+        const attempt = saved?.confirming || saved?.signature === signature
+            ? saved
+            : { key: newIdempotencyKey(), signature, promoCode: applied?.code };
+        const result = await pay.run(async () => {
+            sessionStorage.setItem(storageKey, JSON.stringify(attempt));
+            return startCardPayment(attempt.key, attempt.promoCode);
+        });
+        if (result) setCard({ ...result, attempt });
+        else if (attempt.confirming) setPollTimedOut(false);
     }
 
-    // Stripe said yes; the server makes the bookings when Stripe tells it, so wait for that
-    async function handleCardPaid() {
-        const paid = card;
-        setCard(null);
-        setWaiting(true);
-        for (let attempt = 0; attempt < POLL_LIMIT; attempt += 1) {
+    function markCardConfirming() {
+        const attempt = { ...card.attempt, paymentId: card.paymentId, confirming: true };
+        sessionStorage.setItem(storageKey, JSON.stringify(attempt));
+        setPendingCard(attempt);
+        setPollTimedOut(false);
+    }
+
+    useEffect(() => {
+        if (!pendingCard || card || pollTimedOut) return undefined;
+        let active = true;
+        let timer;
+        let checks = 0;
+        async function checkPayment() {
             try {
-                const status = await getCardPaymentStatus(paid.paymentId);
-                if (status.status === 'completed') { setWaiting(false); finished(status.reservations?.length ?? entries.length, paid.amount / 100, 'card'); return; }
-                if (status.status === 'refunded' || status.status === 'refund_pending') {
-                    setWaiting(false);
+                const check = checks === 0 || checks % 10 === 0 ? reconcileCardPayment : getCardPaymentStatus;
+                const status = await check(pendingCard.paymentId);
+                if (!active) return;
+                if (['completed', 'refunded', 'refund_pending', 'failed'].includes(status.status)) {
+                    sessionStorage.removeItem(storageKey);
+                    setPendingCard(null);
                     pay.reset();
-                    setRefunded(status.status);
+                    if (status.status === 'completed') {
+                        setDone({ count: status.reservations.length, total: status.amount / 100, method: 'card' });
+                        setApplied(null);
+                        setPromoText('');
+                        wallet.reload();
+                    } else {
+                        setRefunded(status.status);
+                    }
                     list.reload();
                     return;
                 }
             } catch { /* keep waiting */ }
-            await new Promise(resolve => window.setTimeout(resolve, POLL_MS));
+            if (!active) return;
+            if (++checks >= POLL_LIMIT) setPollTimedOut(true);
+            else timer = window.setTimeout(checkPayment, POLL_MS);
         }
-        setWaiting(false);
-        setDone({ count: entries.length, total: paid.amount / 100, method: 'card', pending: true });
-    }
+        checkPayment();
+        return () => {
+            active = false;
+            window.clearTimeout(timer);
+        };
+    }, [pendingCard, card, pollTimedOut, storageKey, pay.reset, wallet.reload, list.reload]);
 
     // Keep the key across ambiguous failures so a retry cannot create a second charge.
     useEffect(() => {
         if (['PAYMENT_NOT_CONFIRMABLE', 'PAYMENT_REQUIRES_RECONCILIATION'].includes(pay.errorCode)) return;
-        if (pay.errorCode && !RETRY_CODES.includes(pay.errorCode) && !waiting) quote.reload();
-    }, [pay.errorCode, quote.reload, waiting]);
+        if (pay.errorCode && !RETRY_CODES.includes(pay.errorCode) && !pendingCard) quote.reload();
+    }, [pay.errorCode, quote.reload, pendingCard]);
 
     return <>
         <PageHeader title="Borrow list" />
         {list.loading && !list.data && <Spinner />}
         <Message type="error">{list.error || removal.error}</Message>
 
-        {done && <Card title={done.pending ? 'Payment pending' : 'Requests sent'} className={styles.done}>
-            <p>{done.pending
-                ? 'Your card payment is still being confirmed. Check My bookings before retrying.'
-                : `You paid ${money(done.total)} ${done.method === 'wallet' ? 'from your wallet' : 'by card'} for ${done.count} ${done.count === 1 ? 'item' : 'items'}. Each owner will now approve or decline. A declined request is refunded to your wallet.`}</p>
+        {done && <Card title="Requests sent" className={styles.done}>
+            <p>{`You paid ${money(done.total)} ${done.method === 'wallet' ? 'from your wallet' : 'by card'} for ${done.count} ${done.count === 1 ? 'item' : 'items'}. Each owner will now approve or decline. A declined request is refunded to your wallet.`}</p>
             <Button to="/bookings">See my bookings <Icon name="arrow" size={16} /></Button>
         </Card>}
 
-        {list.data && entries.length === 0 && !done && <EmptyState featured icon="box" title="Your borrow list is empty"
+        {pendingCard && <Message type="info">{pollTimedOut ? 'Checkout is still awaiting payment confirmation.' : 'Your card payment is being confirmed.'}</Message>}
+        {pendingCard && pollTimedOut && <>
+            <Button disabled={pay.pending} onClick={() => setPollTimedOut(false)}>Check payment status</Button>
+            <Button variant="secondary" pending={pay.pending} onClick={handleCard}>Resume card payment</Button>
+        </>}
+        {pendingCard && !['PAYMENT_NOT_CONFIRMABLE', 'PAYMENT_NOT_PENDING'].includes(pay.errorCode) && <Message type="error">{pay.error}</Message>}
+        {list.data && entries.length === 0 && !done && !pendingCard && <EmptyState featured icon="box" title="Your borrow list is empty"
             description="Pick dates on an item and press Reserve to add it here. When you are ready, pay for everything at once."
             action={<Button to="/items">Start discovering <Icon name="arrow" size={16} /></Button>} />}
 
@@ -175,12 +226,11 @@ export default function BorrowListPage() {
                     </form>}
                 <Message type="error">{promo.error}</Message>
 
-                <Message type="error">{quote.error || pay.error}</Message>
-                {refunded && <Message type="error">{refunded === 'refund_pending' ? 'Your card refund is pending.' : 'Your card was refunded.'}</Message>}
-                {waiting && <Message type="info">Waiting for the card payment to be confirmed…</Message>}
+                <Message type="error">{quote.error || (!pendingCard && pay.error)}</Message>
+                {refunded && <Message type="error">{refunded === 'failed' ? 'Your card payment did not go through.' : refunded === 'refund_pending' ? 'Your card refund is pending.' : 'Your card was refunded.'}</Message>}
                 <div className={styles.payButtons}>
-                    <Button pending={pay.pending && !card} disabled={pay.pending || waiting || done?.pending || quote.loading || Boolean(quote.error) || typeof total !== "number"} onClick={handleWallet}>Pay from wallet</Button>
-                    {cardPaymentsAvailable && <Button variant="secondary" disabled={pay.pending || waiting || done?.pending || quote.loading || Boolean(quote.error) || typeof total !== "number"} onClick={handleCard}>Pay by card</Button>}
+                    <Button pending={pay.pending && !card} disabled={paymentDisabled} onClick={handleWallet}>Pay from wallet</Button>
+                    {cardPaymentsAvailable && <Button variant="secondary" disabled={pay.pending || paymentDisabled} onClick={handleCard}>Pay by card</Button>}
                 </div>
                 {typeof balance === 'number' && typeof total === "number" && !enoughInWallet && <p className={styles.note}>Your wallet has {money(balance)}, which may not be enough. If it is short, the payment is refused and nothing is taken.</p>}
             </Card>
@@ -189,6 +239,6 @@ export default function BorrowListPage() {
         <DatesDialog entry={editing} onClose={() => setEditing(null)}
             onSave={async dates => { await updateBorrowListDates(editing.item._id, dates); list.reload(); }} />
         <CardPaymentDialog open={Boolean(card)} clientSecret={card?.clientSecret} amountLabel={card ? `${money(card.amount / 100)} for ${entries.length} ${entries.length === 1 ? 'item' : 'items'}` : ''}
-            onPaid={handleCardPaid} onClose={() => { setCard(null); pay.reset(); }} />
+            onConfirming={markCardConfirming} onPaid={() => setCard(null)} onClose={() => { setCard(null); pay.reset(); }} />
     </>;
 }

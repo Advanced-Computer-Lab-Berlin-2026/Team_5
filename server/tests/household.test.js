@@ -95,13 +95,13 @@ describe('POST /api/household/requests', () => {
         request(app).post('/api/household/requests').set('Origin', TRUSTED_ORIGIN).send(body);
 
     it('returns 201 and creates a pending request', async () => {
-        const response = await sendRequest({ emailOrPhone: '0100', relation: 'siblings' });
+        const response = await sendRequest({ emailOrPhone: '0100', relation: 'parent' });
 
         expect(response.status).toBe(201);
         expect(response.body.message).toBe('Household request sent');
         expect(response.body.request.status).toBe('pending');
         expect(FriendLink.create).toHaveBeenCalledExactlyOnceWith({
-            requester: 'member123', recipient: 'member456', relation: 'siblings'
+            requester: 'member123', recipient: 'member456', relation: 'parent'
         });
     });
 
@@ -175,7 +175,7 @@ describe('who can use household routes', () => {
         const responses = [
             await request(app).get('/api/household/search').query({ query: '0100' }),
             await request(app).post('/api/household/requests').set('Origin', TRUSTED_ORIGIN)
-                .send({ emailOrPhone: '0100', relation: 'siblings' }),
+                .send({ emailOrPhone: '0100', relation: 'parent' }),
             await request(app).get('/api/household/requests/incoming'),
             await request(app).patch('/api/household/requests/LNK-1').set('Origin', TRUSTED_ORIGIN)
                 .send({ decision: 'accept' }),
@@ -196,7 +196,7 @@ describe('who can use household routes', () => {
 
         const search = await request(app).get('/api/household/search').query({ query: '0100' });
         const send = await request(app).post('/api/household/requests').set('Origin', TRUSTED_ORIGIN)
-            .send({ emailOrPhone: '0100', relation: 'siblings' });
+            .send({ emailOrPhone: '0100', relation: 'parent' });
 
         expect(search.status).toBe(200);
         expect(send.status).toBe(201);

@@ -169,7 +169,7 @@ function ExtensionCard({ reservation }) {
     return <Card title="Need it longer?" className={styles.extension}>
         <form onSubmit={async event => { event.preventDefault(); await ask.run(() => requestExtension(reservation._id, range.end), 'Asked. The lender will accept or decline, and you will get a notification.'); }}>
             <p className={styles.muted}>It is due back on {formatDate(reservation.endDate)}. Press the day you would like to bring it back instead.</p>
-            <div className={styles.smallCalendar}><Calendar compact fixedStart={lastDay} minDate={lastDay} booked={others} value={range} onChange={setRange} /></div>
+            <div className={styles.smallCalendar}><Calendar compact fixedStart={lastDay} minDate={lastDay} booked={others} held={calendar.data?.waitlistHolds} value={range} onChange={setRange} /></div>
             {clash && <Message type="error">Someone has booked days before your new last day. Pick an earlier day.</Message>}
             <Message type="success">{ask.success}</Message>
             <Message type="error">{ask.error}</Message>

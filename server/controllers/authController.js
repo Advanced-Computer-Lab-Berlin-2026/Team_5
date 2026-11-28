@@ -40,8 +40,8 @@ const userSchema = joi.object(
         name: joi.string().trim().min(2).max(20).required(),
         email: joi.string().trim().email().required(),
         password: joi.string().min(6).max(40).required(),
-        phoneNumber: joi.string().pattern(PHONE_NUMBER_REGEX_PATTERN).allow(''),
-        homeAddress: joi.string().allow('')
+        phoneNumber: joi.string().trim().pattern(PHONE_NUMBER_REGEX_PATTERN).required(),
+        homeAddress: joi.string().trim().max(500).required()
     }
 );
 

@@ -21,7 +21,7 @@ export async function getAlternatives(req, res, next) {
         if (!item) return res.status(404).json({ message: 'Item not found' });
 
         const excludedIds = value.startDate
-            ? await findBookedItemIds(value.startDate, value.endDate)
+            ? await findBookedItemIds(value.startDate, value.endDate, req.catalogViewerId)
             : [];
         const alternatives = await Item.find(
             {

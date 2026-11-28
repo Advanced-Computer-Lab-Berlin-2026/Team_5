@@ -320,3 +320,7 @@ describe('POST /api/reservations', () => {
         expect(hasReachedReservationLimit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ _id: 'member123' }), session);
     });
 });
+vi.mock('../services/waitlistAvailability.js', () => ({
+    checkWaitlistAvailability: vi.fn(),
+    releaseWaitlistEntry: vi.fn()
+}));

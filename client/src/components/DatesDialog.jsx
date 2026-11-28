@@ -15,6 +15,7 @@ export function DatesDialog({ entry, onSave, onClose }) {
     useCardTilt(dialog);
     const save = useAction();
     const [booked, setBooked] = useState([]);
+    const [held, setHeld] = useState([]);
     const [range, setRange] = useState({ start: '', end: '' });
     const open = Boolean(entry);
 
@@ -36,7 +37,15 @@ export function DatesDialog({ entry, onSave, onClose }) {
         if (!entry) return;
         save.reset();
         setRange({ start: dayKey(entry.startDate), end: dayKey(entry.endDate) });
-        getItemCalendar(entry.item._id).then(data => setBooked(data.reservations ?? [])).catch(() => setBooked([]));
+        let current = true;
+        setBooked([]);
+        setHeld([]);
+        getItemCalendar(entry.item._id).then(data => {
+            if (!current) return;
+            setBooked(data.reservations ?? []);
+            setHeld(data.waitlistHolds ?? []);
+        }).catch(() => {});
+        return () => { current = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [entry]);
 
@@ -48,7 +57,7 @@ export function DatesDialog({ entry, onSave, onClose }) {
     return <dialog ref={dialog} className={styles.dialog} aria-label="Change dates" onCancel={event => { event.preventDefault(); onClose(); }} onClose={onClose}>
         {entry && <form onSubmit={handleSubmit}>
             <h2>Change dates for {entry.item.name}</h2>
-            <Calendar key={entry.item._id} booked={booked} value={range} onChange={setRange} />
+            <Calendar key={entry.item._id} booked={booked} held={held} value={range} onChange={setRange} />
             <Message type="error">{save.error}</Message>
             <Button type="submit" fullWidth pending={save.pending} disabled={!range.start || !range.end}>Save dates</Button>
             <div className={styles.footer}>

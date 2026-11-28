@@ -12,7 +12,7 @@ import { FriendLink } from "../models/FriendLink.js";
 import { Reservation } from "../models/Reservation.js";
 
 vi.mock('../models/User.js', () => ({ User: { find: vi.fn() } }));
-vi.mock('../models/MembershipTier.js', () => ({ MembershipTier: { find: vi.fn() } }));
+vi.mock('../models/MembershipTier.js', () => ({ MembershipTier: { find: vi.fn(), findById: vi.fn(async () => null) } }));
 vi.mock('../models/FriendLink.js', () => ({ FriendLink: { find: vi.fn() } }));
 vi.mock('../models/Reservation.js', () => ({ Reservation: { countDocuments: vi.fn() } }));
 
@@ -55,7 +55,7 @@ describe('activeTier', () => {
         ['Plus', null, 'Plus'],
         ['Plus', PAST, 'Basic'],
         ['Premium', NOW, 'Basic'],
-        ['Gold', FUTURE, 'Basic'],
+        ['Gold', FUTURE, 'Gold'],
         [undefined, undefined, 'Basic']
     ])('%s with renewal %s counts as %s', (tier, renewalDate, expected) => {
         expect(activeTier({ tier, renewalDate }, NOW)).toBe(expected);
